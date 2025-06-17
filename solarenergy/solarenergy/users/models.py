@@ -1,39 +1,180 @@
+import os
+import uuid
+from datetime import datetime
 
-from typing import ClassVar
+# Django imports
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator, FileExtensionValidator
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db import models
+from django.conf import settings
 
-from django.contrib.auth.models import AbstractUser
-from django.db.models import CharField
-from django.db.models import EmailField
-from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
+class UserManager(BaseUserManager):
+    """Gerenciador de usuários personalizado."""
+    def create_user(self, email, name, celular, password=None,):
+        """Cria um usuário com os dados fornecidos."""
+        if not email:
+            raise ValueError('O usuário deve ter um endereço de email')
+        email = self.normalize_email(email)
+        
+        user = self.model(
+            email=email,
+            name=name.upper() if name else None,
+        )
+        
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
-from .managers import UserManager
+    def create_superuser(self, email, name, password=None):
+        """Cria um superusuário."""
+        return self.create_user(
+            email=email,
+            name=name,
+            password=password,
+            is_admin=True,
+            is_active=True,
+            is_superuser=True,  # Explicitamente define como superuser
+        )
 
+class User(AbstractBaseUser, PermissionsMixin):
+    """Modelo de usuário para policiais militares."""
+    # Adicionar o HistoricalRecords para auditoria
 
-class User(AbstractUser):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(
+        max_length=255,
+        unique=True,
+        verbose_name='Email'
+    )
+    name = models.CharField(
+        max_length=255,
+        verbose_name='Nome'
+    )
+    cpf_validator = RegexValidator(
+        regex=CPF_REGEX,
+        message='CPF inválido'
+    )
+    
+    is_active = models.BooleanField(
+        default=False,
+        verbose_name='Ativo'
+    )
+    is_admin = models.BooleanField(
+        default=False,
+        verbose_name='Administrador'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Criado em'
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='Atualizado em'
+    )
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['name']
+
+    class Meta:
+        verbose_name = 'Usuário'
+        verbose_name_plural = 'Usuários'
+
+    def __str__(self):
+        return self.get_display_name()
+
+    def get_display_name(self):
+        """Retorna o nome de exibição do usuário."""
+        return f"{self.name}"
+
+    def _normalize_text_fields(self):
+        """Normaliza os campos de texto."""
+        if self.name:
+            self.name = self.name.upper()
+
+    def save(self, *args, **kwargs):
+        """Salva o usuário após normalizar os campos."""
+        self._normalize_text_fields()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_staff(self):
+        """Verifica se o usuário é staff."""
+        return self.is_admin
+
+    @property
+    def is_superuser_by_admin(self):
+        """Verifica se o usuário é superusuário.
+        Nota: isso é complementar à flag is_superuser da PermissionsMixin."""
+        return self.is_admin
+
+class EmailLog(models.Model):
     """
-    Default custom user model for solarenergy.
-    If adding fields that need to be filled at user signup,
-    check forms.SignupForm and forms.SocialSignupForms accordingly.
+    Registra todos os e-mails enviados pelo sistema.
     """
+    STATUS_CHOICES = (
+        ('sent', 'Enviado'),
+        ('failed', 'Falhou'),
+        ('pending', 'Pendente'),
+    )
+    EMAIL_TYPES = (
+        ('welcome', 'Boas-vindas'),
+        ('password_reset', 'Redefinição de Senha'),
+        ('notification', 'Notificação'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_logs'
+    )
+    email_type = models.CharField(
+        max_length=20,
+        choices=EMAIL_TYPES
+    )
+    recipient = models.EmailField()
+    subject = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+    error_message = models.TextField(null=True, blank=True)
 
-    # First and last name do not cover name patterns around the globe
-    name = CharField(_("Name of User"), blank=True, max_length=255)
-    first_name = None  # type: ignore[assignment]
-    last_name = None  # type: ignore[assignment]
-    email = EmailField(_("email address"), unique=True)
-    username = None  # type: ignore[assignment]
+    class Meta:
+        ordering = ['-sent_at']
+        verbose_name = 'Log de E-mail'
+        verbose_name_plural = 'Logs de E-mails'
 
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
+    def __str__(self):
+        return f"{self.email_type} para {self.recipient} ({self.status})"
 
-    objects: ClassVar[UserManager] = UserManager()
+class UserChangeLog(models.Model):
+    """Registro de alterações feitas em usuários."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='change_logs',
+        verbose_name='Usuário alterado'
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='changes_made',
+        verbose_name='Alterado por'
+    )
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name='Data da alteração')
+    field_name = models.CharField(max_length=100, verbose_name='Campo alterado')
+    old_value = models.TextField(blank=True, null=True, verbose_name='Valor antigo')
+    new_value = models.TextField(blank=True, null=True, verbose_name='Valor novo')
 
-    def get_absolute_url(self) -> str:
-        """Get URL for user's detail view.
+    class Meta:
+        ordering = ['-changed_at']
+        verbose_name = 'Log de Alteração de Usuário'
+        verbose_name_plural = 'Logs de Alterações de Usuários'
 
-        Returns:
-            str: URL for user detail.
-
-        """
-        return reverse("users:detail", kwargs={"pk": self.id})
+    def __str__(self):
+        return f"{self.user} - {self.field_name} - {self.changed_at}"
