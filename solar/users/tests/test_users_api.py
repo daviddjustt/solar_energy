@@ -25,10 +25,6 @@ def create_user():
         celular="11987654321",
         is_active=True,
         is_admin=False,
-        patent=PatentChoices.SOLDADO,
-        sac_access_level=SACAccessLevelChoices.NO_ACCESS,
-        is_cpi=False,
-        is_operacoes=False
     ):
         user = User.objects.create_user(
             email=email,
@@ -36,13 +32,9 @@ def create_user():
             name=name,
             cpf=cpf,
             celular=celular,
-            patent=patent
         )
         user.is_active = is_active
         user.is_admin = is_admin
-        user.sac_access_level = sac_access_level
-        user.is_cpi = is_cpi
-        user.is_operacoes = is_operacoes
         user.save()
         return user
     return _create_user
@@ -59,8 +51,6 @@ def admin_user(create_user):
         email="admin@example.com",
         cpf="98765432109",
         is_admin=True,
-        patent=PatentChoices.CORONEL,
-        sac_access_level=SACAccessLevelChoices.FOCAL
     )
 
 
@@ -69,8 +59,6 @@ def pm_user(create_user):
     return create_user(
         email="pm@example.com",
         cpf="11122233344",
-        patent=PatentChoices.TENENTE,
-
     )
 
 
@@ -227,8 +215,6 @@ class TestUserManagement:
             "re_password": "StrongPassword123",
             "cpf": "11122233344",
             "celular": "11987654321",
-            "patent": PatentChoices.SOLDADO,
-
         }
 
         response = api_client.post(url, data)

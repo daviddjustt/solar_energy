@@ -8,7 +8,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from solar.users.views import CustomUserViewSet, SpecialUserCPFLoginView
+from solar.users.views import CustomUserViewSet
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
@@ -30,7 +30,6 @@ urlpatterns = [
     path('api/v1/auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
 
     path('api/v1/auth/', include('djoser.urls.jwt')),
-    path('auth/special/cpf-login/', SpecialUserCPFLoginView.as_view(), name='special-cpf-login'),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento

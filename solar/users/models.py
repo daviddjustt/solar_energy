@@ -14,33 +14,6 @@ CPF_REGEX = r'^\d{11}$'
 CELULAR_REGEX = r'^\d{11}$'
 MAX_IMAGE_SIZE_MB = 7
 
-class PatentChoices(models.TextChoices):
-    """Opções de patentes para policiais militares."""
-    SOLDADO = 'SOLDADO', 'Soldado'
-    CABO = 'CABO', 'Cabo'
-    SARGENTO = 'SARGENTO', 'Sargento'
-    SUBTENENTE = 'SUBTENENTE', 'Subtenente'
-    TENENTE = 'TENENTE', 'Tenente'
-    CAPITAO = 'CAPITAO', 'Capitão'
-    MAJOR = 'MAJOR', 'Major'
-    TENENTE_CORONEL = 'TENENTE_CORONEL', 'Tenente Coronel'
-    CORONEL = 'CORONEL', 'Coronel'
-
-class SacProfileChoices(models.TextChoices):
-    """Perfis dentro do SAC."""
-    SEM_ACESSO = 'SEM_ACESSO', 'Sem Acesso'
-    LEITOR = 'LEITOR', 'Leitor'
-    ANALISTA = 'ANALISTA', 'Analista'
-    FOCAL = 'FOCAL', 'Focal'
-
-def user_photo_path(instance, filename):
-    """Gera o caminho para armazenar a foto do usuário."""
-    if not instance.id:
-        instance.id = uuid.uuid4()
-    ext = os.path.splitext(filename)[1]
-    new_filename = f"{instance.id}{ext}"
-    return os.path.join('user_photos', new_filename)
-
 def validate_cpf(cpf):
     """Valida o CPF de forma simplificada."""
     cpf = ''.join(filter(str.isdigit, cpf))
@@ -57,27 +30,17 @@ def validate_image_size(image):
 
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
-    def create_user(self, email, name, cpf, celular, password=None, patent=None, is_sac=False, sac_profile=None, acesso_especial_cpf=True, **extra_fields):
+    def create_user(self, email, name, cpf, celular, password=None, patent=None, **extra_fields):
         """Cria um usuário com os dados fornecidos."""
         if not email:
             raise ValueError('O usuário deve ter um endereço de email')
         email = self.normalize_email(email)
-        extra_fields.setdefault('is_operacoes', False)  # Define valor padrão para is_operacoes
-        # Define valores padrão para patent se não fornecido
-        if patent is None:
-            patent = PatentChoices.SOLDADO
-        # Define sac_profile como SEM_ACESSO se is_sac=False
-        if not is_sac:
-            sac_profile = SacProfileChoices.SEM_ACESSO
+
         user = self.model(
             email=email,
             name=name.upper() if name else None,
             cpf=cpf,
             celular=celular,
-            patent=patent,
-            is_sac=is_sac,
-            sac_profile=sac_profile,
-            acesso_especial_cpf=acesso_especial_cpf,
             **extra_fields
         )
         user.set_password(password)
@@ -91,15 +54,9 @@ class UserManager(BaseUserManager):
             name=name,
             cpf=cpf,
             celular=celular,
-            patent=PatentChoices.CORONEL,
             password=password,
             is_admin=True,
             is_active=True,
-            is_superuser=True,  # Explicitamente define como superuser
-            is_operacoes=True,  # Superusuário: is_operacoes = True
-            is_sac=True,  # Define is_sac como True para superusuário
-            sac_profile=SacProfileChoices.FOCAL,  # Define o perfil SAC como "Focal" por padrão
-            acesso_especial_cpf=True  # Garante que superuser tenha acesso especial por CPF
         )
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -135,22 +92,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         validators=[celular_validator],
         verbose_name='Celular'
     )
-    photo = models.ImageField(
-        upload_to=user_photo_path,
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png']),
-            validate_image_size
-        ],
-        verbose_name='Foto'
-    )
-    patent = models.CharField(
-        max_length=20,
-        choices=PatentChoices.choices,
-        default=PatentChoices.SOLDADO,
-        verbose_name='Patente'
-    )
     is_active = models.BooleanField(
         default=False,
         verbose_name='Ativo'
@@ -159,21 +100,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=False,
         verbose_name='Administrador'
     )
-    is_operacoes = models.BooleanField(
-        default=False,
-        verbose_name='Operações'
-    )
-    is_sac = models.BooleanField(
-        default=False,
-        verbose_name='É SAC'
-    )
-    sac_profile = models.CharField(
-        max_length=10,
-        choices=SacProfileChoices.choices,
-        null=True,
-        blank=True,
-        verbose_name='Perfil SAC'
-    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Criado em'
@@ -181,20 +107,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name='Atualizado em'
-    )
-
-    # Campos de aceso via CPF
-
-    acesso_especial_cpf = models.BooleanField(
-        default=True,
-        verbose_name='Acesso Especial via CPF',
-        help_text='Usuário pode fazer login via link especial usando apenas CPF'
-    )
-
-    primeiro_acesso_especial = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name='Primeiro Acesso Especial'
     )
 
     objects = UserManager()
@@ -233,8 +145,6 @@ class User(AbstractBaseUser, PermissionsMixin):
             raise ValidationError({'cpf': e})
         if not self.celular:
             raise ValidationError({'celular': 'O celular é obrigatório.'})
-        if self.is_sac and not self.sac_profile:
-            raise ValidationError({'sac_profile': 'Perfil SAC é obrigatório se o usuário for SAC.'})
 
     def save(self, *args, **kwargs):
         """Salva o usuário após normalizar os campos."""

@@ -194,16 +194,6 @@ Authorization: Bearer {{authToken}}
 }
 
 ###
-# 18. TENTAR ATUALIZAR ACESSO AO SAC (DEVE FALHAR)
-PATCH {{baseUrl}}/auth/users/me/
-Content-Type: {{contentType}}
-Authorization: Bearer {{authToken}}
-
-{
-  "sac_access_level": "FOCAL"
-}
-
-###
 # 19. TENTAR ATUALIZAR STATUS CPI (DEVE FALHAR)
 PATCH {{baseUrl}}/auth/users/me/
 Content-Type: {{contentType}}
@@ -260,8 +250,6 @@ Authorization: Bearer {{adminToken}}
 
 {
   "name": "Nome Alterado Pelo Admin",
-  "patent": "CAPITAO",
-  "sac_access_level": "BASIC"
 }
 
 ###

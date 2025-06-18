@@ -22,7 +22,6 @@ from rest_framework.decorators import action
 # Local application imports
 from .models import User, UserChangeLog
 from .serializers import UserUpdateSerializer, SpecialCPFTokenCreateSerializer
-from .services import UserImportService, UserExportService
 
 
 # Configure the logger
@@ -153,124 +152,6 @@ class CustomUserViewSet(UserViewSet):
 
         return Response(history_data)
 
-
-class ImportUserView(views.APIView):
-    """
-    API view para importação de usuários a partir de um arquivo CSV.
-    Requer permissões de admin ou superuser.
-    """
-    @extend_schema(
-        description="Importa usuários a partir de um arquivo CSV e opcionalmente envia e-mails de boas-vindas.",
-        parameters=[
-            OpenApiParameter(
-                name='file',
-                description='Arquivo CSV para importação',
-                required=True,
-                type='file' # Indica que é um upload de arquivo
-            ),
-            OpenApiParameter(
-                name='send_emails',
-                description='Enviar e-mails de boas-vindas',
-                required=False,
-                type=bool,
-                default=True
-            ),
-        ],
-        request={
-            'multipart/form-data': { # Especifica o tipo de conteúdo esperado
-                'type': 'object',
-                'properties': {
-                    'file': {'type': 'string', 'format': 'binary'},
-                    'send_emails': {'type': 'boolean', 'default': True}
-                },
-                'required': ['file']
-            }
-        },
-        responses={
-            200: OpenApiResponse(description="Importação bem-sucedida ou parcial com detalhes"),
-            400: OpenApiResponse(description="Requisição inválida"),
-            403: OpenApiResponse(description="Permissão negada"),
-            500: OpenApiResponse(description="Erro interno do servidor")
-        }
-    )
-    def post(self, request, format=None):
-        """
-        Processa a requisição POST para importar usuários de um arquivo CSV.
-        """
-        # Verificar se o usuário tem permissões adequadas
-        if not request.user.is_admin and not request.user.is_superuser:
-            logger.warning(f"Tentativa de importação de usuário por usuário sem permissão: {request.user.email}")
-            return Response(
-                {'error': 'Permissão negada. Apenas administradores podem importar usuários.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Verificar se um arquivo foi enviado
-        if 'file' not in request.FILES:
-            logger.warning("Tentativa de importação sem arquivo enviado.")
-            return Response(
-                {'error': 'Nenhum arquivo foi enviado.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        file_obj = request.FILES['file']
-        # Opção de envio de e-mail (padrão: True)
-        # request.data.get retorna string para parâmetros de formulário, converter para bool
-        send_emails_str = request.data.get('send_emails', 'true').lower()
-        send_emails = send_emails_str in ['true', '1', 'yes']
-
-        logger.info(f"Iniciando importação de arquivo '{file_obj.name}' por {request.user.email}. Enviar e-mails: {send_emails}")
-
-        try:
-            # Instanciar e chamar o serviço de importação
-            importer = UserImportService(file_obj, admin_user=request.user)
-            results = importer.import_users()
-
-            # Preparar resposta com base nos resultados do serviço
-            response_data = {
-                'message': results.get('message', 'Processamento concluído.'),
-                'success': results.get('success', False), # Indica se o processo geral rodou sem exceções
-                'imported_count': len(results.get('imported_users', [])),
-                'error_count': len(results.get('errors', [])),
-                'email_fail_count': len(results.get('email_errors', [])),
-                'details': {
-                    'imported_users': results.get('imported_users', []), # Lista de usuários importados com sucesso (pode incluir senha temporária)
-                    'errors': results.get('errors', []), # Lista de erros por linha
-                    'email_errors': results.get('email_errors', []) # Lista de emails que falharam no envio
-                }
-            }
-
-            # Determinar o status da resposta
-            if results.get('success') and not results.get('errors'):
-                 status_code = status.HTTP_200_OK # Sucesso total
-            elif results.get('success') and results.get('errors'):
-                 status_code = status.HTTP_200_OK # Sucesso parcial (algumas linhas falharam) - Ainda consideramos 200 OK para API
-                 response_data['message'] = "Importação concluída com alguns erros."
-            else: # results.get('success') is False (erro geral no serviço)
-                 status_code = status.HTTP_400_BAD_REQUEST # Erro na requisição ou no processamento geral
-                 # O serviço já deve ter um erro geral no campo 'message' ou nos 'errors'
-
-            logger.info(f"Importação finalizada para '{file_obj.name}'. Status: {status_code}, Sucessos: {response_data['imported_count']}, Falhas: {response_data['error_count']}")
-            return Response(response_data, status=status_code)
-
-        except Exception as e:
-            logger.error(f"Erro inesperado durante a importação de arquivo '{file_obj.name}': {e}", exc_info=True)
-            # Captura qualquer exceção não tratada pelo serviço
-            return Response(
-                {
-                    'success': False,
-                    'message': f'Erro interno do servidor durante a importação: {str(e)}',
-                    'error_count': 1,
-                    'details': {
-                        'errors': [{'row': 'N/A', 'identifier': 'Geral', 'error': str(e), 'trace': traceback.format_exc()}],
-                        'imported_users': [],
-                        'email_errors': []
-                    }
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
 class SpecialUserCPFLoginView(TokenCreateView):
     serializer_class = SpecialCPFTokenCreateSerializer
     
@@ -305,10 +186,3 @@ class SpecialUserCPFLoginView(TokenCreateView):
     def _get_token(self, user):
         from rest_framework_simplejwt.tokens import RefreshToken
         return RefreshToken.for_user(user)
-
-
-def exportar_usuarios_download_view(request):
-     queryset = User.objects.all() # Exemplo: exportar todos
-     export_service = UserExportService()
-     response = export_service.create_csv_response(queryset)
-     return response

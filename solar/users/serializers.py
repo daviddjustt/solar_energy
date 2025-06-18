@@ -13,42 +13,15 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
 # Local application imports
-from .models import User, PatentChoices
+from .models import User
 from djoser.serializers import TokenCreateSerializer
 from django.contrib.auth import authenticate
 
 
 logger = logging.getLogger(__name__)
 
-class ImportUserSerializer(serializers.Serializer):
-    """
-    Serializer para validar os dados de entrada da API de importação de usuários.
-    Espera um arquivo e uma flag opcional para enviar e-mails.
-    """
-    file = serializers.FileField(
-        label=_("Arquivo"),
-        help_text=_("Selecione um arquivo CSV, XLS ou XLSX com os dados dos usuários.")
-        # Validação de tipo de arquivo pode ser adicionada aqui ou no serviço,
-        # o serviço já faz uma validação mais robusta lendo o conteúdo.
-        # A validação básica do FileField verifica a presença do arquivo.
-    )
-    send_emails = serializers.BooleanField(
-        label=_("Enviar E-mails"),
-        help_text=_("Marque para enviar e-mails de boas-vindas aos novos usuários."),
-        required=False, # O campo não é obrigatório na requisição
-        default=True    # Se não for enviado, o valor padrão é True
-    )
-
-    # Nota: Validações mais específicas sobre o conteúdo do arquivo (formato das colunas, dados internos)
-    # devem ser feitas na lógica de negócio, que no seu caso é o UserImportService.
-    # Este serializer valida apenas a presença e o tipo básico dos inputs da requisição API.
-
 class UserCreateSerializer(DjoserUserCreateSerializer):
-    """Serializer para criação de usuários com tratamento especial para matrícula."""
-    patent = serializers.ChoiceField(
-        choices=PatentChoices.choices,
-        default=PatentChoices.SOLDADO
-    )
+    """Serializer para criação de usuários com tratamento especial."""
 
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
