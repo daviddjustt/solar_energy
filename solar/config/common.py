@@ -27,9 +27,7 @@ class Common(Configuration):
         'import_export',
         
         # Your apps
-        'arcanosig.users',
-        'arcanosig.oper',
-        'arcanosig.sac',
+        'solar.users',
     )
     # https://docs.djangoproject.com/en/2.0/topics/http/middleware/
     MIDDLEWARE = (
@@ -44,13 +42,13 @@ class Common(Configuration):
         'simple_history.middleware.HistoryRequestMiddleware', # Simple history
     )
     ALLOWED_HOSTS = ["*"]
-    ROOT_URLCONF = 'arcanosig.urls'
+    ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-    WSGI_APPLICATION = 'arcanosig.wsgi.application'
+    WSGI_APPLICATION = 'solar.wsgi.application'
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     ADMINS = (
-        ('Author', 'isis.araujo@outlook.com'),
+        ('Author', 'daviddjustt@gmail.com'),
     )
     # Postgres
     DATABASES = {
@@ -118,8 +116,8 @@ class Common(Configuration):
         },
     ]
     SPECTACULAR_SETTINGS = {
-        'TITLE': 'Arcanosig API',
-        'DESCRIPTION': 'Documentação da API do projeto Arcanosig',
+        'TITLE': 'solar API',
+        'DESCRIPTION': 'Documentação da API do projeto solar',
         'VERSION': '1.0.0',
         'SERVE_INCLUDE_SCHEMA': False,
         'SECURITY': [{'Bearer': []}],
@@ -193,7 +191,7 @@ class Common(Configuration):
     AUTH_USER_MODEL = 'users.User'
     # Authentication backends - com CPF e email
     AUTHENTICATION_BACKENDS = [
-        'arcanosig.users.backends.EmailOrCPFBackend',  # Backend customizado
+        'solar.users.backends.EmailOrCPFBackend',  # Backend customizado
         'django.contrib.auth.backends.ModelBackend',   # Backend padrão como fallback
     ]
     # Djoser Settings
@@ -210,11 +208,11 @@ class Common(Configuration):
         'ACTIVATION_URL': 'activate/{uid}/{token}',
         'SEND_ACTIVATION_EMAIL': True,
         'SERIALIZERS': {
-            'user_create': 'arcanosig.users.serializers.UserCreateSerializer',
-            'user': 'arcanosig.users.serializers.UserSerializer',
-            'current_user': 'arcanosig.users.serializers.UserSerializer',
-            'user_update': 'arcanosig.users.serializers.UserUpdateSerializer',
-            'token_create': 'arcanosig.users.serializers.SpecialCPFTokenCreateSerializer',
+            'user_create': 'solar.users.serializers.UserCreateSerializer',
+            'user': 'solar.users.serializers.UserSerializer',
+            'current_user': 'solar.users.serializers.UserSerializer',
+            'user_update': 'solar.users.serializers.UserUpdateSerializer',
+            'token_create': 'solar.users.serializers.SpecialCPFTokenCreateSerializer',
         },
         'PERMISSIONS': {
             'user': ['rest_framework.permissions.IsAuthenticated'],
@@ -224,12 +222,12 @@ class Common(Configuration):
             'user_update': ['rest_framework.permissions.IsAuthenticated'],
         },
         'EMAIL': {
-            'activation': 'arcanosig.users.email.ActivationEmail',
-            'confirmation': 'arcanosig.users.email.ConfirmationEmail',
-            'password_reset': 'arcanosig.users.email.PasswordResetEmail',
-            'password_changed_confirmation': 'arcanosig.users.email.PasswordChangedConfirmationEmail',
-            'username_changed_confirmation': 'arcanosig.users.email.UsernameChangedConfirmationEmail',
-            'username_reset': 'arcanosig.users.email.UsernameResetEmail',
+            'activation': 'solar.users.email.ActivationEmail',
+            'confirmation': 'solar.users.email.ConfirmationEmail',
+            'password_reset': 'solar.users.email.PasswordResetEmail',
+            'password_changed_confirmation': 'solar.users.email.PasswordChangedConfirmationEmail',
+            'username_changed_confirmation': 'solar.users.email.UsernameChangedConfirmationEmail',
+            'username_reset': 'solar.users.email.UsernameResetEmail',
         }
     }
     SIMPLE_JWT = {
@@ -256,5 +254,5 @@ class Common(Configuration):
     }
 
     # Configurações para URLs e nome do site 
-    SITE_NAME = "ArcanoSig"
+    SITE_NAME = "SolarEnergy"
     SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
