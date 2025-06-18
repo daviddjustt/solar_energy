@@ -1,0 +1,35 @@
+services:
+  postgres:
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    image: postgres:16.4
+  web:
+    restart: always
+    environment:
+      - DJANGO_SECRET_KEY=local
+    build: ./
+    command: >
+      bash -c "python3 wait_for_postgres.py &&
+               python3 ./manage.py migrate &&
+               python3 ./manage.py runserver 0.0.0.0:8080"
+    volumes:
+      - ./:/code
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - mailhog
+  documentation:
+    restart: always
+    build: ./
+    command: "python3 -m mkdocs serve"
+    volumes:
+      - ./:/code
+    ports:
+      - "8081:8080"
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: always
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Interface web
