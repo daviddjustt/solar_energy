@@ -1,0 +1,194 @@
+@baseUrl = http://localhost:8080/api/v1
+@contentType = application/json
+
+# ==================================================================
+# VARIÁVEIS DINÂMICAS
+# ==================================================================
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ1NDE3MzM3LCJpYXQiOjE3NDU0MTU1MzcsImp0aSI6IjllMTY2NmE5Yzk4NDQ0OGJiNzBjOWE1Nzg5MzBhNjAxIiwidXNlcl9pZCI6IjNmMDhlYWZlLTc1YjEtNDZkZS1hNWEwLTIzZDBkYjA5MzQ0ZSJ9.HZqkikVJW8Pgb457P5VVzSMxCVPiZYDlwZfIUTdBxhc
+@policialToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ1NDE3MzU2LCJpYXQiOjE3NDU0MTU1NTYsImp0aSI6ImMxNjEyZDk3MDU4MDRmNWVhZTkyYTliNTA1N2M4MmIxIiwidXNlcl9pZCI6IjE0MDRjODU3LTZkMWMtNGE5ZC1iMjE2LTNkZDkwZmU4MTA4ZCJ9._aeMwnnRDOBjfHhIuyfBZp1M1gtg1tf8hI3G4Bqtw6o
+
+# ==================================================================
+# 1. AUTENTICAÇÃO
+# ==================================================================
+
+### Login como Administrador
+# @name loginAdmin
+POST {{baseUrl}}/auth/jwt/create/
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@arcanosig.com",
+  "password": "Teste123@"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ2MDE2MzQ0LCJpYXQiOjE3NDYwMTQ1NDQsImp0aSI6IjE4NTkxNjA1ZDhkYjQ2NjhiM2ZlMzUwODY1YzAyN2E3IiwidXNlcl9pZCI6Ijg5YzkzOWEzLTZhZDctNDE1YS05NDZlLWNhNjQ5ZTg5NDEwNiJ9.qeMEz1fU2dwe6UCKR0TTg3A4ngegU7vhFdlMJ-TpERA
+}
+
+### Login como Policial
+# @name loginPolicial
+POST {{baseUrl}}/auth/jwt/create/
+Content-Type: {{contentType}}
+
+{
+  "email": "policial@arcanosig.com",
+  "password": "Teste123@"
+}
+
+# ==================================================================
+# 2. FLUXO PRINCIPAL: CICLO COMPLETO DE CAUTELA
+# ==================================================================
+
+### 2.1 Criação de Cautela (Admin)
+# @name criarCautela
+POST {{baseUrl}}/oper/cautelas/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "policial_id": "1404c857-6d1c-4a9d-b216-3dd90fe8108d",
+  "guarnicao": 1,
+  "data_entrega": "{{$datetime iso8601}}"
+}
+
+### Extrair ID da cautela criada
+@cautelaId = 33
+
+### 2.2 Adicionar Itens à Cautela (Admin)
+### Item 1: Rádio
+POST {{baseUrl}}/oper/itens-cautela/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "cautela": {{cautelaId}},
+  "tipo_equipamento": "radio",
+  "numero_serie": "RD54321-{{$timestamp}}",
+  "quantidade": 1
+}
+
+### Item 2: Munição
+# @name adicionarMunicao
+POST {{baseUrl}}/oper/itens-cautela/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "cautela": {{cautelaId}},
+  "tipo_equipamento": "municao",
+  "quantidade": 50
+}
+
+### Extrair ID do item para devolução
+@itemId = 58
+
+### 2.3 Verificar Notificação de Cautela Pendente (Policial)
+GET {{baseUrl}}/oper/notificacoes/?lida=false
+Authorization: Bearer {{policialToken}}
+
+### Extrair protocolo de aceite
+@aceiteProtocolo = CAUT-1404c857-202504231354
+
+### 2.4 Confirmar Aceite (Policial)
+POST {{baseUrl}}/oper/aceites-cautela/{{aceiteProtocolo}}/confirmar/
+Content-Type: {{contentType}}
+Authorization: Bearer {{policialToken}}
+
+{
+  "observacao": "Equipamentos recebidos conforme checklist"
+}
+
+### 2.5 Verificar Notificação de Aceite Confirmado (Policial)
+GET {{baseUrl}}/oper/notificacoes/?lida=false
+Authorization: Bearer {{policialToken}}
+
+### 2.6 Devolução Parcial (Admin)
+POST {{baseUrl}}/oper/itens-cautela/{{itemId}}/devolver/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "status_equipamento": "em_condicoes",
+  "descricao_danos": ""
+}
+### 2.8 Listar as cautelas do policial
+GET {{baseUrl}}/oper/cautelas/{{cautelaId}}/
+Authorization: Bearer {{adminToken}}
+
+### 2.8 Listar os itens da cautela
+GET {{baseUrl}}/oper/itens-cautela/?cautela={{cautelaId}}
+Authorization: Bearer {{adminToken}}
+
+### 2.7 Verificar Notificação de Devolução Parcial (Policial)
+GET {{baseUrl}}/oper/notificacoes/?lida=false
+Authorization: Bearer {{policialToken}}
+
+
+### 2.8 Devolução Completa (Admin)
+POST {{baseUrl}}/oper/cautelas/{{cautelaId}}/devolver_completa/
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "observacao": "Devolução completa conforme termo"
+}
+
+### 2.9 Verificar Notificação de Devolução Completa (Policial)
+GET {{baseUrl}}/oper/notificacoes/?lida=false
+Authorization: Bearer {{policialToken}}
+
+# ==================================================================
+# 3. FLUXO DE EQUIPAMENTOS DANIFICADOS
+# ==================================================================
+
+### 4.1 Criar Terceira Cautela (Admin)
+# @name criarCautela3
+POST {{baseUrl}}/oper/cautelas/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "policial_id": "1404c857-6d1c-4a9d-b216-3dd90fe8108d",
+  "guarnicao": 1,
+  "data_entrega": "{{$datetime iso8601}}"
+}
+
+### Extrair dados da terceira cautela
+@cautela3Id = 34
+@aceiteProtocolo3 = CAUT-1404c857-202504231403
+
+
+### 4.3 Adicionar Item que será danificado (Admin)
+# @name adicionarItemDanificado
+POST {{baseUrl}}/oper/itens-cautela/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "cautela": {{cautela3Id}},
+  "tipo_equipamento": "pistola",
+  "numero_serie": "PT98765-{{$timestamp}}",
+  "quantidade": 1
+}
+
+### Extrair ID do item danificado
+@itemDanificadoId = 59
+
+### 4.2 Confirmar Aceite (Policial)
+POST {{baseUrl}}/oper/aceites-cautela/{{aceiteProtocolo3}}/confirmar/
+Content-Type: {{contentType}}
+Authorization: Bearer {{policialToken}}
+
+{
+  "observacao": "Equipamentos recebidos para vistoria"
+}
+
+### 4.4 Devolver Item Danificado (Admin)
+POST {{baseUrl}}/oper/itens-cautela/{{itemDanificadoId}}/devolver/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "status_equipamento": "danificado",
+  "descricao_danos": "Arranhão na coronha e ferrugem no cano"
+}
+
+### 4.5 Verificar Notificação de Danos (Policial e Gestor)
+GET {{baseUrl}}/oper/notificacoes/?lida=false
+Authorization: Bearer {{policialToken}}

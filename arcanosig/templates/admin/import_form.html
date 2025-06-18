@@ -1,0 +1,254 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/forms.css' %}">
+    <style>
+        .file-upload-container {
+            display: flex;
+            flex-direction: column;
+            align-items: start;
+            margin: 20px 0;
+        }
+        .custom-file-upload {
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            background: #79aec8;
+            color: #fff;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-style: italic;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-preview {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f9f9f9;
+            max-width: 100%;
+            overflow-x: auto;
+            display: none;
+        }
+        .file-preview table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 14px;
+        }
+        .file-preview th, .file-preview td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .file-preview th {
+            background-color: #f2f2f2;
+        }
+        .preview-message {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <!-- Adicionar Papa Parse para parsing de CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- Adicionar SheetJS para parsing de Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <form method="post" enctype="multipart/form-data" id="import-form">
+        {% csrf_token %}
+        <div>
+            <fieldset class="module aligned">
+                <h2>{{ title }}</h2>
+                <div class="description">
+                    <p>Selecione um arquivo CSV, XLS ou XLSX contendo os dados dos usuários a serem importados.</p>
+                    <p>O arquivo deve ter as seguintes colunas obrigatórias: email, name, cpf, celular, patent.</p>
+                    <p>Colunas opcionais: is_admin, matricula.</p>
+                </div>
+                
+                <div class="file-upload-container">
+                    <label>{{ adminform.form.file.label }}</label>
+                    {% if adminform.form.file.help_text %}
+                        <div class="help">{{ adminform.form.file.help_text }}</div>
+                    {% endif %}
+                    
+                    <label for="id_file" class="custom-file-upload">
+                        Escolher arquivo
+                    </label>
+                    <span id="file-name" class="file-name">Nenhum arquivo selecionado</span>
+                    <span id="loading" class="loading" style="display: none;">Carregando prévia...</span>
+                    <!-- Adiciona o atributo accept para filtrar arquivos -->
+                    <input type="file" name="file" id="id_file" accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+                </div>
+                
+                <!-- Container para a prévia do arquivo -->
+                <div id="file-preview" class="file-preview">
+                    <h3>Prévia do arquivo</h3>
+                    <p class="preview-message">Exibindo as primeiras 5 linhas do arquivo.</p>
+                    <div id="preview-content"></div>
+                </div>
+                
+            </fieldset>
+            
+            <div class="submit-row">
+                <input type="submit" value="{% translate 'Importar dados' %}" class="default" name="_import">
+            </div>
+        </div>
+    </form>
+</div>
+
+<script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('id_file');
+        const fileNameDisplay = document.getElementById('file-name');
+        const filePreview = document.getElementById('file-preview');
+        const previewContent = document.getElementById('preview-content');
+        const loadingIndicator = document.getElementById('loading');
+        
+        // Exibir o nome do arquivo quando ele for selecionado e gerar prévia
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileNameDisplay.textContent = file.name;
+                
+                // Mostrar indicador de carregamento
+                loadingIndicator.style.display = 'inline-block';
+                
+                // Processar o arquivo para prévia
+                generatePreview(file);
+            } else {
+                fileNameDisplay.textContent = 'Nenhum arquivo selecionado';
+                filePreview.style.display = 'none';
+            }
+        });
+        
+        // Garantir que o clique no botão "Escolher arquivo" abra o seletor de arquivos
+        document.querySelector('.custom-file-upload').addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Função para gerar a prévia do arquivo
+        function generatePreview(file) {
+            const fileName = file.name.toLowerCase();
+            
+            if (fileName.endsWith('.csv')) {
+                // Prévia para CSV
+                Papa.parse(file, {
+                    header: true,
+                    preview: 5, // Mostrar primeiras 5 linhas
+                    complete: function(results) {
+                        showTablePreview(results.data, results.meta.fields);
+                        loadingIndicator.style.display = 'none';
+                    },
+                    error: function(error) {
+                        showError('Erro ao processar o arquivo CSV: ' + error.message);
+                        loadingIndicator.style.display = 'none';
+                    }
+                });
+            } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                // Prévia para Excel
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        
+                        // Pega a primeira planilha
+                        const firstSheet = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheet];
+                        
+                        // Converte para JSON
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        if (jsonData.length > 0) {
+                            // Primeira linha como cabeçalho
+                            const headers = jsonData[0];
+                            
+                            // Restante como dados, limitado a 5 linhas
+                            const rows = jsonData.slice(1, 6).map(row => {
+                                const rowObj = {};
+                                headers.forEach((header, index) => {
+                                    rowObj[header] = row[index] || '';
+                                });
+                                return rowObj;
+                            });
+                            
+                            showTablePreview(rows, headers);
+                        } else {
+                            showError('O arquivo está vazio');
+                        }
+                        
+                        loadingIndicator.style.display = 'none';
+                    } catch (error) {
+                        showError('Erro ao processar o arquivo Excel: ' + error.message);
+                        loadingIndicator.style.display = 'none';
+                    }
+                };
+                
+                reader.onerror = function() {
+                    showError('Erro ao ler o arquivo');
+                    loadingIndicator.style.display = 'none';
+                };
+                
+                reader.readAsArrayBuffer(file);
+            } else {
+                showError('Formato de arquivo não suportado');
+                loadingIndicator.style.display = 'none';
+            }
+        }
+        
+        // Função para exibir os dados em formato de tabela
+        function showTablePreview(data, headers) {
+            let tableHTML = '<table><thead><tr>';
+            
+            // Cabeçalhos da tabela
+            headers.forEach(header => {
+                tableHTML += `<th>${header}</th>`;
+            });
+            
+            tableHTML += '</tr></thead><tbody>';
+            
+            // Linhas de dados
+            data.forEach(row => {
+                tableHTML += '<tr>';
+                headers.forEach(header => {
+                    tableHTML += `<td>${row[header] || ''}</td>`;
+                });
+                tableHTML += '</tr>';
+            });
+            
+            tableHTML += '</tbody></table>';
+            
+            previewContent.innerHTML = tableHTML;
+            filePreview.style.display = 'block';
+        }
+        
+        // Função para exibir mensagens de erro
+        function showError(message) {
+            previewContent.innerHTML = `<div class="error-message">${message}</div>`;
+            filePreview.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

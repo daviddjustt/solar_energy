@@ -1,0 +1,32 @@
+{% load i18n %}
+
+{% block subject %}
+{% trans "Ativação de conta para" %} {{ site_name }}
+{% endblock subject %}
+
+{% block text_body %}
+{% trans "Olá" %} {{ user.name }},
+
+{% trans "Você recebeu este e-mail porque precisa ativar sua conta no site" %} {{ site_name }}.
+
+{% trans "Por favor, acesse o seguinte link para ativar sua conta:" %}
+{{ protocol }}://{{ domain }}/{{ url|safe }}
+
+{% trans "Obrigado por usar nosso site!" %}
+
+{% trans "Atenciosamente" %},
+{{ site_name }}
+{% endblock text_body %}
+
+{% block html_body %}
+<p>{% trans "Olá" %} {{ user.name }},</p>
+
+<p>{% trans "Você recebeu este e-mail porque precisa ativar sua conta no site" %} {{ site_name }}.</p>
+
+<p>{% trans "Por favor, clique no link abaixo para ativar sua conta:" %}</p>
+<p><a href="{{ protocol }}://{{ domain }}/{{ url|safe }}">{{ protocol }}://{{ domain }}/{{ url|safe }}</a></p>
+
+<p>{% trans "Obrigado por usar nosso site!" %}</p>
+
+<p>{% trans "Atenciosamente" %},<br>{{ site_name }}</p>
+{% endblock html_body %}

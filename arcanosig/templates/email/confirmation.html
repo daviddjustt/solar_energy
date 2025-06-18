@@ -1,0 +1,86 @@
+{% load i18n %}
+
+{% block subject %}
+{% trans "Registro Recebido - Aguarde Liberação para acessar o modulo Oper " %} - {{ site_name }}
+{% endblock subject %}
+
+{% block text_body %}
+{% trans "Olá" %} {{ user.name }},
+
+{% trans "Seu registro foi recebido com sucesso. Sua conta está agora em análise e será ativada por um moderador em breve." %}
+
+{% trans "Você receberá uma nova notificação por email quando sua conta for ativada." %}
+
+{% trans "Agradecemos sua paciência." %}
+
+{% trans "Atenciosamente" %},
+{% trans "Equipe Arcanosig" %}
+{% endblock text_body %}
+
+{% block html_body %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% trans "Registro Recebido - Pendente de Ativação" %}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 30px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .highlight-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .footer {
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            margin-top: 30px;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{% trans "Registro Recebido - Pendente de Ativação" %}</h1>
+    </div>
+
+    <div class="content">
+        <p>{% trans "Olá" %} {{ user.name }},</p>
+
+        <div class="highlight-box">
+            <p><strong>{% trans "Sua conta está pendente de ativação" %}</strong></p>
+            <p>{% trans "Seu registro foi recebido com sucesso e está em análise por nossa equipe de moderação." %}</p>
+            <p>{% trans "Você receberá uma nova notificação por email assim que sua conta for ativada." %}</p>
+        </div>
+
+        <p>{% trans "Este processo garante a segurança e integridade de nossa plataforma." %}</p>
+
+        <p>{% trans "Agradecemos sua compreensão e paciência." %}</p>
+    </div>
+
+    <div class="footer">
+        <p>{% trans "Atenciosamente," %}<br>
+        {% trans "Equipe Arcanosig" %}</p>
+    </div>
+</body>
+</html>
+{% endblock html_body %}
+

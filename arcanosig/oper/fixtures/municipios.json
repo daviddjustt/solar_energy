@@ -1,0 +1,626 @@
+[
+{
+  "model": "inspection.municipio",
+  "pk": "001",
+  "fields": {
+    "name": "Aracaju",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "002",
+  "fields": {
+    "name": "Nossa Senhora do Socorro",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "003",
+  "fields": {
+    "name": "Sao Cristovao",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "004",
+  "fields": {
+    "name": "Itabaiana",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "005",
+  "fields": {
+    "name": "Lagarto",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "006",
+  "fields": {
+    "name": "Estancia",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "007",
+  "fields": {
+    "name": "Tomar do Geru",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "008",
+  "fields": {
+    "name": "Umbauba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "009",
+  "fields": {
+    "name": "Capela",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "010",
+  "fields": {
+    "name": "Propria",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "011",
+  "fields": {
+    "name": "Aquidaba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "012",
+  "fields": {
+    "name": "Araua",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "013",
+  "fields": {
+    "name": "Areia Branca",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "014",
+  "fields": {
+    "name": "Barra dos Coqueiros",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "015",
+  "fields": {
+    "name": "Boquim",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "016",
+  "fields": {
+    "name": "Brejo Grande",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "017",
+  "fields": {
+    "name": "Campo do Brito",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "018",
+  "fields": {
+    "name": "Canhoba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "019",
+  "fields": {
+    "name": "Caninde de Sao Francisco",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "020",
+  "fields": {
+    "name": "Carmopolis",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "021",
+  "fields": {
+    "name": "Cedro de Sao Joao",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "022",
+  "fields": {
+    "name": "Cristinapolis",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "023",
+  "fields": {
+    "name": "Cumbe",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "024",
+  "fields": {
+    "name": "Divina Pastora",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "025",
+  "fields": {
+    "name": "Frei Paulo",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "026",
+  "fields": {
+    "name": "Gararu",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "027",
+  "fields": {
+    "name": "General Maynard",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "028",
+  "fields": {
+    "name": "Graccho Cardoso",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "029",
+  "fields": {
+    "name": "Ilha das Flores",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "030",
+  "fields": {
+    "name": "Indiaroba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "031",
+  "fields": {
+    "name": "Itabaianinha",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "032",
+  "fields": {
+    "name": "Itabi",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "033",
+  "fields": {
+    "name": "Itaporanga d'Ajuda",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "034",
+  "fields": {
+    "name": "Japaratuba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "035",
+  "fields": {
+    "name": "Japoata",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "036",
+  "fields": {
+    "name": "Lagoa Funda",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "037",
+  "fields": {
+    "name": "Laranjeiras",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "038",
+  "fields": {
+    "name": "Macambira",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "039",
+  "fields": {
+    "name": "Malhada dos Bois",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "040",
+  "fields": {
+    "name": "Malhador",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "041",
+  "fields": {
+    "name": "Maruim",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "042",
+  "fields": {
+    "name": "Monte Alegre de Sergipe",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "043",
+  "fields": {
+    "name": "Muribeca",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "044",
+  "fields": {
+    "name": "Neopolis",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "045",
+  "fields": {
+    "name": "Nossa Senhora Aparecida",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "046",
+  "fields": {
+    "name": "Nossa Senhora da Gloria",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "047",
+  "fields": {
+    "name": "Nossa Senhora das Dores",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "048",
+  "fields": {
+    "name": "Nossa Senhora de Lourdes",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "049",
+  "fields": {
+    "name": "Pacatuba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "050",
+  "fields": {
+    "name": "Pedra Mole",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "051",
+  "fields": {
+    "name": "Pedrinhas",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "052",
+  "fields": {
+    "name": "Pinhao",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "053",
+  "fields": {
+    "name": "Pirambu",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "054",
+  "fields": {
+    "name": "Poco Redondo",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "055",
+  "fields": {
+    "name": "Poco Verde",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "056",
+  "fields": {
+    "name": "Porto da Folha",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "057",
+  "fields": {
+    "name": "Riachao do Dantas",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "058",
+  "fields": {
+    "name": "Riachuelo",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "059",
+  "fields": {
+    "name": "Ribeiropolis",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "060",
+  "fields": {
+    "name": "Rosario do Catete",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "061",
+  "fields": {
+    "name": "Salgado",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "062",
+  "fields": {
+    "name": "Santa Luzia do Itanhy",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "063",
+  "fields": {
+    "name": "Santa Rosa de Lima",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "064",
+  "fields": {
+    "name": "Santana do Sao Francisco",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "065",
+  "fields": {
+    "name": "Santo Amaro das Brotas",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "066",
+  "fields": {
+    "name": "Sao Domingos",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "067",
+  "fields": {
+    "name": "Sao Francisco",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "068",
+  "fields": {
+    "name": "Sao Miguel do Aleixo",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "069",
+  "fields": {
+    "name": "Simao Dias",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "070",
+  "fields": {
+    "name": "Siriri",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "071",
+  "fields": {
+    "name": "Telha",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "072",
+  "fields": {
+    "name": "Tobias Barreto",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "073",
+  "fields": {
+    "name": "Tomar do Geru",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "074",
+  "fields": {
+    "name": "Umbauba",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "075",
+  "fields": {
+    "name": "Malhada Nova",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "076",
+  "fields": {
+    "name": "Feira Nova",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "077",
+  "fields": {
+    "name": "Moita Bonita",
+    "state": "SE"
+  }
+},
+{
+  "model": "inspection.municipio",
+  "pk": "078",
+  "fields": {
+    "name": "Amparo de Sao Francisco",
+    "state": "SE"
+  }
+}
+]

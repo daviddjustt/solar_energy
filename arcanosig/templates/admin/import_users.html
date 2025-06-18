@@ -1,0 +1,38 @@
+{% extends 'admin/base_site.html' %}
+{% load i18n static %}
+
+{% block content %}
+<div class="container">
+    <h1>{% trans "Importar Usuários" %}</h1>
+    
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">{% trans "Importar usuários via arquivo" %}</h5>
+            <p class="card-text">{% trans "Faça upload de um arquivo CSV, XLS ou XLSX contendo dados dos usuários para importação em massa." %}</p>
+            
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                {{ form.as_p }}
+                
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">{% trans "Importar" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <h5>{% trans "Formato esperado do arquivo:" %}</h5>
+        <p>{% trans "O arquivo deve conter as seguintes colunas (o cabeçalho é obrigatório):" %}</p>
+        <ul>
+            <li><strong>email</strong>: {% trans "E-mail do usuário (obrigatório)" %}</li>
+            <li><strong>name</strong>: {% trans "Nome completo do usuário" %}</li>
+            <li><strong>cpf</strong>: {% trans "CPF do usuário" %}</li>
+            <li><strong>celular</strong>: {% trans "Número de celular" %}</li>
+            <li><strong>patent</strong>: {% trans "Patente ou cargo" %}</li>
+            <li><strong>is_admin</strong>: {% trans "Se o usuário é administrador (sim/não)" %}</li>
+            <li><strong>is_active</strong>: {% trans "Se o usuário está ativo (sim/não)" %}</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

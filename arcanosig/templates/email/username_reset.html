@@ -1,0 +1,28 @@
+{% load i18n %}
+
+{% block subject %}
+{% blocktrans %}Solicitação de Alteração de Email em {{ site_name }}{% endblocktrans %}
+{% endblock %}
+
+{% block text_body %}
+{% blocktrans %}Você recebeu este email porque solicitou a alteração do seu endereço de email para sua conta em {{ site_name }}.{% endblocktrans %}
+
+{% trans "Por favor, clique no link abaixo para confirmar a alteração:" %}
+{{ protocol }}://{{ domain }}/{{ url }}
+
+{% trans "Se você não solicitou esta alteração, pode ignorar este email com segurança." %}
+
+{% trans "Atenciosamente," %}
+{{ site_name }}
+{% endblock %}
+
+{% block html_body %}
+<p>{% blocktrans %}Você recebeu este email porque solicitou a alteração do seu endereço de email para sua conta em {{ site_name }}.{% endblocktrans %}</p>
+
+<p>{% trans "Por favor, clique no link abaixo para confirmar a alteração:" %}</p>
+<p><a href="{{ protocol }}://{{ domain }}/{{ url }}">{{ protocol }}://{{ domain }}/{{ url }}</a></p>
+
+<p>{% trans "Se você não solicitou esta alteração, pode ignorar este email com segurança." %}</p>
+
+<p>{% trans "Atenciosamente," %}<br>{{ site_name }}</p>
+{% endblock %}
