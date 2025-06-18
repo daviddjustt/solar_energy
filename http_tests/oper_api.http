@@ -17,7 +17,7 @@ POST {{baseUrl}}/auth/jwt/create/
 Content-Type: {{contentType}}
 
 {
-  "email": "admin@arcanosig.com",
+  "email": "admin@solar.com",
   "password": "Teste123@"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ2MDE2MzQ0LCJpYXQiOjE3NDYwMTQ1NDQsImp0aSI6IjE4NTkxNjA1ZDhkYjQ2NjhiM2ZlMzUwODY1YzAyN2E3IiwidXNlcl9pZCI6Ijg5YzkzOWEzLTZhZDctNDE1YS05NDZlLWNhNjQ5ZTg5NDEwNiJ9.qeMEz1fU2dwe6UCKR0TTg3A4ngegU7vhFdlMJ-TpERA
 }
 
@@ -27,7 +27,7 @@ POST {{baseUrl}}/auth/jwt/create/
 Content-Type: {{contentType}}
 
 {
-  "email": "policial@arcanosig.com",
+  "email": "policial@solar.com",
   "password": "Teste123@"
 }
 

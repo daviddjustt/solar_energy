@@ -5,7 +5,7 @@ import sys
 
 
 def main():
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "arcanosig.config")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "solar.config")
     os.environ.setdefault("DJANGO_CONFIGURATION", "Local")
 
     try:

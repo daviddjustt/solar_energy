@@ -188,7 +188,7 @@ class EmailService:
                 protocol = 'http'
             else:
                 # Usa o primeiro allowed host ou um default
-                domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'arcanosig.com.br'
+                domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'solar.com.br'
                 protocol = 'https'
             
             # Garante que o LOGIN_URL começa com '/'
@@ -202,7 +202,7 @@ class EmailService:
             context = {
                 'user': user,
                 'password': password,
-                'site_name': getattr(settings, 'SITE_NAME', 'ArcanoSIG'), # Use getattr com default
+                'site_name': getattr(settings, 'SITE_NAME', 'solar'), # Use getattr com default
                 'protocol': protocol,
                 'domain': domain,
                 'login_url': login_url

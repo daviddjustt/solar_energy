@@ -3,9 +3,9 @@
 @authToken = {{login.response.body.access}}
 
 ### Variáveis para testes
-@testEmail = pm2@arcanosig.com
+@testEmail = pm2@solar.com
 @testPassword = Teste123@
-@newEmail = novo.email@arcanosig.com
+@newEmail = novo.email@solar.com
 @re_new_email = testeemail@email.com
 ### Login (Obter JWT Token)
 # @name login

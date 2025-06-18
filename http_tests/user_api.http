@@ -1,5 +1,5 @@
 ###############################################################################
-# ARQUIVO DE TESTES HTTP PARA ENDPOINTS DE USUÁRIO DO ARCANOSIG
+# ARQUIVO DE TESTES HTTP PARA ENDPOINTS DE USUÁRIO DO solar
 # Compatível com REST Client para VS Code, Insomnia e Postman
 ###############################################################################
 
@@ -243,12 +243,12 @@ POST {{baseUrl}}/auth/jwt/create/
 Content-Type: {{contentType}}
 
 {
-  "email": "admin@arcanosig.com",
+  "email": "admin@solar.com",
   "password": "Teste123@"
 }
 ###
 # 22. CASOS PARA ADMINISTRADOR (COM TOKEN DE ADMIN)
-# NOTA: Substitua @adminToken pelo token de um usuário administrador admin@arcanosig.com
+# NOTA: Substitua @adminToken pelo token de um usuário administrador admin@solar.com
 @adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ0NDkyMDAxLCJpYXQiOjE3NDQ0OTAyMDEsImp0aSI6IjI4YjMyY2VkODIxZDQ3ZDBhZDEyMDA0YWViMTZmODIxIiwidXNlcl9pZCI6IjIxOWU1NDM0LTkyZjMtNDdlYS1hN2E5LTBlMTQ3ODQ4NWI3MCJ9._F7xj8RUXHQoTSlBwl9RcaQ47-1mJ5bubvyacEIcud4
 
 ###

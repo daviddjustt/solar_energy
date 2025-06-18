@@ -1,1 +1,1 @@
-default_app_config = 'arcanosig.users.apps.UsersConfig'
+default_app_config = 'solar.users.apps.UsersConfig'

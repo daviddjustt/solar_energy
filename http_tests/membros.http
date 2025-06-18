@@ -16,7 +16,7 @@ POST {{baseUrl}}/auth/jwt/create/
 Content-Type: {{contentType}}
 
 {
-  "email": "admin@arcanosig.com",
+  "email": "admin@solar.com",
   "password": "Teste123@"
 }
 

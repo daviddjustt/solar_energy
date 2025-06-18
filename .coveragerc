@@ -5,6 +5,6 @@ omit = *migrations*,
        *test*,
        *admin*,
        ./manage.py,
-       ./arcanosig/config/*,
-       ./arcanosig/wsgi.py,
+       ./solar/config/*,
+       ./solar/wsgi.py,
        *__init__*

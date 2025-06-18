@@ -1,12 +1,12 @@
 """
-WSGI config for arcanosig project.
+WSGI config for solar project.
 It exposes the WSGI callable as a module-level variable named ``application``.
 For more information on this file, see
 https://docs.djangoproject.com/en/2.0/howto/deployment/wsgi/gunicorn/
 """
 import os
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "arcanosig.config")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "solar.config")
 os.environ.setdefault("DJANGO_CONFIGURATION", "Production")
 
 from configurations.wsgi import get_wsgi_application  # noqa

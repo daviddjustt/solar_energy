@@ -1,6 +1,6 @@
 # Módulo de Operações (oper)
 
-Este módulo gerencia operações policiais, guarnições e seus membros no sistema ArcanosigAPI.
+Este módulo gerencia operações policiais, guarnições e seus membros no sistema solarAPI.
 
 ## Visão Geral
 

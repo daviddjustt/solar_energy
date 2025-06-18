@@ -8,7 +8,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from arcanosig.users.views import CustomUserViewSet, SpecialUserCPFLoginView
+from solar.users.views import CustomUserViewSet, SpecialUserCPFLoginView
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
@@ -33,8 +33,8 @@ urlpatterns = [
     path('auth/special/cpf-login/', SpecialUserCPFLoginView.as_view(), name='special-cpf-login'),
 
     # IMPORTANTE: Colocar após as rotas do djoser para evitar conflitos
-    path('api/v1/oper/', include('arcanosig.oper.urls')),
-    path('api/v1/sac/', include('arcanosig.sac.urls')),
+    path('api/v1/oper/', include('solar.oper.urls')),
+    path('api/v1/sac/', include('solar.sac.urls')),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
