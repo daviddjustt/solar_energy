@@ -31,10 +31,6 @@ urlpatterns = [
 
     path('api/v1/auth/', include('djoser.urls.jwt')),
     path('auth/special/cpf-login/', SpecialUserCPFLoginView.as_view(), name='special-cpf-login'),
-
-    # IMPORTANTE: Colocar após as rotas do djoser para evitar conflitos
-    path('api/v1/oper/', include('solar.oper.urls')),
-    path('api/v1/sac/', include('solar.sac.urls')),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
