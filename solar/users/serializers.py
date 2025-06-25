@@ -26,7 +26,7 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
         fields = tuple(set(DjoserUserCreateSerializer.Meta.fields + (
-            'name', 'cpf', 'celular', 'patent', 'photo'
+            'name', 'cpf', 'celular',
         )))
         extra_kwargs = {
             'cpf': {'required': True},
@@ -79,60 +79,44 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
 
 class UserSerializer(DjoserUserSerializer):
     """Serializer para exibição de usuários, estendendo o do Djoser."""
-    photo_url = serializers.SerializerMethodField()
     # Adiciona campos customizados para exibição
     is_admin = serializers.BooleanField(read_only=True)
-    is_operacoes = serializers.BooleanField(read_only=True)
-    is_sac = serializers.BooleanField(read_only=True)
-    sac_profile = serializers.CharField(source='get_sac_profile_display', read_only=True) # Exibe o label da escolha
-
 
     class Meta(DjoserUserSerializer.Meta):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
-            'name', 'cpf', 'celular', 'patent', 'photo', 'photo_url',
-            'is_admin', 'is_operacoes', 'is_sac', 'sac_profile', 'is_active' # Inclui as flags e perfil SAC
+            'name', 'cpf', 'celular',
+            'is_admin', 'is_active' # Inclui as flags e perfil SAC
         )
         # Campos que podem ser lidos mas não alterados via este serializer (embora Djoser controle isso)
         read_only_fields = DjoserUserSerializer.Meta.read_only_fields + (
-             'is_admin', 'is_operacoes', 'is_sac', 'sac_profile', 'is_active'
+             'is_admin','is_active'
         )
-
-    def get_photo_url(self, obj):
-        """Retorna a URL da foto se existir."""
-        if obj.photo and hasattr(obj.photo, 'url'):
-            return obj.photo.url
-        return None
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer para atualização de usuários.
-    Garanto estritamente que apenas celular e photo possam ser atualizados
-    pelo endpoint 'me' para usuários comuns.
     Para admins, o Djoser ViewSet padrão permite mais campos.
     Este serializer é usado especificamente pelo CustomUserViewSet.update
     quando self.action == 'me' e o método é PUT/PATCH.
     """
     # Campos explicitamente editáveis - somente estes serão processados
     celular = serializers.CharField(required=False)
-    photo = serializers.ImageField(required=False)
 
     # Campos somente leitura - serão ignorados se enviados
     email = serializers.EmailField(read_only=True)
     name = serializers.CharField(read_only=True)
     cpf = serializers.CharField(read_only=True)
-    patent = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_admin = serializers.BooleanField(read_only=True)
-    is_operacoes = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
         fields = (
-            'celular', 'photo',
+            'celular',
             # Campos somente leitura
-            'email', 'name', 'cpf', 'patent', 'is_active',
-            'is_admin', 'is_operacoes'
+            'email', 'name', 'cpf', 'is_active',
+            'is_admin',
         )
 
     def validate_celular(self, value):
@@ -149,7 +133,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         """
         # Verificar dados da requisição diretamente
         request_data = self.initial_data
-        allowed_fields = {'celular', 'photo'}
+        allowed_fields = {'celular',}
 
         # Verificar campos não permitidos
         for field in request_data:
@@ -165,7 +149,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         antes da validação, aumentando a segurança.
         """
         # Filtragem inicial - remove campos não permitidos antes da validação
-        allowed_fields = {'celular', 'photo'}
+        allowed_fields = {'celular',}
         filtered_data = {k: v for k, v in data.items() if k in allowed_fields}
 
         # Chama implementação padrão com dados filtrados
@@ -178,7 +162,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         em validated_data que estão na Meta.fields.
         """
         # Campos permitidos para alteração
-        allowed_fields = {'celular', 'photo'}
+        allowed_fields = {'celular',}
 
         # Filtra novamente para garantir que apenas campos permitidos sejam usados
         filtered_data = {k: v for k, v in validated_data.items() if k in allowed_fields}

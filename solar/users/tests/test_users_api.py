@@ -330,11 +330,6 @@ class TestUserManagement:
         # Remove possíveis formatações para comparação direta
         assert ''.join(filter(str.isdigit, auth_user.celular)) == '11999998888'
 
-    def test_me_update_photo(self, api_client, auth_user, auth_header):
-        url = "/api/v1/auth/users/me/"
-        # Use string vazia em vez de None
-        response = api_client.patch(url, {"photo": ""}, **auth_header)
-
     def test_me_update_restricted_field(self, api_client, auth_user, auth_header):
         """Teste de tentativa de atualização de campo restrito pelo endpoint 'me'."""
         url = "/api/v1/auth/users/me/"

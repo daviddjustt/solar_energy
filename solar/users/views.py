@@ -67,7 +67,7 @@ class CustomUserViewSet(UserViewSet):
 
         # Para usuários comuns, verificamos se estão tentando alterar campos proibidos
         if not request.user.is_admin and not request.user.is_superuser:
-            allowed_fields = ['celular', 'photo'] # Campos permitidos para usuários comuns
+            allowed_fields = ['celular',] # Campos permitidos para usuários comuns
             for field in request.data.keys(): # Itera sobre as chaves do request.data
                 if field not in allowed_fields:
                     return Response(
@@ -88,7 +88,7 @@ class CustomUserViewSet(UserViewSet):
                  # Note: A lógica de permissão acima já restringe campos para usuários comuns.
                  # Este log manual pode ser para campos específicos que você quer rastrear por esta interface.
                  # Ajuste a lista `fields_to_log_manually` conforme necessário.
-                 fields_to_log_manually = ['celular', 'photo', 'name', 'cpf', 'patent', 'is_admin', 'is_operacoes', 'is_sac', 'sac_profile', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
+                 fields_to_log_manually = ['celular', 'name', 'cpf', 'is_admin', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
                  if field_name in fields_to_log_manually:
                      old_value = original_instance_values.get(field_name)
                      # Compara o valor original com o novo valor salvo no banco

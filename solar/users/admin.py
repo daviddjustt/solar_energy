@@ -10,8 +10,9 @@ from django.utils.translation import gettext_lazy as _
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.utils.html import format_html, mark_safe
-from django.conf import settings #
-from django.contrib.admin.views.main import ChangeList 
+from django.conf import settings
+from django.contrib.admin.views.main import ChangeList
+from django import forms
 
 # Imports models
 from .models import (
@@ -20,65 +21,78 @@ from .models import (
     EmailLog,
 )
 
-
 logger = logging.getLogger(__name__)
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     """Configuração do Admin para o modelo de usuário personalizado com histórico e log de alterações."""
     
-    list_display = ('email', 'name', 'cpf', 'patent', 'is_active', 'is_admin',
-                    'is_operacoes','history_link')
-    
-    list_filter = ('is_active', 'is_admin', 'is_superuser', 'patent', 'is_operacoes')
-    
+    list_display = ('email', 'name', 'cpf', 'is_active', 'is_admin', 'history_link')
+    list_filter = ('is_active', 'is_admin', 'is_superuser')
     search_fields = ('email', 'name', 'cpf')
     ordering = ('email', 'name')
     readonly_fields = ('created_at', 'updated_at', 'history_button')
     list_per_page = 20
-    
-    # Adicionado seção de Acesso Especial aos fieldsets
+
+    # Fieldsets corrigidos para modelo customizado
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        (_('Informações Pessoais'), {'fields': ('name', 'cpf', 'celular', 'photo', 'patent')}),
-        (_('Permissões'), {'fields': ('is_active', 'is_admin', 'is_superuser', 'is_operacoes',
-                                      'groups', 'user_permissions')}),
+        (_('Informações Pessoais'), {'fields': ('name', 'cpf', 'celular')}),
+        (_('Permissões'), {
+            'fields': ('is_active', 'is_admin', 'is_superuser', 'groups', 'user_permissions')
+        }),
         (_('Datas Importantes'), {'fields': ('last_login', 'created_at', 'updated_at')}),
         (_('Histórico'), {'fields': ('history_button',)}),
     )
-    
-    # Adicionado acesso especial aos add_fieldsets
+
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'name', 'cpf', 'celular', 'password', 'password2', 'patent'),
+            'fields': ('email', 'name', 'cpf', 'celular', 'password1', 'password2'),
         }),
         (_('Permissões'), {
-            'fields': ('is_active', 'is_admin', 'is_superuser', 'is_operacoes',
-                       'groups', 'user_permissions'),
+            'fields': ('is_active', 'is_admin', 'is_superuser', 'groups', 'user_permissions'),
         }),
     )
-    
-    # Ações em lote
+
     actions = ['activate_users', 'deactivate_users']
 
     def history_button(self, obj):
         """Botão para acessar o histórico detalhado na página de edição."""
         if obj.pk:
-            return format_html(
-                '<a href="{}" class="historylink">Ver histórico completo</a>',
-                reverse(f'admin:{obj._meta.app_label}_{obj._meta.model_name}_history', args=[obj.pk])
-            )
+            try:
+                url = reverse(f'admin:{obj._meta.app_label}_{obj._meta.model_name}_history', args=[obj.pk])
+                return format_html(
+                    '<a href="{}" class="historylink">Ver histórico completo</a>',
+                    url
+                )
+            except NoReverseMatch:
+                # Se a URL não existir, mostrar link para o changelog
+                try:
+                    url = reverse('admin:users_userchangelog_changelist') + f'?user__id__exact={obj.pk}'
+                    return format_html(
+                        '<a href="{}" class="historylink">Ver alterações</a>',
+                        url
+                    )
+                except:
+                    return "Histórico indisponível"
         return "-"
     history_button.short_description = 'Histórico Detalhado'
 
     def history_link(self, obj):
         """Adiciona um link para o histórico na lista de usuários."""
         if obj.pk:
-            return format_html(
-                '<a href="{}" class="button">Histórico</a>',
-                reverse(f'admin:{obj._meta.app_label}_{obj._meta.model_name}_history', args=[obj.pk])
-            )
+            try:
+                # Tenta primeiro a URL do django-simple-history
+                url = reverse(f'admin:{obj._meta.app_label}_{obj._meta.model_name}_history', args=[obj.pk])
+                return format_html('<a href="{}" class="button">Histórico</a>', url)
+            except NoReverseMatch:
+                # Se não existir, usa o UserChangeLog
+                try:
+                    url = reverse('admin:users_userchangelog_changelist') + f'?user__id__exact={obj.pk}'
+                    return format_html('<a href="{}" class="button">Alterações</a>', url)
+                except:
+                    return "Indisponível"
         return "-"
     history_link.short_description = 'Histórico'
 
@@ -87,12 +101,10 @@ class UserAdmin(BaseUserAdmin):
         Sobrescreve o método save_model para registrar as alterações de campo
         no UserChangeLog e integrar com o django-simple-history (se aplicável).
         """
-        # Definir o usuário que está fazendo a alteração para registro no histórico
-        if hasattr(obj, '_history_user'):
-             obj._history_user = request.user
+        # CORREÇÃO: Sempre definir o usuário do histórico
+        obj._history_user = request.user
 
-        # Registrar alterações de campo manualmente para UserChangeLog
-        if change: # Apenas para alterações de objetos existentes
+        if change:
             try:
                 # Buscar o objeto original do banco de dados antes das alterações do formulário
                 original_obj = self.model.objects.get(pk=obj.pk)
@@ -100,7 +112,7 @@ class UserAdmin(BaseUserAdmin):
                 # Campos a serem ignorados no log
                 ignored_fields = [
                     'password', 'last_login', 'created_at', 'updated_at',
-                    '_history_user', 'groups', 'user_permissions', 'photo'
+                    '_history_user', 'groups', 'user_permissions',
                 ]
                 
                 # Iterar sobre os campos do modelo e comparar valores
@@ -108,7 +120,7 @@ class UserAdmin(BaseUserAdmin):
                     field_name = field.name
                     if field_name in ignored_fields:
                         continue
-                        
+                    
                     old_value = getattr(original_obj, field_name)
                     new_value = getattr(obj, field_name)
                     
@@ -125,6 +137,7 @@ class UserAdmin(BaseUserAdmin):
                             old_value=old_value_str,
                             new_value=new_value_str
                         )
+                        
             except self.model.DoesNotExist:
                 logger.warning(f"Objeto User com PK {obj.pk} não encontrado durante o registro de log.")
             except Exception as e:
@@ -137,21 +150,22 @@ class UserAdmin(BaseUserAdmin):
         """Ativa os usuários selecionados."""
         updated_count = 0
         for obj in queryset:
-            # Registra o usuário que está realizando a alteração para o histórico
-            if hasattr(obj, '_history_user'):
-                 obj._history_user = request.user
+            # CORREÇÃO: Sempre definir o usuário do histórico
+            obj._history_user = request.user
+            
             # Loga a mudança de is_active
             if not obj.is_active:
-                 UserChangeLog.objects.create(
+                UserChangeLog.objects.create(
                     user=obj,
                     changed_by=request.user,
                     field_name='is_active',
                     old_value='False',
                     new_value='True'
-                 )
+                )
             obj.is_active = True
             obj.save()
             updated_count += 1
+            
         self.message_user(request, f'{updated_count} usuários foram ativados com sucesso.')
     activate_users.short_description = "Ativar usuários selecionados"
 
@@ -159,28 +173,63 @@ class UserAdmin(BaseUserAdmin):
         """Desativa os usuários selecionados."""
         updated_count = 0
         for obj in queryset:
-            # Registra o usuário que está realizando a alteração para o histórico
-            if hasattr(obj, '_history_user'):
-                 obj._history_user = request.user
+            # CORREÇÃO: Sempre definir o usuário do histórico
+            obj._history_user = request.user
+            
             # Loga a mudança de is_active
             if obj.is_active:
-                 UserChangeLog.objects.create(
+                UserChangeLog.objects.create(
                     user=obj,
                     changed_by=request.user,
                     field_name='is_active',
                     old_value='True',
                     new_value='False'
-                 )
+                )
             obj.is_active = False
             obj.save()
             updated_count += 1
+            
         self.message_user(request, f'{updated_count} usuários foram desativados com sucesso.')
     deactivate_users.short_description = "Desativar usuários selecionados"
 
+    # ADICIONADO: Método para adicionar senha nos formulários
+    def get_form(self, request, obj=None, **kwargs):
+        """
+        Customiza o formulário para incluir campos de senha adequados.
+        """
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Se for criação de novo usuário, adicionar validação de senha
+        if not obj:
+            form.base_fields['password1'] = forms.CharField(
+                label='Senha',
+                widget=forms.PasswordInput,
+                help_text='Digite uma senha forte.'
+            )
+            form.base_fields['password2'] = forms.CharField(
+                label='Confirmação de senha',
+                widget=forms.PasswordInput,
+                help_text='Digite a mesma senha novamente para confirmação.'
+            )
+        
+        return form
+
+    def save_form(self, request, form, change):
+        """
+        Processa o formulário antes de salvar, incluindo validação de senhas.
+        """
+        user = super().save_form(request, form, change)
+        
+        # Se for criação de novo usuário, definir a senha
+        if not change and 'password1' in form.cleaned_data:
+            user.set_password(form.cleaned_data['password1'])
+        
+        return user
 
 @admin.register(EmailLog)
 class EmailLogAdmin(admin.ModelAdmin):
     """Admin para o modelo EmailLog."""
+    
     list_display = ('user', 'email_type', 'recipient', 'status', 'sent_at')
     list_filter = ('email_type', 'status', 'sent_at')
     search_fields = [
@@ -191,27 +240,24 @@ class EmailLogAdmin(admin.ModelAdmin):
         'error_message',
     ]
     readonly_fields = (
-        'user',
-        'email_type',
-        'recipient',
-        'subject',
-        'status',
-        'sent_at',
-        'error_message',
+        'user', 'email_type', 'recipient', 'subject', 
+        'status', 'sent_at', 'error_message'
     )
     date_hierarchy = 'sent_at'
-    
+
     def has_add_permission(self, request):
         return False
+    
     def has_delete_permission(self, request, obj=None):
         return False
+    
     def has_change_permission(self, request, obj=None):
         return False
-
 
 @admin.register(UserChangeLog)
 class UserChangeLogAdmin(admin.ModelAdmin):
     """Admin para o modelo UserChangeLog com exibição de valores antigo e novo."""
+    
     list_display = ['user', 'changed_by', 'field_name', 'old_value', 'new_value', 'changed_at']
     list_filter = ['field_name', 'changed_at']
     search_fields = [
@@ -225,18 +271,15 @@ class UserChangeLogAdmin(admin.ModelAdmin):
         'new_value',
     ]
     readonly_fields = (
-        'user',
-        'changed_by',
-        'field_name',
-        'old_value',
-        'new_value',
-        'changed_at',
+        'user', 'changed_by', 'field_name', 'old_value', 'new_value', 'changed_at'
     )
     date_hierarchy = 'changed_at'
-    
+
     def has_add_permission(self, request):
         return False
+    
     def has_delete_permission(self, request, obj=None):
         return False
+    
     def has_change_permission(self, request, obj=None):
         return False
