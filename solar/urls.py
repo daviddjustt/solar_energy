@@ -24,6 +24,12 @@ urlpatterns = [
     # API Docs - Interface UI
     path('api/v1/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/v1/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    
+    # Adiciona a rota para /api/docs/ que aponta para o Swagger UI
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='api-docs'),
+
+    # API Endpoints - Client Projects
+    path('api/v1/projects/', include('solar.documents.urls')),
 
     # Endpoints personalizados do Djoser - IMPORTANTE: colocar antes do include do djoser.urls
     path('api/v1/auth/', include(router.urls)),

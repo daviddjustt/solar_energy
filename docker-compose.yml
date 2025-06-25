@@ -19,14 +19,6 @@ services:
     depends_on:
       - postgres
       - mailhog
-  documentation:
-    restart: always
-    build: ./
-    command: "python3 -m mkdocs serve"
-    volumes:
-      - ./:/code
-    ports:
-      - "8081:8080"
   mailhog:
     image: mailhog/mailhog:latest
     restart: always

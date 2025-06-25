@@ -28,6 +28,7 @@ class Common(Configuration):
         
         # Your apps
         'solar.users',
+        'solar.documents',
     )
     # https://docs.djangoproject.com/en/2.0/topics/http/middleware/
     MIDDLEWARE = (
