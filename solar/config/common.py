@@ -48,9 +48,18 @@ class Common(Configuration):
     WSGI_APPLICATION = 'solar.wsgi.application'
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')  # Para MailHog
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))  # Para MailHog
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
+    EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@solarenergy.com')
+    
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
     )
+
     # Postgres
     DATABASES = {
         'default': dj_database_url.config(
@@ -186,6 +195,16 @@ class Common(Configuration):
                 'handlers': ['console'],
                 'level': 'INFO'
             },
+            'django.core.mail': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
+            'solar.users.email': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
         }
     }
     # Custom user app
@@ -197,6 +216,7 @@ class Common(Configuration):
     ]
     # Djoser Settings
     DJOSER = {
+
         'LOGIN_FIELD': 'email',
         'USER_CREATE_PASSWORD_RETYPE': True,
         'USERNAME_CHANGED_EMAIL_CONFIRMATION': True,
@@ -229,6 +249,7 @@ class Common(Configuration):
             'password_changed_confirmation': 'solar.users.email.PasswordChangedConfirmationEmail',
             'username_changed_confirmation': 'solar.users.email.UsernameChangedConfirmationEmail',
             'username_reset': 'solar.users.email.UsernameResetEmail',
+            
         }
     }
     SIMPLE_JWT = {
@@ -241,7 +262,24 @@ class Common(Configuration):
     }
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
+        "http://localhost:3000",  # ADICIONAR
+        "http://127.0.0.1:8080",  # ADICIONAR (backend)
+        "http://localhost:8080",  # ADICIONAR (backend)
     ]
+    CORS_ALLOW_CREDENTIALS = True
+
+    CORS_ALLOWED_HEADERS = [
+        'accept',
+        'accept-encoding',
+        'authorization',
+        'content-type',
+        'dnt',
+        'origin',
+        'user-agent',
+        'x-csrftoken',
+        'x-requested-with',
+    ]
+
     REST_FRAMEWORK = {
         'DEFAULT_AUTHENTICATION_CLASSES': (
             'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -254,6 +292,8 @@ class Common(Configuration):
         ],
     }
 
-    # Configurações para URLs e nome do site 
-    SITE_NAME = "SolarEnergy"
-    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
+    # Configurações para URLs e nome do site
+    SITE_NAME = os.getenv('SITE_NAME', 'SolarEnergy')
+    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8000')  # Backend URL
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')  # ADICIONAR
+    DOMAIN = os.getenv('DOMAIN', 'localhost:8000')  # ADICIONAR

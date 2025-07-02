@@ -14,10 +14,13 @@ from django.contrib.auth import authenticate
 
 # Third-party imports
 from djoser.views import UserViewSet,TokenCreateView
+from djoser.views import UserViewSet as DjoserUserViewSet
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from rest_framework import status, views
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from djoser.utils import decode_uid
+from django.contrib.auth.tokens import default_token_generator
 
 # Local application imports
 from .models import User, UserChangeLog
@@ -186,3 +189,39 @@ class SpecialUserCPFLoginView(TokenCreateView):
     def _get_token(self, user):
         from rest_framework_simplejwt.tokens import RefreshToken
         return RefreshToken.for_user(user)
+
+class UserViewSet(DjoserUserViewSet):
+    
+    @action(["post"], detail=False, url_path="activate")
+    def activation(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            uid = serializer.validated_data['uid']
+            token = serializer.validated_data['token']
+            
+            # Decodificar UID
+            user_id = decode_uid(uid)
+            user = User.objects.get(pk=user_id)
+            
+            # Verificar token
+            if default_token_generator.check_token(user, token):
+                user.is_active = True
+                user.save()
+                
+                return Response(
+                    {"detail": "Conta ativada com sucesso!"}, 
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"detail": "Token inválido ou expirado."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except (User.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": "Dados de ativação inválidos."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
