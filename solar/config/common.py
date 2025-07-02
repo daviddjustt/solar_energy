@@ -48,6 +48,7 @@ class Common(Configuration):
     WSGI_APPLICATION = 'solar.wsgi.application'
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    BASE_URL = 'http://localhost:8080'
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')  # Para MailHog
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))  # Para MailHog
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
@@ -93,7 +94,8 @@ class Common(Configuration):
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
             'DIRS': [
-                os.path.join(BASE_DIR, 'templates'), # Adiciona a pasta templates na raiz do projeto
+                os.path.join(BASE_DIR, 'templates'),
+                os.path.join(BASE_DIR, 'solar', 'templates'),  # ADICIONAR esta linha
             ],
             'APP_DIRS': True,
             'OPTIONS': {
@@ -205,6 +207,11 @@ class Common(Configuration):
                 'level': 'DEBUG',
                 'propagate': True,
             },
+            'solar.users.views': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': True,
+            },
         }
     }
     # Custom user app
@@ -294,6 +301,6 @@ class Common(Configuration):
 
     # Configurações para URLs e nome do site
     SITE_NAME = os.getenv('SITE_NAME', 'SolarEnergy')
-    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8000')  # Backend URL
+    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')  # Backend URL
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')  # ADICIONAR
-    DOMAIN = os.getenv('DOMAIN', 'localhost:8000')  # ADICIONAR
+    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')  # ADICIONAR
