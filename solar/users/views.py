@@ -187,23 +187,169 @@ class SpecialUserCPFLoginView(TokenCreateView):
         from rest_framework_simplejwt.tokens import RefreshToken
         return RefreshToken.for_user(user)
 
-# Em solar/users/views.py
+import base64
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views import View
+from django.db import transaction
+import logging
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
 
 class ActivateAccountView(View):
-    def get(self, request, uid, token):
-        return JsonResponse({
-            "message": "View funcionando!",
-            "uid": uid,
-            "token": token,
-            "method": request.method
-        })
     
-    def post(self, request, uid, token):
-        return JsonResponse({
-            "message": "POST funcionando!",
-            "uid": uid,
-            "token": token,
-            "method": request.method
-        })
+    def get(self, request, uuid, token):
+        return self._activate_account(request, uuid, token)
+    
+    def post(self, request, uuid, token):
+        return self._activate_account(request, uuid, token)
+    
+    def _activate_account(self, request, uuid_encoded, token):
+        try:
+            # CORREÇÃO: Decodificar o UUID base64
+            uuid_str = self._decode_uuid(uuid_encoded)
+            if not uuid_str:
+                return self._error_response(
+                    "UUID inválido",
+                    status=400
+                )
+            
+            # Buscar usuário pelo UUID decodificado
+            user = self._get_user_by_uuid(uuid_str)
+            if not user:
+                return self._error_response(
+                    "Usuário não encontrado",
+                    status=404
+                )
+            
+            # Verificar se já está ativo
+            if user.is_active:
+                return self._success_response(
+                    "Conta já está ativa",
+                    user_data=self._get_user_data(user),
+                    already_active=True
+                )
+            
+            # Validar token
+            if not self._is_valid_token(user, token):
+                return self._error_response(
+                    "Token inválido ou expirado",
+                    status=400
+                )
+            
+            # Ativar usuário
+            success = self._activate_user(user)
+            if not success:
+                return self._error_response(
+                    "Erro interno ao ativar conta",
+                    status=500
+                )
+            
+            return self._success_response(
+                "Conta ativada com sucesso!",
+                user_data=self._get_user_data(user)
+            )
+            
+        except Exception as e:
+            logger.error(f"Erro inesperado na ativação: {e}")
+            return self._error_response(
+                "Erro interno do servidor",
+                details=str(e),
+                status=500
+            )
+    
+    def _decode_uuid(self, uuid_encoded):
+        """
+        Decodifica UUID base64 para string normal.
+        
+        Args:
+            uuid_encoded: UUID codificado em base64
+            
+        Returns:
+            str: UUID decodificado ou None se inválido
+        """
+        try:
+            # Decodificar base64
+            decoded_bytes = base64.urlsafe_b64decode(uuid_encoded)
+            uuid_str = decoded_bytes.decode('utf-8')
+            
+            logger.info(f"UUID decodificado: {uuid_encoded} -> {uuid_str}")
+            return uuid_str
+            
+        except Exception as e:
+            logger.error(f"Erro ao decodificar UUID {uuid_encoded}: {e}")
+            return None
+    
+    def _get_user_by_uuid(self, uuid_str):
+        """Busca usuário pelo UUID string."""
+        try:
+            return User.objects.get(uuid=uuid_str)
+        except (User.DoesNotExist, ValidationError, ValueError) as e:
+            logger.warning(f"Usuário não encontrado para UUID: {uuid_str} - Erro: {e}")
+            return None
+    
+    def _is_valid_token(self, user, token):
+        """Valida o token de ativação."""
+        try:
+            return default_token_generator.check_token(user, token)
+        except Exception as e:
+            logger.warning(f"Erro ao validar token: {e}")
+            return False
+    
+    @transaction.atomic
+    def _activate_user(self, user):
+        """Ativa o usuário no banco de dados."""
+        try:
+            user.is_active = True
+            user.updated_at = timezone.now()
+            user.save(update_fields=['is_active', 'updated_at'])
+            
+            logger.info(f"Usuário ativado com sucesso: {user.email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erro ao ativar usuário {user.email}: {e}")
+            return False
+    
+    def _get_user_data(self, user):
+        """Retorna dados seguros do usuário."""
+        return {
+            'uuid': str(user.uuid),
+            'email': user.email,
+            'name': user.name,
+            'is_active': user.is_active,
+            'created_at': user.created_at.isoformat(),
+            'activated_at': timezone.now().isoformat() if user.is_active else None
+        }
+    
+    def _success_response(self, message, user_data=None, already_active=False):
+        """Resposta de sucesso padronizada."""
+        response_data = {
+            'success': True,
+            'message': message,
+            'timestamp': timezone.now().isoformat(),
+            'already_active': already_active
+        }
+        
+        if user_data:
+            response_data['user'] = user_data
+        
+        status_code = 200 if already_active else 201
+        return JsonResponse(response_data, status=status_code)
+    
+    def _error_response(self, message, details=None, status=400):
+        """Resposta de erro padronizada."""
+        response_data = {
+            'success': False,
+            'error': message,
+            'timestamp': timezone.now().isoformat()
+        }
+        
+        if details:
+            response_data['details'] = details
+        
+        return JsonResponse(response_data, status=status)

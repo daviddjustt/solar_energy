@@ -22,18 +22,18 @@ class ActivationEmail(BaseActivationEmail):
         
         # Construir URL de ativação personalizada
         user = context.get('user')
-        uid = context.get('uid')
+        uuid = context.get('uuid')
         token = context.get('token')
         
         # URL personalizada que aponta para nossa view customizada
-        activation_url = f"{settings.BASE_URL}/activate/{uid}/{token}/"
+        activation_url = f"{settings.BASE_URL}/activate/{uuid}/{token}/"
         
         context.update({
             'frontend_url': frontend_url,
             'site_name': site_name,
             'activation_url': activation_url,  # URL personalizada
             'user': user,
-            'uid': uid,
+            'uuid': uuid,
             'token': token,
         })
         

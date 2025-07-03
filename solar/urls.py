@@ -29,7 +29,7 @@ urlpatterns = [
 
     # API Endpoints - Client Projects
     path('api/v1/projects/', include('solar.documents.urls')),
-    path('activate/<str:uid>/<str:token>/', ActivateAccountView.as_view(), name='custom-user-activation'),
+    path('activate/<str:uuid>/<str:token>', ActivateAccountView.as_view(), name='custom-user-activation'),
 
     # Endpoints personalizados do Djoser - IMPORTANTE: colocar antes do include do djoser.urls
     path('api/v1/auth/', include(router.urls)),

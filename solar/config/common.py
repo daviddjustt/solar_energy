@@ -266,6 +266,8 @@ class Common(Configuration):
         "ROTATE_REFRESH_TOKENS": True, # Rotaciona tokens de refresh
         "BLACKLIST_AFTER_ROTATION": True,# Adiciona tokens antigos à blacklist
         "UPDATE_LAST_LOGIN": True,# Atualiza timestamp de último login
+        'USER_ID_FIELD': 'uuid',
+        'USER_ID_CLAIM': 'user_id',
     }
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
