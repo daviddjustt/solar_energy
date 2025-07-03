@@ -196,7 +196,7 @@ from django.utils import timezone
 from django.views import View
 from django.db import transaction
 import logging
-
+# erro
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
