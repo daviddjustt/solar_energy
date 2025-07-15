@@ -28,10 +28,11 @@ class ClientProject(models.Model):
     city = models.CharField(max_length=100, verbose_name="Cidade")
     complement = models.CharField(max_length=200, blank=True, null=True, verbose_name="Complemento")
     
-    # Documentos e contato
+    # Documentos
     cpf_validator = RegexValidator(regex=r'^\d{3}\.\d{3}\.\d{3}-\d{2}$', message="CPF deve estar no formato XXX.XXX.XXX-XX")
     cpf = models.CharField(max_length=14, validators=[cpf_validator], verbose_name="CPF")
     
+    # Contato
     phone_validator = RegexValidator(regex=r'^\(\d{2}\)\s\d{4,5}-\d{4}$', message="Celular deve estar no formato (XX) XXXXX-XXXX")
     phone = models.CharField(max_length=15, validators=[phone_validator], verbose_name="Celular do titular")
     

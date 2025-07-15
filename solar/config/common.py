@@ -4,6 +4,8 @@ from distutils.util import strtobool
 import dj_database_url
 from configurations import Configuration
 from datetime import timedelta
+from datetime import timedelta
+from celery.schedules import crontab
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,18 +19,24 @@ class Common(Configuration):
         'django.contrib.staticfiles',
 
         # Third party apps
-        'rest_framework', # utilities for rest apis
-        'rest_framework.authtoken', # token authentication
-        'django_filters', # for filtering rest endpoints
+        'rest_framework',
+        'rest_framework.authtoken',
+        'django_filters',
         'drf_spectacular',
         'corsheaders',
         'djoser',
         'rest_framework_simplejwt.token_blacklist',
         'import_export',
-        
+        'simple_history', 
+        'auditlog',       
+        'admin_interface', 
+        'colorfield',     
+        'django_celery_beat',
+
         # Your apps
         'solar.users',
         'solar.documents',
+        'solar.sheets_pipeline',
     )
     # https://docs.djangoproject.com/en/2.0/topics/http/middleware/
     MIDDLEWARE = (
@@ -60,6 +68,26 @@ class Common(Configuration):
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
     )
+
+    # Celery Configuration
+    CELERY_BROKER_URL = 'redis://localhost:6379/0' # Conecta ao Redis local na porta 6379, banco de dados 0
+    CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Onde os resultados das tarefas são armazenados (opcional, mas recomendado)
+    CELERY_ACCEPT_CONTENT = ['json'] # Tipos de conteúdo que o Celery pode aceitar
+    CELERY_TASK_SERIALIZER = 'json' # Formato para serializar as tarefas
+    CELERY_RESULT_SERIALIZER = 'json' # Formato para serializar os resultados
+    CELERY_TIMEZONE = 'America/Sao_Paulo' # Ou seu fuso horário local
+    CELERY_ENABLE_UTC = True # Use UTC para horários (boa prática)
+
+    # Configurações para Celery Beat (agendamento)
+    # Você pode definir tarefas agendadas aqui ou em um arquivo separado.
+    # Por enquanto, vamos deixar simples.
+    CELERY_BEAT_SCHEDULE = {
+        'export-projects-every-5-minutes': {
+            'task': 'solar.sheets_pipeline.celery', # Caminho completo para sua tarefa
+            'schedule': timedelta(minutes=5), # Importe timedelta do módulo datetime
+            'args': (), # Argumentos para a tarefa, se houver
+        },
+    }
 
     # Postgres
     DATABASES = {
