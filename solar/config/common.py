@@ -23,6 +23,7 @@ class Common(Configuration):
         'drf_spectacular',
         'corsheaders',
         'djoser',
+        'django_celery_beat',
         'rest_framework_simplejwt.token_blacklist',
         'import_export',
         
@@ -40,12 +41,19 @@ class Common(Configuration):
         'django.contrib.auth.middleware.AuthenticationMiddleware',
         'django.contrib.messages.middleware.MessageMiddleware',
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
-        'simple_history.middleware.HistoryRequestMiddleware', # Simple history
+        'simple_history.middleware.HistoryRequestMiddleware',
     )
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
     WSGI_APPLICATION = 'solar.wsgi.application'
+
+    # Celery
+    CELERY_BROKER_URL = 'redis://localhost:6379/0'
+    CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TASK_SERIALIZER = 'json'
+
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     ADMINS = (
