@@ -65,7 +65,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     """Modelo de usuário para policiais militares."""
     
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     email = models.EmailField(
         max_length=255,

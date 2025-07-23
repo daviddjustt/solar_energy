@@ -3,14 +3,25 @@ services:
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
     image: postgres:16.4
+    volumes:
+      - pg_data:/var/lib/postgresql/data/
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
   web:
     restart: always
+    build: .
     environment:
+      - DJANGO_SETTINGS_MODULE=solar.config.common
+      - DJANGO_CONFIGURATION=Common
       - DJANGO_SECRET_KEY=local
-    build: ./
     command: >
       bash -c "python3 wait_for_postgres.py &&
-               python3 ./manage.py migrate &&
+               python3 ./manage.py migrate --noinput &&
                python3 ./manage.py runserver 0.0.0.0:8080"
     volumes:
       - ./:/code
@@ -18,10 +29,52 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
+      - redis
       - mailhog
+
+  celery_worker:
+    restart: always
+    build: .
+    environment:
+      - DJANGO_SETTINGS_MODULE=solar.config.common
+      - DJANGO_CONFIGURATION=Common
+      - DJANGO_SECRET_KEY=local
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    # MUDANÇA AQUI: Use 'python -m celery'
+    command: python -m celery -A solar.sheets_pipeline.celery worker -l info
+    volumes:
+      - ./:/code
+    depends_on:
+      - postgres
+      - redis
+      - web
+
+  celery_beat:
+    restart: always
+    build: .
+    environment:
+      - DJANGO_SETTINGS_MODULE=solar.config.common
+      - DJANGO_CONFIGURATION=Common
+      - DJANGO_SECRET_KEY=local
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    # MUDANÇA AQUI: Use 'python -m celery'
+    command: python -m celery -A solar.sheets_pipeline.celery beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./:/code
+    depends_on:
+      - postgres
+      - redis
+      - web
+
   mailhog:
     image: mailhog/mailhog:latest
     restart: always
     ports:
-      - "1025:1025" # SMTP port
-      - "8025:8025" # Interface web
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pg_data:
+  redis_data:

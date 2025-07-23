@@ -15,3 +15,9 @@ class Local(Common):
     EMAIL_PORT = 1025
     EMAIL_USE_TLS = False
     EMAIL_USE_SSL = False
+    EMAIL_HOST_USER = ''
+    EMAIL_HOST_PASSWORD = ''
+    # Configurações adicionais
+    DEFAULT_FROM_EMAIL = 'noreply@seudominio.com'
+    ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+    ACCOUNT_EMAIL_REQUIRED = True

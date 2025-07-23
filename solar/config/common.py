@@ -4,6 +4,8 @@ from distutils.util import strtobool
 import dj_database_url
 from configurations import Configuration
 from datetime import timedelta
+from datetime import timedelta
+from celery.schedules import crontab
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,19 +19,25 @@ class Common(Configuration):
         'django.contrib.staticfiles',
 
         # Third party apps
-        'rest_framework', # utilities for rest apis
-        'rest_framework.authtoken', # token authentication
-        'django_filters', # for filtering rest endpoints
+        'rest_framework',
+        'rest_framework.authtoken',
+        'django_filters',
         'drf_spectacular',
         'corsheaders',
         'djoser',
         'django_celery_beat',
         'rest_framework_simplejwt.token_blacklist',
         'import_export',
-        
+        'simple_history', 
+        'auditlog',       
+        'admin_interface', 
+        'colorfield',     
+        'django_celery_beat',
+
         # Your apps
         'solar.users',
         'solar.documents',
+        'solar.sheets_pipeline',
     )
     # https://docs.djangoproject.com/en/2.0/topics/http/middleware/
     MIDDLEWARE = (
@@ -56,9 +64,39 @@ class Common(Configuration):
 
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    BASE_URL = 'http://localhost:8080'
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')  # Para MailHog
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))  # Para MailHog
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
+    EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@solarenergy.com')
+    
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
     )
+
+    # Celery Configuration
+    CELERY_BROKER_URL = 'redis://localhost:6379/0' # Conecta ao Redis local na porta 6379, banco de dados 0
+    CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Onde os resultados das tarefas são armazenados (opcional, mas recomendado)
+    CELERY_ACCEPT_CONTENT = ['json'] # Tipos de conteúdo que o Celery pode aceitar
+    CELERY_TASK_SERIALIZER = 'json' # Formato para serializar as tarefas
+    CELERY_RESULT_SERIALIZER = 'json' # Formato para serializar os resultados
+    CELERY_TIMEZONE = 'America/Sao_Paulo' # Ou seu fuso horário local
+    CELERY_ENABLE_UTC = True # Use UTC para horários (boa prática)
+
+    # Configurações para Celery Beat (agendamento)
+    # Você pode definir tarefas agendadas aqui ou em um arquivo separado.
+    # Por enquanto, vamos deixar simples.
+    CELERY_BEAT_SCHEDULE = {
+        'export-projects-every-5-minutes': {
+            'task': 'solar.sheets_pipeline.celery', # Caminho completo para sua tarefa
+            'schedule': timedelta(minutes=5), # Importe timedelta do módulo datetime
+            'args': (), # Argumentos para a tarefa, se houver
+        },
+    }
+
     # Postgres
     DATABASES = {
         'default': dj_database_url.config(
@@ -92,7 +130,8 @@ class Common(Configuration):
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
             'DIRS': [
-                os.path.join(BASE_DIR, 'templates'), # Adiciona a pasta templates na raiz do projeto
+                os.path.join(BASE_DIR, 'templates'),
+                os.path.join(BASE_DIR, 'solar', 'templates'),  # ADICIONAR esta linha
             ],
             'APP_DIRS': True,
             'OPTIONS': {
@@ -194,6 +233,21 @@ class Common(Configuration):
                 'handlers': ['console'],
                 'level': 'INFO'
             },
+            'django.core.mail': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
+            'solar.users.email': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
+            'solar.users.views': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': True,
+            },
         }
     }
     # Custom user app
@@ -205,6 +259,7 @@ class Common(Configuration):
     ]
     # Djoser Settings
     DJOSER = {
+
         'LOGIN_FIELD': 'email',
         'USER_CREATE_PASSWORD_RETYPE': True,
         'USERNAME_CHANGED_EMAIL_CONFIRMATION': True,
@@ -237,6 +292,7 @@ class Common(Configuration):
             'password_changed_confirmation': 'solar.users.email.PasswordChangedConfirmationEmail',
             'username_changed_confirmation': 'solar.users.email.UsernameChangedConfirmationEmail',
             'username_reset': 'solar.users.email.UsernameResetEmail',
+            
         }
     }
     SIMPLE_JWT = {
@@ -246,10 +302,29 @@ class Common(Configuration):
         "ROTATE_REFRESH_TOKENS": True, # Rotaciona tokens de refresh
         "BLACKLIST_AFTER_ROTATION": True,# Adiciona tokens antigos à blacklist
         "UPDATE_LAST_LOGIN": True,# Atualiza timestamp de último login
+        'USER_ID_FIELD': 'uuid',
+        'USER_ID_CLAIM': 'user_id',
     }
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
+        "http://localhost:3000",  # ADICIONAR
+        "http://127.0.0.1:8080",  # ADICIONAR (backend)
+        "http://localhost:8080",  # ADICIONAR (backend)
     ]
+    CORS_ALLOW_CREDENTIALS = True
+
+    CORS_ALLOWED_HEADERS = [
+        'accept',
+        'accept-encoding',
+        'authorization',
+        'content-type',
+        'dnt',
+        'origin',
+        'user-agent',
+        'x-csrftoken',
+        'x-requested-with',
+    ]
+
     REST_FRAMEWORK = {
         'DEFAULT_AUTHENTICATION_CLASSES': (
             'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -262,6 +337,8 @@ class Common(Configuration):
         ],
     }
 
-    # Configurações para URLs e nome do site 
-    SITE_NAME = "SolarEnergy"
-    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
+    # Configurações para URLs e nome do site
+    SITE_NAME = os.getenv('SITE_NAME', 'SolarEnergy')
+    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')  # Backend URL
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')  # ADICIONAR
+    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')  # ADICIONAR
