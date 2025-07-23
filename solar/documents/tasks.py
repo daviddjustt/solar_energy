@@ -13,7 +13,7 @@ def append_to_google_sheet(sheet_id, dados):
     """
     # Defina o escopo e carregue as credenciais
     escopo = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credenciais = ServiceAccountCredentials.from_json_keyfile_name('solar/documents/credentials/fifth-diode-466021-q7-a03133123c0d.json', escopo)
+    credenciais = ServiceAccountCredentials.from_json_keyfile_name('', escopo)
 
     # Autentique-se e abra a planilha
     cliente = gspread.authorize(credenciais)
