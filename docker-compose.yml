@@ -42,7 +42,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     # MUDANÇA AQUI: Use 'python -m celery'
-    command: python -m celery -A solar.sheets_pipeline.celery worker -l info
+    command: python -m celery -A solar.documents.celery worker -l info
     volumes:
       - ./:/code
     depends_on:
@@ -60,7 +60,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     # MUDANÇA AQUI: Use 'python -m celery'
-    command: python -m celery -A solar.sheets_pipeline.celery beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: python -m celery -A solar.documents.celery beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - ./:/code
     depends_on:
