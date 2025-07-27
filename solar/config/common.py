@@ -17,20 +17,22 @@ class Common(Configuration):
         'django.contrib.staticfiles',
 
         # Third party apps
-        'rest_framework', # utilities for rest apis
-        'rest_framework.authtoken', # token authentication
-        'django_filters', # for filtering rest endpoints
+        'rest_framework',
+        'rest_framework.authtoken',
+        'djangorestframework_camel_case',
+        'django_filters',
         'drf_spectacular',
         'corsheaders',
         'djoser',
         'rest_framework_simplejwt.token_blacklist',
         'import_export',
+        'simple_history',  # ADICIONADO - estava faltando
         
         # Your apps
         'solar.users',
         'solar.documents',
     )
-    # https://docs.djangoproject.com/en/2.0/topics/http/middleware/
+
     MIDDLEWARE = (
         'django.middleware.security.SecurityMiddleware',
         'django.contrib.sessions.middleware.SessionMiddleware',
@@ -40,17 +42,19 @@ class Common(Configuration):
         'django.contrib.auth.middleware.AuthenticationMiddleware',
         'django.contrib.messages.middleware.MessageMiddleware',
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
-        'simple_history.middleware.HistoryRequestMiddleware', # Simple history
+        'simple_history.middleware.HistoryRequestMiddleware',
     )
+
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
     WSGI_APPLICATION = 'solar.wsgi.application'
+
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    BASE_URL = 'http://localhost:8080'
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')  # Para MailHog
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))  # Para MailHog
+    BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailhog')  # Corrigido para mailhog
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
@@ -68,18 +72,17 @@ class Common(Configuration):
             conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
         )
     }
+
     # General
     APPEND_SLASH = False
-    TIME_ZONE = 'America/Sao_Paulo' # Alterado para o fuso horário correto
-    LANGUAGE_CODE = 'pt-br' # Alterado para o idioma português do Brasil
-    # If you set this to False, Django will make some optimizations so as not
-    # to load the internationalization machinery.
-    USE_I18N = True # Ativado para suporte à internacionalização
+    TIME_ZONE = 'America/Sao_Paulo'
+    LANGUAGE_CODE = 'pt-br'
+    USE_I18N = True
     USE_L10N = True
     USE_TZ = True
     LOGIN_REDIRECT_URL = '/'
-    # Static files (CSS, JavaScript, Images)
-    # https://docs.djangoproject.com/en/2.0/howto/static-files/
+
+    # Static files
     STATIC_ROOT = os.path.normpath(join(os.path.dirname(BASE_DIR), 'static'))
     STATICFILES_DIRS = []
     STATIC_URL = '/static/'
@@ -87,15 +90,17 @@ class Common(Configuration):
         'django.contrib.staticfiles.finders.FileSystemFinder',
         'django.contrib.staticfiles.finders.AppDirectoriesFinder',
     )
+
     # Media files
     MEDIA_ROOT = join(os.path.dirname(BASE_DIR), 'media')
     MEDIA_URL = '/media/'
+
     TEMPLATES = [
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
             'DIRS': [
                 os.path.join(BASE_DIR, 'templates'),
-                os.path.join(BASE_DIR, 'solar', 'templates'),  # ADICIONAR esta linha
+                os.path.join(BASE_DIR, 'solar', 'templates'),
             ],
             'APP_DIRS': True,
             'OPTIONS': {
@@ -108,11 +113,10 @@ class Common(Configuration):
             },
         },
     ]
-    # Set DEBUG to False as a default for safety
-    # https://docs.djangoproject.com/en/dev/ref/settings/#debug
+
     DEBUG = strtobool(os.getenv('DJANGO_DEBUG', 'no'))
+
     # Password Validation
-    # https://docs.djangoproject.com/en/2.0/topics/auth/passwords/#module-django.contrib.auth.password_validation
     AUTH_PASSWORD_VALIDATORS = [
         {
             'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -127,21 +131,29 @@ class Common(Configuration):
             'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
         },
     ]
+
+    # CORRIGIDO - Configuração do DRF Spectacular
     SPECTACULAR_SETTINGS = {
-        'TITLE': 'solar API',
-        'DESCRIPTION': 'Documentação da API do projeto solar',
+        'TITLE': 'Solar API',
+        'DESCRIPTION': 'Documentação da API do projeto Solar',
         'VERSION': '1.0.0',
         'SERVE_INCLUDE_SCHEMA': False,
-        'SECURITY': [{'Bearer': []}],
-        'COMPONENT_SPLIT_REQUEST': True,
-        'SCHEMA_PATH_PREFIX': '/api/v1/',
         'SWAGGER_UI_SETTINGS': {
             'deepLinking': True,
             'persistAuthorization': True,
             'displayOperationId': True,
         },
+        'COMPONENT_SPLIT_REQUEST': True,
+        'SCHEMA_PATH_PREFIX': '/api/v1/',
+        'SECURITY': [{'Bearer': []}],
+        # Configurações de compatibilidade com Django 5.1+
+        'ENUM_NAME_OVERRIDES': {},
+        'POSTPROCESSING_HOOKS': [],
+        'PREPROCESSING_HOOKS': [],
+        'DISABLE_ERRORS_AND_WARNINGS': False,
     }
-    # Logging
+
+    # Logging (mantido como estava)
     LOGGING = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -214,16 +226,18 @@ class Common(Configuration):
             },
         }
     }
+
     # Custom user app
     AUTH_USER_MODEL = 'users.User'
-    # Authentication backends - com CPF e email
-    AUTHENTICATION_BACKENDS = [
-        'solar.users.backends.EmailOrCPFBackend',  # Backend customizado
-        'django.contrib.auth.backends.ModelBackend',   # Backend padrão como fallback
-    ]
-    # Djoser Settings
-    DJOSER = {
 
+    # Authentication backends
+    AUTHENTICATION_BACKENDS = [
+        'solar.users.backends.EmailOrCPFBackend',
+        'django.contrib.auth.backends.ModelBackend',
+    ]
+
+    # Djoser Settings (mantido como estava)
+    DJOSER = {
         'LOGIN_FIELD': 'email',
         'USER_CREATE_PASSWORD_RETYPE': True,
         'USERNAME_CHANGED_EMAIL_CONFIRMATION': True,
@@ -256,27 +270,29 @@ class Common(Configuration):
             'password_changed_confirmation': 'solar.users.email.PasswordChangedConfirmationEmail',
             'username_changed_confirmation': 'solar.users.email.UsernameChangedConfirmationEmail',
             'username_reset': 'solar.users.email.UsernameResetEmail',
-            
         }
     }
+
+    # Simple JWT
     SIMPLE_JWT = {
         "AUTH_HEADER_TYPES": ("Bearer",),
         "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
         "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
-        "ROTATE_REFRESH_TOKENS": True, # Rotaciona tokens de refresh
-        "BLACKLIST_AFTER_ROTATION": True,# Adiciona tokens antigos à blacklist
-        "UPDATE_LAST_LOGIN": True,# Atualiza timestamp de último login
+        "ROTATE_REFRESH_TOKENS": True,
+        "BLACKLIST_AFTER_ROTATION": True,
+        "UPDATE_LAST_LOGIN": True,
         'USER_ID_FIELD': 'uuid',
         'USER_ID_CLAIM': 'user_id',
     }
+
+    # CORS
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
-        "http://localhost:3000",  # ADICIONAR
-        "http://127.0.0.1:8080",  # ADICIONAR (backend)
-        "http://localhost:8080",  # ADICIONAR (backend)
+        "http://localhost:3000",
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
     ]
     CORS_ALLOW_CREDENTIALS = True
-
     CORS_ALLOWED_HEADERS = [
         'accept',
         'accept-encoding',
@@ -289,20 +305,76 @@ class Common(Configuration):
         'x-requested-with',
     ]
 
+    # CORRIGIDO - Configuração do Django REST Framework
     REST_FRAMEWORK = {
-        'DEFAULT_AUTHENTICATION_CLASSES': (
+        'DEFAULT_AUTHENTICATION_CLASSES': [
             'rest_framework_simplejwt.authentication.JWTAuthentication',
             'rest_framework.authentication.TokenAuthentication',
             'rest_framework.authentication.SessionAuthentication',
-        ),
+        ],
+        'DEFAULT_PARSER_CLASSES': [
+            'djangorestframework_camel_case.parser.CamelCaseFormParser',
+            'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
+            'djangorestframework_camel_case.parser.CamelCaseJSONParser',
+        ],
+        'DEFAULT_RENDERER_CLASSES': [
+            'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
+            'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
+            'rest_framework.renderers.JSONRenderer',
+        ],
         'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
         'DEFAULT_PERMISSION_CLASSES': [
             'rest_framework.permissions.IsAuthenticated',
         ],
+        'DEFAULT_FILTER_BACKENDS': [
+            'django_filters.rest_framework.DjangoFilterBackend',
+        ],
+        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+        'PAGE_SIZE': 20,
     }
 
-    # Configurações para URLs e nome do site
+    # Site configurations
     SITE_NAME = os.getenv('SITE_NAME', 'SolarEnergy')
-    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')  # Backend URL
-    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')  # ADICIONAR
-    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')  # ADICIONAR
+    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')
+
+# Configuração para desenvolvimento
+class Local(Common):
+    """
+    Configuração para ambiente de desenvolvimento local
+    """
+    DEBUG = True
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    
+    # Configurações específicas para desenvolvimento
+    CORS_ALLOW_ALL_ORIGINS = True  # Apenas para desenvolvimento
+    
+    # Logging mais verboso para desenvolvimento
+    LOGGING = {
+        **Common.LOGGING,
+        'loggers': {
+            **Common.LOGGING['loggers'],
+            'django.db.backends': {
+                'handlers': ['console'],
+                'level': 'DEBUG',  # Mostra queries SQL
+            },
+        }
+    }
+
+# Configuração para produção
+class Production(Common):
+    """
+    Configuração para ambiente de produção
+    """
+    DEBUG = False
+    
+    # Configurações de segurança para produção
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_REDIRECT_EXEMPT = []
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

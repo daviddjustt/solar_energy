@@ -6,12 +6,14 @@ from django.db.models import Count
 from django.contrib import messages
 from .models import ClientProject, ConsumerUnit, ProjectDocument
 
+
 class ConsumerUnitInline(admin.TabularInline):
     model = ConsumerUnit
     extra = 1
-    fields = ('client_code', 'percentage')
+    fields = ('client_code', 'percentage')  # Atualizado de 'codigoCliente'
     verbose_name = "Unidade Consumidora"
     verbose_name_plural = "Unidades Consumidoras"
+
 
 class ProjectDocumentInline(admin.StackedInline):
     model = ProjectDocument
@@ -27,13 +29,15 @@ class ProjectDocumentInline(admin.StackedInline):
             readonly.append('document_type')
         return readonly
 
+
 @admin.register(ClientProject)
 class ClientProjectAdmin(admin.ModelAdmin):
     list_display = (
-        'client_code', 
-        'project_holder_name', 
-        'client_type', 
+        'client_code',
+        'project_holder_name',
+        'client_type',
         'project_class',
+        'documento_display',  # Novo campo para mostrar documento formatado
         'documentation_status',
         'consumer_units_count',
         'documents_count',
@@ -41,28 +45,30 @@ class ClientProjectAdmin(admin.ModelAdmin):
     )
     
     list_filter = (
-        'client_type', 
-        'documentation_complete', 
+        'client_type',
+        'documentation_complete',
         'project_class',
         'created_at',
         'voltage'
     )
     
     search_fields = (
-        'client_code', 
-        'project_holder_name', 
-        'email', 
-        'cpf',
+        'client_code',
+        'project_holder_name',
+        'email',
+        'documento',  # Campo unificado para CPF/CNPJ
         'phone'
     )
     
     ordering = ('-created_at',)
     
     readonly_fields = (
-        'created_at', 
-        'updated_at', 
+        'created_at',
+        'updated_at',
         'documentation_complete',
-        'created_by'
+        'created_by',
+        'documento_tipo',  # Campo calculado
+        'documento_label'  # Campo calculado
     )
     
     inlines = [ConsumerUnitInline, ProjectDocumentInline]
@@ -79,7 +85,9 @@ class ClientProjectAdmin(admin.ModelAdmin):
         }),
         ('Documentos e Contato', {
             'fields': (
-                'cpf',
+                'documento',
+                'documento_tipo',  # Campo readonly para mostrar tipo
+                'documento_label',  # Campo readonly para mostrar formatado
                 'phone'
             )
         }),
@@ -114,6 +122,18 @@ class ClientProjectAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         })
     )
+    
+    def documento_display(self, obj):
+        """Exibe o documento com tipo e formatação"""
+        if obj.documento:
+            tipo = obj.documento_tipo
+            cor = 'blue' if tipo == 'CPF' else 'green'
+            return format_html(
+                '<span style="color: {}; font-weight: bold;">{}: {}</span>',
+                cor, tipo, obj.documento
+            )
+        return '-'
+    documento_display.short_description = 'Documento'
     
     def documentation_status(self, obj):
         if obj.documentation_complete:
@@ -158,7 +178,7 @@ class ClientProjectAdmin(admin.ModelAdmin):
             'consumer_units', 'documents'
         )
     
-    actions = ['check_documentation', 'mark_documentation_complete']
+    actions = ['check_documentation', 'mark_documentation_complete', 'validate_documents']
     
     def check_documentation(self, request, queryset):
         updated = 0
@@ -181,6 +201,39 @@ class ClientProjectAdmin(admin.ModelAdmin):
             messages.SUCCESS
         )
     mark_documentation_complete.short_description = "Marcar documentação como completa"
+    
+    def validate_documents(self, request, queryset):
+        """Nova ação para validar documentos CPF/CNPJ"""
+        valid_count = 0
+        invalid_count = 0
+        
+        for project in queryset:
+            try:
+                project.full_clean()  # Executa todas as validações do modelo
+                valid_count += 1
+            except Exception as e:
+                invalid_count += 1
+                self.message_user(
+                    request,
+                    f'Erro no projeto {project.client_code}: {str(e)}',
+                    messages.ERROR
+                )
+        
+        if valid_count > 0:
+            self.message_user(
+                request,
+                f'{valid_count} projetos validados com sucesso.',
+                messages.SUCCESS
+            )
+        
+        if invalid_count > 0:
+            self.message_user(
+                request,
+                f'{invalid_count} projetos com problemas de validação.',
+                messages.WARNING
+            )
+    validate_documents.short_description = "Validar documentos CPF/CNPJ"
+
 
 @admin.register(ConsumerUnit)
 class ConsumerUnitAdmin(admin.ModelAdmin):
@@ -191,6 +244,7 @@ class ConsumerUnitAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('project')
+
 
 @admin.register(ProjectDocument)
 class ProjectDocumentAdmin(admin.ModelAdmin):
@@ -316,3 +370,9 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
             messages.WARNING
         )
     reject_documents.short_description = "Rejeitar documentos selecionados"
+
+
+# Customização adicional do admin site
+admin.site.site_header = "Administração de Projetos Solares"
+admin.site.site_title = "Admin Projetos"
+admin.site.index_title = "Painel de Controle"
