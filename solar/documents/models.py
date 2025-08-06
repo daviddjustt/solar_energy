@@ -90,42 +90,10 @@ class ClientProject(models.Model):
         help_text="Latitude em formato decimal"
     )
     longitude = models.DecimalField(
-        max_digits=11, 
+        max_digits=10, 
         decimal_places=8, 
         verbose_name="Longitude",
         help_text="Longitude em formato decimal"
-    )
-    
-    # ADICIONADO: Campos auxiliares para graus/min/seg (para o frontend)
-    lat_degrees = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Latitude - Graus"
-    )
-    lat_minutes = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Latitude - Minutos"
-    )
-    lat_seconds = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Latitude - Segundos"
-    )
-    long_degrees = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Longitude - Graus"
-    )
-    long_minutes = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Longitude - Minutos"
-    )
-    long_seconds = models.IntegerField(
-        blank=True, 
-        null=True, 
-        verbose_name="Longitude - Segundos"
     )
     
     # Informações técnicas - MELHORADO: choices definidas
@@ -194,16 +162,19 @@ class ClientProject(models.Model):
             self.long_seconds = int((long_minutes_decimal - self.long_minutes) * 60)
 
     def convert_dms_to_coordinates(self):
-        """ADICIONADO: Converte graus/min/seg para coordenadas decimais"""
+        from decimal import Decimal, ROUND_HALF_UP 
+        """Converte graus/min/seg para coordenadas decimais, garantindo a precisão."""
         if all([self.lat_degrees is not None, self.lat_minutes is not None, self.lat_seconds is not None]):
-            self.latitude = Decimal(
-                str(self.lat_degrees + (self.lat_minutes / 60) + (self.lat_seconds / 3600))
-            )
-        
+            # Calcula o valor float
+            lat_float = float(self.lat_degrees) + (float(self.lat_minutes) / 60) + (float(self.lat_seconds) / 3600)
+            precision_latitude = Decimal('0.' + '0' * self.latitude.decimal_places)
+            self.latitude = Decimal(str(lat_float)).quantize(precision_latitude, rounding=ROUND_HALF_UP)
+
         if all([self.long_degrees is not None, self.long_minutes is not None, self.long_seconds is not None]):
-            self.longitude = Decimal(
-                str(self.long_degrees + (self.long_minutes / 60) + (self.long_seconds / 3600))
-            )
+            # Calcula o valor float
+            long_float = float(self.long_degrees) + (float(self.long_minutes) / 60) + (float(self.long_seconds) / 3600)
+            precision_longitude = Decimal('0.' + '0' * self.longitude.decimal_places)
+            self.longitude = Decimal(str(long_float)).quantize(precision_longitude, rounding=ROUND_HALF_UP)
 
     def clean(self):
         """Validação customizada"""
@@ -319,8 +290,43 @@ class ConsumerUnit(models.Model):
     def __str__(self):
         return f"UC: {self.client_code} - {self.percentage}%"
 
+class BaseModel(models.Model):
+    """
+    Modelo base que fornece campos de auditoria para todos os modelos do sistema.
+    Todos os modelos devem herdar desta classe para ter consistência na
+    rastreabilidade de criação e atualização.
+    """
+    created_at = models.DateTimeField(
+        verbose_name=("Data de Criação"),
+        auto_now_add=True
+    )
+    updated_at = models.DateTimeField(
+        verbose_name=("Data de Atualização"),
+        auto_now=True
+    )
 
-class ProjectDocument(models.Model):
+    class Meta:
+        abstract = True
+
+class ArquivoMixin(models.Model):
+    """
+    Mixin para campos comuns de arquivos.
+
+    Fornece estrutura base para modelos que lidam com upload de arquivos,
+    incluindo campos comuns e métodos de validação.
+    """
+
+    arquivo = models.FileField(
+        verbose_name=("Arquivo"),
+        upload_to="pontos/%(class)s/",
+        help_text=("Arquivo relacionado ao ponto de fiscalização"),
+    )
+
+    class Meta:
+        abstract = True
+
+
+class ProjectDocument(BaseModel, ArquivoMixin):
     DOCUMENT_TYPE_CHOICES = [
         # Documentos obrigatórios para PF e PJ
         ('documento_cliente', 'Documento do Cliente'),
@@ -353,23 +359,6 @@ class ProjectDocument(models.Model):
         max_length=50, 
         choices=DOCUMENT_TYPE_CHOICES, 
         verbose_name="Tipo do documento"
-    )
-    file = models.FileField(
-        upload_to=get_document_upload_path, 
-        verbose_name="Arquivo"
-    )
-    
-    # ADICIONADO: Campos para dados base64
-    file_name = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        verbose_name="Nome do arquivo original"
-    )
-    file_size = models.PositiveIntegerField(
-        blank=True,
-        null=True,
-        verbose_name="Tamanho do arquivo"
     )
     
     file_type = models.CharField(
@@ -441,3 +430,5 @@ class ProjectDocument(models.Model):
         
         # Revalida a documentação do projeto
         self.project.check_documentation_complete()
+
+

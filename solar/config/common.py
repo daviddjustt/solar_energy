@@ -19,7 +19,6 @@ class Common(Configuration):
         # Third party apps
         'rest_framework',
         'rest_framework.authtoken',
-        'djangorestframework_camel_case',
         'django_filters',
         'drf_spectacular',
         'corsheaders',
@@ -312,14 +311,7 @@ class Common(Configuration):
             'rest_framework.authentication.TokenAuthentication',
             'rest_framework.authentication.SessionAuthentication',
         ],
-        'DEFAULT_PARSER_CLASSES': [
-            'djangorestframework_camel_case.parser.CamelCaseFormParser',
-            'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
-            'djangorestframework_camel_case.parser.CamelCaseJSONParser',
-        ],
         'DEFAULT_RENDERER_CLASSES': [
-            'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
-            'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
             'rest_framework.renderers.JSONRenderer',
         ],
         'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
