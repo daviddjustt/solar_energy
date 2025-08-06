@@ -58,8 +58,8 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             if documento:
                 raise serializers.ValidationError({'tipoDocumento': 'Tipo de documento é obrigatório quando o documento é fornecido.'})
 
-        lat_fields = [data.get('lat_degrees'), data.get('lat_minutes'), data.get('lat_seconds')]
-        long_fields = [data.get('long_degrees'), data.get('long_minutes'), data.get('long_seconds')]
+        lat_fields = [data.get('latitude')]
+        long_fields = [data.get('longitude')]
 
         if any(f is not None for f in lat_fields) and not all(f is not None for f in lat_fields):
             raise serializers.ValidationError({
@@ -97,11 +97,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClientProject
-        fields = [
-            'id', 'codigoCliente', 'nomeTitular', 'classe', 'email', 'client_type',
-            'tipoDocumento', 'celular', 'documentation_complete', 'documents_count',
-            'consumer_units_count', 'created_at', 'updated_at'
-        ]
+        fields = "__all__"
 
     def get_tipoDocumento(self, obj):
         return 'cpf' if obj.client_type == 'PF' else 'cnpj'

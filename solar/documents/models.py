@@ -145,37 +145,6 @@ class ClientProject(models.Model):
         
         return False
 
-    def convert_coordinates_to_dms(self):
-        """ADICIONADO: Converte coordenadas decimais para graus/min/seg"""
-        if self.latitude:
-            lat_decimal = float(self.latitude)
-            self.lat_degrees = int(lat_decimal)
-            lat_minutes_decimal = (lat_decimal - self.lat_degrees) * 60
-            self.lat_minutes = int(lat_minutes_decimal)
-            self.lat_seconds = int((lat_minutes_decimal - self.lat_minutes) * 60)
-        
-        if self.longitude:
-            long_decimal = float(self.longitude)
-            self.long_degrees = int(long_decimal)
-            long_minutes_decimal = (long_decimal - self.long_degrees) * 60
-            self.long_minutes = int(long_minutes_decimal)
-            self.long_seconds = int((long_minutes_decimal - self.long_minutes) * 60)
-
-    def convert_dms_to_coordinates(self):
-        from decimal import Decimal, ROUND_HALF_UP 
-        """Converte graus/min/seg para coordenadas decimais, garantindo a precisão."""
-        if all([self.lat_degrees is not None, self.lat_minutes is not None, self.lat_seconds is not None]):
-            # Calcula o valor float
-            lat_float = float(self.lat_degrees) + (float(self.lat_minutes) / 60) + (float(self.lat_seconds) / 3600)
-            precision_latitude = Decimal('0.' + '0' * self.latitude.decimal_places)
-            self.latitude = Decimal(str(lat_float)).quantize(precision_latitude, rounding=ROUND_HALF_UP)
-
-        if all([self.long_degrees is not None, self.long_minutes is not None, self.long_seconds is not None]):
-            # Calcula o valor float
-            long_float = float(self.long_degrees) + (float(self.long_minutes) / 60) + (float(self.long_seconds) / 3600)
-            precision_longitude = Decimal('0.' + '0' * self.longitude.decimal_places)
-            self.longitude = Decimal(str(long_float)).quantize(precision_longitude, rounding=ROUND_HALF_UP)
-
     def clean(self):
         """Validação customizada"""
         super().clean()
@@ -209,11 +178,6 @@ class ClientProject(models.Model):
 
     def save(self, *args, **kwargs):
         """Override do save"""
-        # Converte coordenadas se necessário
-        if any([self.lat_degrees, self.lat_minutes, self.lat_seconds]):
-            self.convert_dms_to_coordinates()
-        elif self.latitude:
-            self.convert_coordinates_to_dms()
         
         self.full_clean()
         super().save(*args, **kwargs)
@@ -399,21 +363,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         return f"{self.get_document_type_display()} - {self.project.client_code}"
 
     def save(self, *args, **kwargs):
-        # Detecta automaticamente o tipo de arquivo e tamanho
-        if self.file:
-            file_extension = os.path.splitext(self.file.name)[1].lower()
-            if file_extension == '.pdf':
-                self.file_type = 'pdf'
-            elif file_extension in ['.jpg', '.jpeg', '.png', '.gif']:
-                self.file_type = 'photo'
-            else:
-                self.file_type = 'other'
-            
-            # ADICIONADO: Salva nome e tamanho do arquivo
-            if not self.file_name:
-                self.file_name = self.file.name
-            if not self.file_size:
-                self.file_size = self.file.size
         
         super().save(*args, **kwargs)
         
@@ -422,9 +371,9 @@ class ProjectDocument(BaseModel, ArquivoMixin):
 
     def delete(self, *args, **kwargs):
         # Remove o arquivo físico
-        if self.file:
-            if os.path.isfile(self.file.path):
-                os.remove(self.file.path)
+        if self.arquivo:
+            if os.path.isfile(self.arquivo.path):
+                os.remove(self.arquivo.path)
         
         super().delete(*args, **kwargs)
         

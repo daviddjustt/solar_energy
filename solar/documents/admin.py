@@ -129,10 +129,6 @@ class ProjectDocumentAdmin(SimpleHistoryAdmin): # Use SimpleHistoryAdmin se esti
         ("Status de Aprovação", {
             'fields': ('is_approved', 'rejection_reason', 'approved_at', 'approved_by'),
         }),
-        ("Metadados", {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',),
-        }),
     )
 
     # Sobrescreve o método save_model para definir approved_by e approved_at
