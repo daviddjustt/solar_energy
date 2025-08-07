@@ -28,6 +28,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         model = ClientProject
         # Excluímos os campos de relacionamento que serão tratados em outras views
         fields = "__all__"
+        read_only_fields = ['client_code',]
         
     def validate_tipoDocumento(self, value):
         if value and value.lower() not in ['cpf', 'cnpj']:

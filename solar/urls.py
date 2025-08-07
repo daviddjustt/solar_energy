@@ -1,5 +1,5 @@
-from django.contrib import admin
 from django.urls import path, include
+from django.contrib import admin
 from django.conf import settings
 from rest_framework_simplejwt.views import TokenBlacklistView
 from django.conf.urls.static import static
@@ -9,21 +9,21 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from rest_framework.routers import DefaultRouter
-
 from solar.users.views import CustomUserViewSet, ActivateAccountView
-
 from solar.documents.views import (
-    ClientProjectListView,
-    ClientProjectDetailView,
+    # Certifique-se de importar a ViewSet correta aqui
+    ClientProjectListView, # <-- Provavelmente o nome correto da sua ViewSet
+    ClientProjectDetailView, # Se esta ainda for uma DetailView separada
     ProjectDocumentListView,
     ProjectDocumentDetailView,
     ConsumerUnitListView,
     ConsumerUnitDetailView
 )
 
-
 router = DefaultRouter()
-router.register("users", CustomUserViewSet) # Corrigido: Removemos ActivateAccountView daqui
+router.register("users", CustomUserViewSet)
+# Se você tiver uma ClientProjectViewSet, você também pode registrá-la aqui para outras rotas
+# router.register("projects", ClientProjectViewSet, basename="project") # Exemplo: para rotas como /api/v1/projects/
 
 urlpatterns = [
     # Admin
@@ -41,18 +41,26 @@ urlpatterns = [
     path('api/v1/auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path('api/v1/auth/', include('djoser.urls.jwt')),
     path('api/v1/auth/jwt/', include('djoser.urls.jwt')),
-    path('api/v1/projects/', ClientProjectListView.as_view(), name='project-list-create'),
+
+    # AQUI ESTÁ A CORREÇÃO PRINCIPAL: Mude ClientProjectListView para ClientProjectViewSet
+    path('api/v1/projects/<uuid:client_code>/', ClientProjectListView.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy',
+        'post': 'create_with_client_code'
+    }), name='project-detail-by-code'),
+
+    # Se ClientProjectDetailView for uma DetailView padrão (não ViewSet), mantenha assim:
     path('api/v1/projects/<int:pk>/', ClientProjectDetailView.as_view(), name='project-detail-update-delete'),
 
     # Endpoints para Documentos (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
     path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
-
     # Endpoints para Unidades Consumidoras (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-unit-list-create'),
     path('api/v1/projects/<int:project_pk>/consumer_units/<int:pk>/', ConsumerUnitDetailView.as_view(), name='project-consumer-unit-detail-update-delete'),
 ]
-
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

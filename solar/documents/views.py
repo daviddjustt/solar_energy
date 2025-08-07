@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
@@ -12,7 +12,12 @@ from .serializers import (
 )
 
 # 1. Views para as Informações do Projeto (Criação, Leitura, Atualização, Exclusão)
-class ClientProjectListView(generics.ListCreateAPIView):
+class ClientProjectListView(viewsets.ModelViewSet):
+
+    from rest_framework import viewsets, status
+    from rest_framework.response import Response
+    from rest_framework.decorators import action
+
     """
     Lista todos os projetos ou cria um novo projeto.
     Para GET, usa ProjectListSerializer (com contadores).
@@ -20,6 +25,7 @@ class ClientProjectListView(generics.ListCreateAPIView):
     """
     queryset = ClientProject.objects.all()
     permission_classes = [IsAuthenticated]
+    lookup_field = 'client_code'
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -29,6 +35,41 @@ class ClientProjectListView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         # Define o usuário que está criando o projeto
         serializer.save(created_by=self.request.user)
+    
+    def create(self, request, *args, **kwargs):
+        client_code_from_url = kwargs.get('client_code')
+        client_code_from_url = kwargs.get('created_by')
+        if client_code_from_url:
+            request.data['client_code'] = client_code_from_url
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    @action(detail=False, methods=['post'], url_path='(?P<client_code>[^/.]+)')
+    def create_with_client_code(self, request, client_code=None):
+        if not client_code:
+            return Response({"detail": "client_code is required in the URL path."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Adiciona o client_code da URL aos dados da requisição
+        # para que o serializer possa processá-lo
+        data = request.data.copy()
+        data['client_code'] = client_code
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        # Verifica se um projeto com este client_code já existe
+        if ClientProject.objects.filter(client_code=client_code).exists():
+            return Response({"detail": "Project with this client_code already exists."}, status=status.HTTP_409_CONFLICT)
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
 
 class ClientProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     """

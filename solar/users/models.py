@@ -33,35 +33,39 @@ class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
     def create_user(self, email, name, cpf, celular, password=None, **extra_fields):
-        """Cria um usuário com os dados fornecidos."""
-        if not email:
-            raise ValueError('O usuário deve ter um endereço de email')
-        
-        email = self.normalize_email(email)
-        user = self.model(
-            email=email,
-            name=name.upper() if name else None,
-            cpf=cpf,
-            celular=celular,
-            **extra_fields
-        )
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-    
-    def create_superuser(self, email, name, cpf, celular, password=None):
-        """Cria um superusuário."""
-        return self.create_user(
-            email=email,
-            name=name,
-            cpf=cpf,
-            celular=celular,
-            password=password,
-            is_admin=True,
-            is_active=True,
-            is_superuser=True,  # ADICIONADO: Garantir que is_superuser seja True
-        )
+            # ... (código existente)
 
+            # Adicionar validação de CPF aqui
+            try:
+                validate_cpf(cpf)
+            except ValidationError as e:
+                raise ValueError(f"Erro de validação de CPF: {e.message}") # Ou apenas raise e
+
+            user = self.model(
+                email=email,
+                name=name.upper() if name else None,
+                cpf=cpf,
+                celular=celular,
+                **extra_fields
+            )
+            user.set_password(password)
+            user.save(using=self._db)
+            return user
+
+    def create_superuser(self, email, name, cpf, celular, password=None):
+            # ... (código existente)
+            # A validação de CPF já será chamada por create_user
+            return self.create_user(
+                email=email,
+                name=name,
+                cpf=cpf,
+                celular=celular,
+                password=password,
+                is_admin=True,
+                is_active=True,
+                is_superuser=True,
+            )
+    
 class User(AbstractBaseUser, PermissionsMixin):
     """Modelo de usuário para policiais militares."""
     
@@ -176,6 +180,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         Permite definir is_staff, que na verdade altera is_admin.
         """
         self.is_admin = value
+
+    def get_full_name(self):
+            """Retorna o nome completo do usuário."""
+            return self.name.strip()
+
+    def get_short_name(self):
+            """Retorna o primeiro nome ou uma versão curta do nome do usuário."""
+            return self.name.split(' ')[0] if self.name else ''
 
 # Resto do código permanece igual...
 class UserExport(User):
