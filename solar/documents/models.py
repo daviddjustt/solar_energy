@@ -364,14 +364,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     )
     # `uploaded_at` é fornecido por BaseModel.created_at
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
-    approved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='approved_documents',
-        verbose_name="Aprovado por"
-    )
     class Meta:
         verbose_name = "Documento do Projeto"
         verbose_name_plural = "Documentos do Projeto"
@@ -394,7 +386,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
             elif original.status != self.status and self.status != self.APPROVED:
                 # Se o status mudou de APROVADO para outro (rejeitado ou em análise), limpa a data/usuário de aprovação
                 self.approved_at = None
-                self.approved_by = None
         elif self.status == self.APPROVED: # Se é um novo documento e já está sendo criado como APROVADO
             self.approved_at = timezone.now()
             # approved_by deve ser definido na view/serializer
