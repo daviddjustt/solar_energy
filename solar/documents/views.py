@@ -11,77 +11,43 @@ from .serializers import (
     ConsumerUnitSerializer
 )
 
-# 1. Views para as Informações do Projeto (Criação, Leitura, Atualização, Exclusão)
-class ClientProjectListView(viewsets.ModelViewSet):
-
-    from rest_framework import viewsets, status
-    from rest_framework.response import Response
-    from rest_framework.decorators import action
-
+# 1. ViewSet para as Informações do Projeto (CRUD completo)
+class ProjectViewSet(viewsets.ModelViewSet):
     """
-    Lista todos os projetos ou cria um novo projeto.
-    Para GET, usa ProjectListSerializer (com contadores).
-    Para POST, usa ProjectInfoSerializer (para criação de dados básicos).
+    ViewSet para gerenciar projetos.
+    Permite criar, listar, recuperar, atualizar e deletar projetos.
+    O campo 'client_code' é esperado no corpo da requisição para operações de criação/atualização.
+    As operações de detalhe (retrieve, update, destroy) usam o 'pk' (ID) do projeto na URL.
     """
-    queryset = ClientProject.objects.all()
+    queryset = ClientProject.objects.all().order_by('-created_at')
     permission_classes = [IsAuthenticated]
-    lookup_field = 'client_code'
+    # Não definimos lookup_field = 'client_code' aqui.
+    # Por padrão, o ModelViewSet usa 'pk' para operações de detalhe,
+    # o que permite que 'client_code' seja um campo no corpo da requisição.
 
     def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return ProjectInfoSerializer # Usa ProjectInfoSerializer para a criação
-        return ProjectListSerializer # Usa ProjectListSerializer para a listagem
+        """
+        Retorna o serializer apropriado dependendo da ação.
+        Usa ProjectListSerializer para a ação 'list' (GET em /projects/).
+        Usa ProjectInfoSerializer para as demais ações (create, retrieve, update, destroy).
+        """
+        if self.action == 'list':
+            return ProjectListSerializer
+        return ProjectInfoSerializer
 
     def perform_create(self, serializer):
-        # Define o usuário que está criando o projeto
+        """
+        Define o usuário que está criando o projeto antes de salvar.
+        """
         serializer.save(created_by=self.request.user)
-    
-    def create(self, request, *args, **kwargs):
-        client_code_from_url = kwargs.get('client_code')
-        client_code_from_url = kwargs.get('created_by')
-        if client_code_from_url:
-            request.data['client_code'] = client_code_from_url
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    
-    @action(detail=False, methods=['post'], url_path='(?P<client_code>[^/.]+)')
-    def create_with_client_code(self, request, client_code=None):
-        if not client_code:
-            return Response({"detail": "client_code is required in the URL path."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Adiciona o client_code da URL aos dados da requisição
-        # para que o serializer possa processá-lo
-        data = request.data.copy()
-        data['client_code'] = client_code
-
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-
-        # Verifica se um projeto com este client_code já existe
-        if ClientProject.objects.filter(client_code=client_code).exists():
-            return Response({"detail": "Project with this client_code already exists."}, status=status.HTTP_409_CONFLICT)
-
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    # Não precisamos de um método 'create' customizado ou de uma action 'create_with_client_code'.
+    # O método 'create' padrão do ModelViewSet já espera os dados no request.data,
+    # incluindo o 'client_code', e o serializer ProjectInfoSerializer irá processá-lo.
+    # O mesmo vale para 'update' e 'partial_update'.
 
 
-
-class ClientProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    Recupera, atualiza ou exclui um projeto específico.
-    Usa ProjectInfoSerializer para todas as operações.
-    """
-    queryset = ClientProject.objects.all()
-    serializer_class = ProjectInfoSerializer
-    permission_classes = [IsAuthenticated]
-    lookup_field = 'pk' # O campo de lookup padrão já é 'pk', mas é bom ser explícito
-
-# 2. Views para Documentos do Projeto
+# 2. Views para Documentos do Projeto (Aninhadas)
 class ProjectDocumentListView(generics.ListCreateAPIView):
     """
     Lista todos os documentos de um projeto específico ou faz upload de um novo documento.
@@ -99,7 +65,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-
         document_type = serializer.validated_data.get('document_type')
         file_obj = serializer.validated_data.get('file')
         description = serializer.validated_data.get('description', '')
@@ -124,7 +89,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             # Se não existe, cria um novo documento
             serializer.save(project=project)
 
-
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Recupera, atualiza ou exclui um documento específico de um projeto.
@@ -146,7 +110,8 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
             serializer.instance.rejection_reason = None
         serializer.save()
 
-# 3. Views para Unidades Consumidoras do Projeto
+
+# 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
 class ConsumerUnitListView(generics.ListCreateAPIView):
     """
     Lista todas as unidades consumidoras de um projeto específico ou cria uma nova.

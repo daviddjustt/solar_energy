@@ -10,7 +10,7 @@ from simple_history.admin import SimpleHistoryAdmin # Importar se estiver usando
 class ConsumerUnitInline(admin.TabularInline):
     model = ConsumerUnit
     extra = 1 # Quantidade de formulários vazios para adicionar
-    fields = ('client_code', 'percentage', 'voltage')
+    fields = ('percentage',)
     verbose_name = "Unidade Consumidora"
     verbose_name_plural = "Unidades Consumidoras"
 
@@ -68,7 +68,7 @@ class ClientProjectAdmin(SimpleHistoryAdmin): # Use SimpleHistoryAdmin se estive
         'created_at',
         'get_created_by_email', # Renomeado para evitar conflito com o método
     )
-    list_filter = ('client_type', 'documentation_complete', 'voltage', 'created_at')
+    list_filter = ('client_type', 'documentation_complete','created_at')
     search_fields = ('client_code', 'project_holder_name', 'email', 'documento', 'cep', 'city')
     # documentation_complete agora é calculado, então deve ser readonly
     readonly_fields = (
@@ -88,7 +88,7 @@ class ClientProjectAdmin(SimpleHistoryAdmin): # Use SimpleHistoryAdmin se estive
             'description': "Insira as coordenadas decimais para a localização do projeto."
         }),
         ("Informações Técnicas e Status", {
-            'fields': ('voltage', 'documentation_complete', 'approved_documents_count', 'in_analysis_documents_count', 'rejected_documents_count', 'total_documents_count'),
+            'fields': ('documentation_complete', 'approved_documents_count', 'in_analysis_documents_count', 'rejected_documents_count', 'total_documents_count'),
         }),
         ("Metadados", {
             'fields': ('created_at', 'updated_at', 'created_by'), # created_by é definido no save_model
@@ -122,9 +122,9 @@ class ClientProjectAdmin(SimpleHistoryAdmin): # Use SimpleHistoryAdmin se estive
 # Admin para ConsumerUnit (se precisar de uma página de administração separada)
 @admin.register(ConsumerUnit)
 class ConsumerUnitAdmin(SimpleHistoryAdmin): # Use SimpleHistoryAdmin se estiver usando simple_history
-    list_display = ('client_code', 'project', 'percentage', 'voltage')
+    list_display = ('project', 'percentage', 'voltage')
     list_filter = ('project', 'voltage')
-    search_fields = ('client_code', 'project__client_code', 'project__project_holder_name')
+    search_fields = ('project__project_holder_name',)
     # Adicione raw_id_fields para o ForeignKey 'project' se tiver muitos projetos
     # raw_id_fields = ('project',)
 

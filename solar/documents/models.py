@@ -1,5 +1,4 @@
 # solar/documents/models.py
-
 from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
@@ -9,6 +8,7 @@ import os
 import re
 from django.utils import timezone # Importar timezone para usar em approved_at
 from solar.users.models import User
+
 def get_document_upload_path(instance, filename):
     """Gera o caminho de upload baseado no projeto e tipo de documento"""
     return f'projects/{instance.project.client_code}/documents/{instance.document_type}/{filename}'
@@ -18,20 +18,12 @@ class ClientProject(models.Model):
         ('PF', 'Pessoa Física'),
         ('PJ', 'Pessoa Jurídica'),
     ]
-    VOLTAGE_CHOICES = [
-        ('110V', '110V'),
-        ('220V', '220V'),
-        ('380V', '380V'),
-        ('440V', '440V'),
-        ('outros', 'Outros'),
-    ]
     # Informações básicas do cliente
-    
-    client_code = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='id'
-    )
+    client_code = models.CharField(
+        max_length=50,
+        verbose_name="Código único do cliente",
+        unique=True,
+        )
     project_holder_name = models.CharField(
         max_length=200,
         verbose_name="Nome do titular do projeto"
@@ -78,24 +70,30 @@ class ClientProject(models.Model):
         )],
         verbose_name="Telefone do titular"
     )
-    # ADICIONADO: Localização em formato decimal (principal)
-    latitude = models.DecimalField(
-        max_digits=10,
-        decimal_places=8,
-        verbose_name="Latitude",
-        help_text="Latitude em formato decimal"
+    # ALTERADO: Localização em graus, minutos, segundos
+    latGraus = models.SmallIntegerField(
+        verbose_name="Latitude (Graus)",
+        help_text="Parte inteira da latitude (-90 a 90)"
     )
-    longitude = models.DecimalField(
-        max_digits=10,
-        decimal_places=8,
-        verbose_name="Longitude",
-        help_text="Longitude em formato decimal"
+    latMin = models.SmallIntegerField(
+        verbose_name="Latitude (Minutos)",
+        help_text="Minutos da latitude (0 a 59)"
     )
-    # Informações técnicas - MELHORADO: choices definidas
-    voltage = models.CharField(
-        max_length=50,
-        choices=VOLTAGE_CHOICES,
-        verbose_name="Tensão"
+    latSeg = models.SmallIntegerField(
+        verbose_name="Latitude (Segundos)",
+        help_text="Segundos da latitude (0 a 59)"
+    )
+    longGraus = models.SmallIntegerField(
+        verbose_name="Longitude (Graus)",
+        help_text="Parte inteira da longitude (-180 a 180)"
+    )
+    longMin = models.SmallIntegerField(
+        verbose_name="Longitude (Minutos)",
+        help_text="Minutos da longitude (0 a 59)"
+    )
+    longSeg = models.SmallIntegerField(
+        verbose_name="Longitude (Segundos)",
+        help_text="Segundos da longitude (0 a 59)"
     )
     # Status da documentação (será complementado pelos status dos documentos individuais)
     documentation_complete = models.BooleanField(
@@ -105,12 +103,6 @@ class ClientProject(models.Model):
     # Metadados
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='created_projects'
-    )
-
     @property
     def documento_tipo(self):
         """Retorna o tipo do documento baseado no client_type"""
@@ -135,6 +127,22 @@ class ClientProject(models.Model):
             return bool(re.match(cnpj_pattern, self.documento))
         return False
 
+    @property
+    def decimal_latitude(self):
+        """Converte latitude de GMS para decimal"""
+        if self.latGraus is None or self.latMin is None or self.latSeg is None:
+            return None
+        sign = -1 if self.latGraus < 0 else 1
+        return Decimal(sign * (abs(self.latGraus) + (self.latMin / 60) + (self.latSeg / 3600))).quantize(Decimal('0.00000001'))
+
+    @property
+    def decimal_longitude(self):
+        """Converte longitude de GMS para decimal"""
+        if self.longGraus is None or self.longMin is None or self.longSeg is None:
+            return None
+        sign = -1 if self.longGraus < 0 else 1
+        return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
+
     def clean(self):
         """Validação customizada"""
         super().clean()
@@ -152,23 +160,37 @@ class ClientProject(models.Model):
                 raise ValidationError({
                     'documento': 'CNPJ deve estar no formato XX.XXX.XXX/XXXX-XX'
                 })
-        # ADICIONADO: Validação de coordenadas
-        if self.latitude and (self.latitude < -90 or self.latitude > 90):
+        # ADICIONADO: Validação de coordenadas GMS
+        if not (-90 <= self.latGraus <= 90):
             raise ValidationError({
-                'latitude': 'Latitude deve estar entre -90 e 90 graus'
+                'latGraus': 'Graus da Latitude devem estar entre -90 e 90.'
             })
-        if self.longitude and (self.longitude < -180 or self.longitude > 180):
+        if not (0 <= self.latMin <= 59):
             raise ValidationError({
-                'longitude': 'Longitude deve estar entre -180 e 180 graus'
+                'latMin': 'Minutos da Latitude devem estar entre 0 e 59.'
+            })
+        if not (0 <= self.latSeg <= 59):
+            raise ValidationError({
+                'latSeg': 'Segundos da Latitude devem estar entre 0 e 59.'
+            })
+
+        if not (-180 <= self.longGraus <= 180):
+            raise ValidationError({
+                'longGraus': 'Graus da Longitude devem estar entre -180 e 180.'
+            })
+        if not (0 <= self.longMin <= 59):
+            raise ValidationError({
+                'longMin': 'Minutos da Longitude devem estar entre 0 e 59.'
+            })
+        if not (0 <= self.longSeg <= 59):
+            raise ValidationError({
+                'longSeg': 'Segundos da Longitude devem estar entre 0 e 59.'
             })
 
     def save(self, *args, **kwargs):
         """Override do save"""
         self.full_clean()
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.client_code} - {self.project_holder_name}"
 
     class Meta:
         ordering = ['-created_at']
@@ -201,22 +223,21 @@ class ClientProject(models.Model):
             .values_list('document_type', flat=True)
         )
         self.documentation_complete = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
-        self.save(update_fields=['documentation_complete'])
-        return self.documentation_complete
+        self.save(update_fields=['documentation_complete']) # Salva apenas o campo atualizado
 
     @property
     def approved_documents_count(self):
-        """Retorna o número de documentos com status 'Aprovado'."""
+        """Retorna o número de documentos aprovados para o projeto."""
         return self.documents.filter(status=ProjectDocument.APPROVED).count()
 
     @property
     def in_analysis_documents_count(self):
-        """Retorna o número de documentos com status 'Em Análise'."""
+        """Retorna o número de documentos em análise para o projeto."""
         return self.documents.filter(status=ProjectDocument.IN_ANALYSIS).count()
 
     @property
     def rejected_documents_count(self):
-        """Retorna o número de documentos com status 'Rejeitado'."""
+        """Retorna o número de documentos rejeitados para o projeto."""
         return self.documents.filter(status=ProjectDocument.REJECTED).count()
 
     @property
@@ -224,17 +245,16 @@ class ClientProject(models.Model):
         """Retorna o número total de documentos para o projeto."""
         return self.documents.count()
 
-
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
         ClientProject,
         on_delete=models.CASCADE,
         related_name='consumer_units'
     )
-    client_code = models.CharField(
+    client_code_UC = models.CharField(
         max_length=50,
-        verbose_name="Código do cliente da unidade"
-    )
+        verbose_name="Código do cliente para unidade consumidora",
+        )
     percentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -249,15 +269,9 @@ class ConsumerUnit(models.Model):
         null=True,
         verbose_name="Tensão da unidade"
     )
-
     class Meta:
         verbose_name = "Unidade Consumidora"
         verbose_name_plural = "Unidades Consumidoras"
-        # ADICIONADO: Evita duplicação
-        unique_together = ['project', 'client_code']
-
-    def __str__(self):
-        return f"UC: {self.client_code} - {self.percentage}%"
 
 class BaseModel(models.Model):
     """
@@ -273,7 +287,6 @@ class BaseModel(models.Model):
         verbose_name=("Data de Atualização"),
         auto_now=True
     )
-
     class Meta:
         abstract = True
 
@@ -289,7 +302,6 @@ class ArquivoMixin(models.Model):
         upload_to=get_document_upload_path, # Usando a função customizada aqui
         help_text=("Arquivo relacionado ao ponto de fiscalização"),
     )
-
     class Meta:
         abstract = True
 
@@ -300,12 +312,10 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         ('APPROVED', 'Aprovado'),
         ('REJECTED', 'Rejeitado'),
     ]
-
     # Constantes para fácil acesso aos status
     IN_ANALYSIS = 'IN_ANALYSIS'
     APPROVED = 'APPROVED'
     REJECTED = 'REJECTED'
-
     DOCUMENT_TYPE_CHOICES = [
         # Documentos obrigatórios para PF e PJ
         ('documento_cliente', 'Documento do Cliente'),
@@ -340,11 +350,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         choices=FILE_TYPE_CHOICES,
         verbose_name="Tipo de arquivo"
     )
-    description = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name="Descrição"
-    )
     # NOVO CAMPO: Status do documento
     status = models.CharField(
         max_length=20,
@@ -367,11 +372,9 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         related_name='approved_documents',
         verbose_name="Aprovado por"
     )
-
     class Meta:
         verbose_name = "Documento do Projeto"
         verbose_name_plural = "Documentos do Projeto"
-        unique_together = ['project', 'document_type']
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.project.client_code} ({self.get_status_display()})"
@@ -395,11 +398,9 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         elif self.status == self.APPROVED: # Se é um novo documento e já está sendo criado como APROVADO
             self.approved_at = timezone.now()
             # approved_by deve ser definido na view/serializer
-
         # Se o status não é REJEITADO, limpa o motivo da rejeição
         if self.status != self.REJECTED:
             self.rejection_reason = None
-
         super().save(*args, **kwargs)
         # Verifica se a documentação do projeto está completa após salvar o documento
         # Isso é importante para atualizar o campo documentation_complete no ClientProject
@@ -413,4 +414,3 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         super().delete(*args, **kwargs)
         # Revalida a documentação do projeto após a exclusão
         self.project.check_documentation_complete()
-

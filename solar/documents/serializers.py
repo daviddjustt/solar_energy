@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from .models import ClientProject, ConsumerUnit, ProjectDocument
 
-# Serializer para Unidades Consumidoras (mantido como está)
+# Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
+    # Assumindo que ConsumerUnit possui um campo 'client_code'
+    # Se 'client_code' for do projeto pai, mude para source='project.client_code'
     codigoCliente = serializers.CharField(source='client_code')
     porcentagem = serializers.DecimalField(source='percentage', max_digits=5, decimal_places=2, required=False)
     tensao = serializers.CharField(source='voltage', required=False)
@@ -11,25 +13,21 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
         model = ConsumerUnit
         fields = ['id', 'codigoCliente', 'porcentagem', 'tensao']
 
-# Serializer para Upload de Documentos (mantido como está)
+# Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
-            'uploaded_at', 'is_approved', 'rejection_reason',
+            'uploaded_at', 'is_approved', 'rejection_reason', 'project',
         ]
 
-# NOVO Serializer para as informações básicas do Projeto
+# Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = ClientProject
-        # Excluímos os campos de relacionamento que serão tratados em outras views
-        fields = "__all__"
-        read_only_fields = ['client_code',]
-        
+        fields = "__all__" # 'client_code' será incluído aqui automaticamente do request body
+
     def validate_tipoDocumento(self, value):
         if value and value.lower() not in ['cpf', 'cnpj']:
             raise serializers.ValidationError("Tipo de documento deve ser 'cpf' ou 'cnpj'.")
@@ -37,7 +35,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         tipo_documento = data.get('tipoDocumento', '').lower()
-        documento = data.get('client_document') # Assumindo que o campo do modelo é 'client_document'
+        documento = data.get('client_document')
 
         if tipo_documento == 'cpf':
             data['client_type'] = 'PF'
@@ -59,8 +57,9 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             if documento:
                 raise serializers.ValidationError({'tipoDocumento': 'Tipo de documento é obrigatório quando o documento é fornecido.'})
 
-        lat_fields = [data.get('latitude')]
-        long_fields = [data.get('longitude')]
+        # Validação de coordenadas atualizada conforme seu código
+        lat_fields = [data.get('lat_degrees'), data.get('lat_minutes'), data.get('lat_seconds')]
+        long_fields = [data.get('long_degrees'), data.get('long_minutes'), data.get('long_seconds')]
 
         if any(f is not None for f in lat_fields) and not all(f is not None for f in lat_fields):
             raise serializers.ValidationError({
@@ -70,7 +69,6 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'coordinates': 'Todos os campos de longitude (graus, minutos, segundos) devem ser fornecidos se algum for.'
             })
-
         return data
 
     def create(self, validated_data):
@@ -86,7 +84,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-# Serializer para Listagem de Projetos (mantido como está, pois já é para listagem)
+# Serializer para Listagem de Projetos
 class ProjectListSerializer(serializers.ModelSerializer):
     codigoCliente = serializers.CharField(source='client_code', read_only=True)
     nomeTitular = serializers.CharField(source='project_holder_name', read_only=True)
@@ -98,7 +96,11 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClientProject
-        fields = "__all__"
+        fields = [
+            'id', 'codigoCliente', 'nomeTitular', 'classe', 'email', 'client_type',
+            'tipoDocumento', 'celular', 'documentation_complete', 'documents_count',
+            'consumer_units_count', 'created_at', 'updated_at'
+        ]
 
     def get_tipoDocumento(self, obj):
         return 'cpf' if obj.client_type == 'PF' else 'cnpj'
@@ -108,4 +110,3 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
-
