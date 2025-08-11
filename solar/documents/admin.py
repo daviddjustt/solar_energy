@@ -16,8 +16,8 @@ class ConsumerUnitInline(admin.TabularInline):
 class ProjectDocumentInline(admin.TabularInline):
     model = ProjectDocument
     extra = 0 # Não exibir formulários extras por padrão, já que documentos são carregados
-    fields = ('document_type', 'file_type', 'arquivo', 'status', 'rejection_reason', 'approved_by', 'approved_at',)
-    readonly_fields = ('approved_by', 'approved_at', 'created_at', 'updated_at',)
+    fields = ('document_type', 'file_type', 'arquivo', 'status', 'rejection_reason', 'approved_at',)
+    readonly_fields = ('approved_at', 'created_at', 'updated_at',)
     verbose_name = "Documento do Projeto"
     verbose_name_plural = "Documentos do Projeto"
 
@@ -147,7 +147,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
         'document_type',
         'status',
         'file_type',
-        'approved_by',
         'approved_at',
         'created_at',
     )
@@ -158,7 +157,7 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
         'project__project_holder_name',
         'rejection_reason',
     )
-    raw_id_fields = ('project', 'approved_by',) # Usa um widget de pesquisa para ForeignKeys
+    raw_id_fields = ('project',) # Usa um widget de pesquisa para ForeignKeys
     readonly_fields = ('created_at', 'updated_at', 'approved_at',)
     fieldsets = (
         (None, {
@@ -173,7 +172,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
             'fields': (
                 'status',
                 'rejection_reason',
-                'approved_by',
                 'approved_at',
             )
         }),
@@ -184,9 +182,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        # Se o status mudou para APROVADO e approved_by ainda não foi definido
-        if obj.status == ProjectDocument.APPROVED and not obj.approved_by:
-            obj.approved_by = request.user # Define o usuário logado como aprovador
         super().save_model(request, obj, form, change)
 
     def project_link(self, obj):

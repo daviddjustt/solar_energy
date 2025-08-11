@@ -379,8 +379,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
                 self.approved_at = timezone.now()
                 # Assumindo que você tem acesso ao usuário atual no contexto da requisição
                 # ou que o serializer irá passar o usuário.
-                # Por enquanto, deixaremos o approved_by para ser definido no serializer/view.
-                # Se você quiser que o approved_by seja definido automaticamente no save do model,
                 # precisará de um mecanismo para passar o usuário para o model (ex: thread-local storage ou signals).
                 # Para uma API REST, é mais comum definir isso no serializer ou view.
             elif original.status != self.status and self.status != self.APPROVED:
@@ -388,7 +386,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
                 self.approved_at = None
         elif self.status == self.APPROVED: # Se é um novo documento e já está sendo criado como APROVADO
             self.approved_at = timezone.now()
-            # approved_by deve ser definido na view/serializer
         # Se o status não é REJEITADO, limpa o motivo da rejeição
         if self.status != self.REJECTED:
             self.rejection_reason = None
