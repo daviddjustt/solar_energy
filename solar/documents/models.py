@@ -22,7 +22,6 @@ class ClientProject(models.Model):
     client_code = models.CharField(
         max_length=50,
         verbose_name="Código único do cliente",
-        unique=True,
         )
     project_holder_name = models.CharField(
         max_length=200,
