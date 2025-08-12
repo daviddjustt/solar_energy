@@ -73,7 +73,6 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('tipoDocumento', None)
-        validated_data['created_by'] = self.context['request'].user
         project = ClientProject.objects.create(**validated_data)
         return project
 

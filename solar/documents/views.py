@@ -35,17 +35,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return ProjectListSerializer
         return ProjectInfoSerializer
 
-    def perform_create(self, serializer):
-        """
-        Define o usuário que está criando o projeto antes de salvar.
-        """
-        serializer.save(created_by=self.request.user)
-
-    # Não precisamos de um método 'create' customizado ou de uma action 'create_with_client_code'.
-    # O método 'create' padrão do ModelViewSet já espera os dados no request.data,
-    # incluindo o 'client_code', e o serializer ProjectInfoSerializer irá processá-lo.
-    # O mesmo vale para 'update' e 'partial_update'.
-
 
 # 2. Views para Documentos do Projeto (Aninhadas)
 class ProjectDocumentListView(generics.ListCreateAPIView):
