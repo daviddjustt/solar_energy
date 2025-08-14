@@ -13,6 +13,7 @@ from .serializers import (
 
 # 1. ViewSet para as Informações do Projeto (CRUD completo)
 class ProjectViewSet(viewsets.ModelViewSet):
+    from django_filters.rest_framework import DjangoFilterBackend
     """
     ViewSet para gerenciar projetos.
     Permite criar, listar, recuperar, atualizar e deletar projetos.
@@ -21,9 +22,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     """
     queryset = ClientProject.objects.all().order_by('-created_at')
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    pagination_class = None
+    filterset_fields = ['client_code']
     # Não definimos lookup_field = 'client_code' aqui.
     # Por padrão, o ModelViewSet usa 'pk' para operações de detalhe,
     # o que permite que 'client_code' seja um campo no corpo da requisição.
+    
 
     def get_serializer_class(self):
         """
@@ -33,7 +38,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'list':
             return ProjectListSerializer
-        return ProjectInfoSerializer
+        else :
+            return ProjectInfoSerializer
 
 
 # 2. Views para Documentos do Projeto (Aninhadas)
@@ -44,6 +50,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     """
     serializer_class = DocumentUploadSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         # Garante que estamos listando documentos apenas para o projeto especificado na URL
@@ -107,6 +114,7 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
     """
     serializer_class = ConsumerUnitSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         # Garante que estamos listando unidades consumidoras apenas para o projeto especificado
@@ -125,6 +133,7 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     serializer_class = ConsumerUnitSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
     def get_queryset(self):
