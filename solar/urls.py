@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.contrib import admin
 from django.conf import settings
 from rest_framework_simplejwt.views import TokenBlacklistView
@@ -10,8 +10,9 @@ from drf_spectacular.views import (
 )
 from rest_framework.routers import DefaultRouter
 from solar.users.views import CustomUserViewSet, ActivateAccountView
+
 from solar.documents.views import (
-    ProjectViewSet, 
+    ProjectViewSet,
     ProjectDocumentListView,
     ProjectDocumentDetailView,
     ConsumerUnitListView,
@@ -34,15 +35,25 @@ urlpatterns = [
     # Adiciona a rota para /api/docs/ que aponta para o Swagger UI
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='api-docs'),
 
+    # Djoser URLs para gerenciamento de usuários (inclui rotas de reset de senha, ativação, etc.)
+    # O Djoser já define as URLs para reset_password_confirm, então não precisamos de uma re_path explícita.
+    path('api/v1/', include('djoser.urls')),
+    path('api/v1/auth/', include('djoser.urls.jwt')), # Endpoints de autenticação JWT
+
+    # Rota de ativação de conta personalizada (fora dos caminhos padrão do Djoser)
+    # Certifique-se de que esta rota não entre em conflito com a rota de ativação do Djoser,
+    # caso você esteja usando ambas. Se a ativação do Djoser for suficiente, esta pode ser removida.
     path('activate/<str:uuid>/<str:token>', ActivateAccountView.as_view(), name='custom-user-activation'),
 
-    # Endpoints personalizados do Djoser e do Router principal
-    path('api/v1/', include(router.urls)), # Inclui todas as rotas registradas pelo router (users, projects)
+    # Inclui todas as rotas registradas pelo router (users, projects)
+    # Cuidado: Se CustomUserViewSet sobrepõe funcionalidades de usuário do Djoser,
+    # pode haver conflitos. O ideal é que CustomUserViewSet estenda as views do Djoser
+    # ou seja configurado para não conflitar com as URLs padrão do Djoser.
+    path('api/v1/', include(router.urls)),
+
     path('api/v1/auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
-    path('api/v1/auth/', include('djoser.urls.jwt')), # Rotas JWT do Djoser
 
     # Endpoints para Documentos (aninhados sob o projeto)
-    # Note que 'projects/<int:project_pk>/' agora é o prefixo para recursos aninhados
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
     path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
 

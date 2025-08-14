@@ -244,9 +244,12 @@ class Common(Configuration):
         'SEND_CONFIRMATION_EMAIL': True,
         'SET_PASSWORD_RETYPE': True,
         'SET_USERNAME_RETYPE': True,
-        'PASSWORD_RESET_CONFIRM_URL': 'password/reset/confirm/{uid}/{token}',
-        'USERNAME_RESET_CONFIRM_URL': 'email/reset/confirm/{uid}/{token}',
-        'ACTIVATION_URL': 'activate/{uid}/{token}',
+        # ATENÇÃO: Mude esta linha para o caminho completo e absoluto
+        'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:8080/api/v1/users/reset_password_confirm/{uid}/{token}',
+        # ATENÇÃO: Mude esta linha também para o caminho completo e absoluto, se aplicável
+        'USERNAME_RESET_CONFIRM_URL': 'http://localhost:8080/api/v1/users/set_username_confirm/{uid}/{token}',
+        # ATENÇÃO: Mude esta linha também para o caminho completo e absoluto, se aplicável
+        'ACTIVATION_URL': 'http://localhost:8080/api/v1/users/activate/{uid}/{token}',
         'SEND_ACTIVATION_EMAIL': True,
         'SERIALIZERS': {
             'user_create': 'solar.users.serializers.UserCreateSerializer',
@@ -271,7 +274,6 @@ class Common(Configuration):
             'username_reset': 'solar.users.email.UsernameResetEmail',
         }
     }
-
     # Simple JWT
     SIMPLE_JWT = {
         "AUTH_HEADER_TYPES": ("Bearer",),

@@ -3,15 +3,14 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument
 
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
-    # Assumindo que ConsumerUnit possui um campo 'client_code'
-    # Se 'client_code' for do projeto pai, mude para source='project.client_code'
-    codigoCliente = serializers.CharField(source='client_code')
+    # codigoCliente = serializers.CharField(source='client_code')
     porcentagem = serializers.DecimalField(source='percentage', max_digits=5, decimal_places=2, required=False)
     tensao = serializers.CharField(source='voltage', required=False)
+    
 
     class Meta:
         model = ConsumerUnit
-        fields = ['id', 'codigoCliente', 'porcentagem', 'tensao']
+        fields = "__all__"
 
 # Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):

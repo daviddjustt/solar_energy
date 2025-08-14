@@ -250,10 +250,6 @@ class ConsumerUnit(models.Model):
         on_delete=models.CASCADE,
         related_name='consumer_units'
     )
-    client_code_UC = models.CharField(
-        max_length=50,
-        verbose_name="Código do cliente para unidade consumidora",
-        )
     percentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
