@@ -16,7 +16,7 @@ from solar.documents.views import (
     ProjectDocumentListView,
     ProjectDocumentDetailView,
     ConsumerUnitListView,
-    ConsumerUnitDetailView
+    ConsumerUnitDetailView,
 )
 
 router = DefaultRouter()
@@ -56,7 +56,6 @@ urlpatterns = [
     # Endpoints para Documentos (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
     path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
-
     # Endpoints para Unidades Consumidoras (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-unit-list-create'),
     path('api/v1/projects/<int:project_pk>/consumer_units/<int:pk>/', ConsumerUnitDetailView.as_view(), name='project-consumer-unit-detail-update-delete'),

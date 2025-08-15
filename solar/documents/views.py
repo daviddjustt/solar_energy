@@ -2,14 +2,18 @@ from rest_framework import generics, status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
+from rest_framework import serializers
+from rest_framework.decorators import action
 
 from .models import ClientProject, ConsumerUnit, ProjectDocument
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
     DocumentUploadSerializer,
-    ConsumerUnitSerializer
+    ConsumerUnitSerializer,
 )
+    
 
 # 1. ViewSet para as Informações do Projeto (CRUD completo)
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -40,6 +44,51 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return ProjectListSerializer
         else :
             return ProjectInfoSerializer
+        
+    from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='email',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Email do cliente para filtrar os projetos.',
+                required=True,
+            ),
+        ]
+    )
+    @action(detail=False, methods=['get'], url_path='by_email')
+    def by_email(self, request):
+        """
+        Retorna todos os ClientProjects relacionados a um email fornecido como parâmetro de query.
+        Método: GET
+        Exemplo de Requisição: GET /api/v1/projects/by_email/?email=email_do_cliente@exemplo.com
+        """
+        email = request.query_params.get('email')
+
+        if not email:
+            return Response(
+                {"detail": "O parâmetro 'email' é obrigatório na query string."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Opcional: Adicionar validação de formato de e-mail
+        try:
+            serializers.EmailField().run_validation(email)
+        except serializers.ValidationError:
+            return Response(
+                {"detail": "O email fornecido não é válido."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Filtra os ClientProjects pelo email fornecido
+        queryset = ClientProject.objects.filter(email=email).order_by('-created_at')
+
+        # Serializa os projetos encontrados usando o ProjectListSerializer
+        output_serializer = ProjectListSerializer(queryset, many=True)
+
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
+
 
 
 # 2. Views para Documentos do Projeto (Aninhadas)

@@ -8,7 +8,7 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument
 class ConsumerUnitInline(admin.TabularInline):
     model = ConsumerUnit
     extra = 1 # Quantidade de formulários extras para adicionar
-    fields = ('percentage', 'voltage',)
+    fields = ('percentage',)
     verbose_name = "Unidade Consumidora"
     verbose_name_plural = "Unidades Consumidoras"
 
@@ -134,7 +134,7 @@ class ClientProjectAdmin(admin.ModelAdmin):
 
 @admin.register(ConsumerUnit)
 class ConsumerUnitAdmin(admin.ModelAdmin):
-    list_display = ('project','percentage', 'voltage',)
+    list_display = ('project','percentage',)
     list_filter = ('project',)
     search_fields = ('project__client_code', 'project__project_holder_name',)
     raw_id_fields = ('project',) # Para projetos com muitos itens, melhora a performance

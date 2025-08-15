@@ -4,13 +4,19 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
     # codigoCliente = serializers.CharField(source='client_code')
-    porcentagem = serializers.DecimalField(source='percentage', max_digits=5, decimal_places=2, required=False)
-    tensao = serializers.CharField(source='voltage', required=False)
-    
 
     class Meta:
         model = ConsumerUnit
-        fields = "__all__"
+        fields = ["percentage","tensao","client_code",]
+        """
+            {
+            "porcentagem": "",
+            "tensao": "string",
+            "percentage": "-76.93",
+            "voltage": "string",
+            "project": 0
+            }
+        """
 
 # Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
@@ -108,3 +114,4 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
+

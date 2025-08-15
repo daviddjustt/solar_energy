@@ -13,6 +13,21 @@ def get_document_upload_path(instance, filename):
     """Gera o caminho de upload baseado no projeto e tipo de documento"""
     return f'projects/{instance.project.client_code}/documents/{instance.document_type}/{filename}'
 
+class AndamentoDoProjeto(models.TextChoices):
+    EM_ANALISE = 'Projeto em análise'
+    APROVADO = 'Projeto com documentação aprovada'
+    EM_ANDAMENTO = 'Projeto em execução'
+    CONCLUIDO = 'Projeto finalizado'
+
+    @classmethod
+    def get_display_name(cls, code):
+           """Retorna o nome de exibição para o código fornecido."""
+           for status in cls:
+               if status.name == code:
+                   return status.value
+           return None
+       
+
 class ClientProject(models.Model):
     DOCUMENT_TYPE_CHOICES = [
         ('PF', 'Pessoa Física'),
@@ -98,6 +113,12 @@ class ClientProject(models.Model):
     documentation_complete = models.BooleanField(
         default=False,
         verbose_name="Documentação completa"
+    )
+    status = models.CharField(
+           max_length=40,
+           choices=AndamentoDoProjeto.choices,
+           default=AndamentoDoProjeto.EM_ANALISE,
+           verbose_name="Status do Projeto"
     )
     # Metadados
     created_at = models.DateTimeField(auto_now_add=True)
@@ -243,12 +264,17 @@ class ClientProject(models.Model):
     def total_documents_count(self):
         """Retorna o número total de documentos para o projeto."""
         return self.documents.count()
+    
 
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
         ClientProject,
         on_delete=models.CASCADE,
         related_name='consumer_units'
+    )
+    client_code = models.CharField(
+        max_length=50,
+        verbose_name="Código único do cliente",
     )
     percentage = models.DecimalField(
         max_digits=5,
@@ -257,12 +283,12 @@ class ConsumerUnit(models.Model):
         null=True,
         verbose_name="Porcentagem (%)"
     )
-    # ADICIONADO: Campo tensão para unidade (conforme serializer discutido)
-    voltage = models.CharField(
-        max_length=50,
+    tensao = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         blank=True,
         null=True,
-        verbose_name="Tensão da unidade"
+        verbose_name="Tensão em Volts"
     )
     class Meta:
         verbose_name = "Unidade Consumidora"
