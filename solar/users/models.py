@@ -9,6 +9,7 @@ from django.core.validators import RegexValidator, FileExtensionValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
+from django.contrib.auth.models import AbstractUser, Group # Importar Group
 
 # Constantes para validações
 CPF_REGEX = r'^\d{11}$'
@@ -189,7 +190,72 @@ class User(AbstractBaseUser, PermissionsMixin):
             """Retorna o primeiro nome ou uma versão curta do nome do usuário."""
             return self.name.split(' ')[0] if self.name else ''
 
-# Resto do código permanece igual...
+class Tecnico(User):
+    """
+    Perfil de usuário Técnico. Pode ver todos os projetos, mas não edita campos financeiros.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = 'Técnico'
+        verbose_name_plural = 'Técnicos'
+        permissions = [
+            ('can_view_financial_data', 'Pode visualizar dados financeiros'),
+            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'),
+        ]
+    
+    def save(self, *args, **kwargs):
+        # Garante que o Técnico seja staff (pode acessar o admin)
+        if not self.is_staff:
+            self.is_staff = True
+        super().save(*args, **kwargs)
+        
+        # Adicionar ao grupo 'Tecnicos'
+        tecnico_group, created = Group.objects.get_or_create(name='Tecnicos')
+        self.groups.add(tecnico_group)
+        
+        # Remover de 'Clientes' se estiver lá (para garantir exclusividade de papel)
+        cliente_group = Group.objects.filter(name='Clientes').first()
+        if cliente_group and self.groups.filter(name='Clientes').exists():
+            self.groups.remove(cliente_group)
+
+    def __str__(self):
+        return f"Técnico: {self.get_full_name() or self.username}"
+
+class Cliente(Tecnico): # Cliente herda de Técnico conforme solicitado
+    """
+    Perfil de usuário Cliente. Não pode editar campos financeiros e
+    só pode acessar seus próprios projetos.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = 'Cliente'
+        verbose_name_plural = 'Clientes'
+        permissions = [
+            ('can_view_own_projects', 'Pode visualizar apenas seus próprios projetos'),
+            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'), # Redundante, mas explícito
+        ]
+
+    def save(self, *args, **kwargs):
+        # Primeiro, chama o save de Tecnico (super()), que adiciona ao grupo 'Tecnicos' e define is_staff=True
+        super().save(*args, **kwargs) 
+        
+        # Agora, remove de 'Tecnicos' e adiciona a 'Clientes'
+        tecnico_group = Group.objects.filter(name='Tecnicos').first()
+        if tecnico_group and self.groups.filter(name='Tecnicos').exists():
+            self.groups.remove(tecnico_group)
+            
+        cliente_group, created = Group.objects.get_or_create(name='Clientes')
+        self.groups.add(cliente_group)
+        
+        # Garante que o Cliente NÃO seja staff
+        if self.is_staff:
+            self.is_staff = False
+            # Salva novamente para persistir a mudança de is_staff
+            super().save(update_fields=['is_staff']) 
+
+    def __str__(self):
+        return f"Cliente: {self.get_full_name() or self.username}"
+
 class UserExport(User):
     class Meta:
         proxy = True

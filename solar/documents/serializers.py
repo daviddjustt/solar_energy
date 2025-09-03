@@ -29,16 +29,80 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    valor_total = serializers.ReadOnlyField()
+    resumo_financeiro = serializers.ReadOnlyField()
+
     class Meta:
         model = ClientProject
         fields = "__all__" # 'client_code' será incluído aqui automaticamente do request body
+        read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
+    
+    def validate_money(self, data):
+        """Validação customizada no serializer"""
+        tipo_financeiro = data.get('tipo_financeiro')
+        parcelas = data.get('parcelas')
+        valor_financeiro = data.get('valor_financeiro')
+
+        # Validar parcelas para mensalidade
+        if tipo_financeiro == 'mensalidade':
+            if not parcelas or parcelas <= 0:
+                raise serializers.ValidationError({
+                    'parcelas': 'Número de parcelas é obrigatório e deve ser maior que zero para mensalidade.'
+                })
+        else:
+            # Se não for mensalidade, remove parcelas
+            data['parcelas'] = None
+
+        # Validar valor financeiro
+        if not valor_financeiro or valor_financeiro <= 0:
+            raise serializers.ValidationError({
+                'valor_financeiro': 'Valor financeiro deve ser maior que zero.'
+            })
+
+        return data
+    
+
+    def to_representation_money(self, instance):
+        """Customiza a representação para incluir informações financeiras"""
+        data = super().to_representation_money(instance)
+        
+        # Informações do usuário criador
+        if instance.created_by:
+            data['created_by_info'] = {
+                'uuid': str(instance.created_by.uuid),
+                'name': instance.created_by.name,
+                'email': instance.created_by.email
+            }
+        
+        # Informações financeiras formatadas
+        data['financeiro_info'] = {
+            'tipo': instance.get_tipo_financeiro_display(),
+            'valor_formatado': f"R$ {instance.valor_financeiro:,.2f}",
+            'parcelas': instance.parcelas if instance.tipo_financeiro == 'mensalidade' else None,
+            'valor_total_formatado': f"R$ {instance.valor_total:,.2f}",
+            'resumo': instance.resumo_financeiro
+        }
+        
+        return data
+
+    def to_representation_user(self, instance):
+        """Customiza a representação para incluir informações do usuário"""
+        data = super().to_representation_user(instance)
+        if instance.created_by:
+            data['created_by_info'] = {
+                'uuid': str(instance.created_by.uuid),
+                'name': instance.created_by.name,
+                'email': instance.created_by.email
+            }
+        return data
 
     def validate_tipoDocumento(self, value):
         if value and value.lower() not in ['cpf', 'cnpj']:
             raise serializers.ValidationError("Tipo de documento deve ser 'cpf' ou 'cnpj'.")
         return value
 
-    def validate(self, data):
+    def validate_documents(self, data):
         tipo_documento = data.get('tipoDocumento', '').lower()
         documento = data.get('client_document')
 
@@ -115,3 +179,39 @@ class ProjectListSerializer(serializers.ModelSerializer):
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
 
+class TecnicoClientProjectSerializer(serializers.ModelSerializer):
+    """Serializer para técnicos e clientes - campos financeiros são read-only"""
+    
+    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    valor_total = serializers.ReadOnlyField()
+    resumo_financeiro = serializers.ReadOnlyField()
+    
+    # Campos financeiros como read-only para técnicos e clientes
+    tipo_financeiro = serializers.CharField(read_only=True)
+    valor_financeiro = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    parcelas = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = ClientProject
+        fields = '__all__'
+        read_only_fields = (
+            'created_by', 'created_at', 'updated_at', 
+            'valor_total', 'resumo_financeiro',
+            'tipo_financeiro', 'valor_financeiro', 'parcelas'  # Campos financeiros
+        )
+    
+    def validate(self, data):
+        """Validação para impedir modificação de campos financeiros por técnicos/clientes"""
+        user = self.context['request'].user
+        
+        # Verificar se é um técnico ou cliente tentando modificar campos financeiros
+        if user.groups.filter(name__in=['Tecnicos', 'Clientes']).exists():
+            financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
+            
+            for field in financial_fields:
+                if field in data:
+                    raise serializers.ValidationError({
+                        field: 'Usuários do tipo Técnico ou Cliente não podem modificar campos financeiros.'
+                    })
+        
+        return data

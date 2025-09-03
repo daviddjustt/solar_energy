@@ -29,15 +29,30 @@ class AndamentoDoProjeto(models.TextChoices):
        
 
 class ClientProject(models.Model):
+    
+    # Choices simples do documento 
     DOCUMENT_TYPE_CHOICES = [
         ('PF', 'Pessoa Física'),
         ('PJ', 'Pessoa Jurídica'),
     ]
-    # Informações básicas do cliente
+    FINANCEIRO_CHOICES = [
+        ('valor_unico', 'Valor Único'),
+        ('mensalidade', 'Mensalidade'),
+    ]
+
+    # Informações básicas do projeto
     client_code = models.CharField(
         max_length=50,
         verbose_name="Código único do cliente",
         )
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_projects',
+        verbose_name='Criado por'
+    )
     project_holder_name = models.CharField(
         max_length=200,
         verbose_name="Nome do titular do projeto"
@@ -53,6 +68,7 @@ class ClientProject(models.Model):
         default='PF',
         verbose_name="Tipo de cliente"
     )
+    
     # Endereço
     cep = models.CharField(
         max_length=9,
@@ -69,12 +85,14 @@ class ClientProject(models.Model):
         null=True,
         verbose_name="Complemento"
     )
+    
     # Campo documento dinâmico
     documento = models.CharField(
         max_length=18,
-        verbose_name="Documento",
+        verbose_name="Númeor doo CPF ou CNPJ",
         help_text="CPF no formato XXX.XXX.XXX-XX ou CNPJ no formato XX.XXX.XXX/XXXX-XX"
     )
+   
     # Contato - MELHORADO: regex mais flexível
     phone = models.CharField(
         max_length=15,
@@ -84,7 +102,8 @@ class ClientProject(models.Model):
         )],
         verbose_name="Telefone do titular"
     )
-    # ALTERADO: Localização em graus, minutos, segundos
+    
+    #Localização em graus, minutos, segundos
     latGraus = models.SmallIntegerField(
         verbose_name="Latitude (Graus)",
         help_text="Parte inteira da latitude (-90 a 90)"
@@ -109,6 +128,7 @@ class ClientProject(models.Model):
         verbose_name="Longitude (Segundos)",
         help_text="Segundos da longitude (0 a 59)"
     )
+    
     # Status da documentação (será complementado pelos status dos documentos individuais)
     documentation_complete = models.BooleanField(
         default=False,
@@ -120,33 +140,40 @@ class ClientProject(models.Model):
            default=AndamentoDoProjeto.EM_ANALISE,
            verbose_name="Status do Projeto"
     )
+    
+    # CAMPOS FINANCEIROS
+    tipo_financeiro = models.CharField(
+        max_length=15,
+        choices=FINANCEIRO_CHOICES,
+        default='valor_unico',
+        verbose_name='Tipo de Financiamento'
+    )
+    valor_financeiro = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name='Valor Financeiro',
+        help_text='Valor em reais com 2 casas decimais'
+    )
+    parcelas = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Número de Parcelas',
+        help_text='Obrigatório apenas para mensalidade'
+    )
+
     # Metadados
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Propriedades
     @property
     def documento_tipo(self):
         """Retorna o tipo do documento baseado no client_type"""
         return 'CPF' if self.client_type == 'PF' else 'CNPJ'
-
     @property
     def documento_label(self):
         """Retorna o label apropriado para exibição"""
         return f"{self.documento_tipo}: {self.documento}" if self.documento else self.documento_tipo
-
-    def is_documento_valid(self):
-        """ADICIONADO: Valida se o documento está no formato correto"""
-        if not self.documento:
-            return False
-        if self.client_type == 'PF':
-            # Validação para CPF
-            cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}-\d{2}$'
-            return bool(re.match(cpf_pattern, self.documento))
-        elif self.client_type == 'PJ':
-            # Validação para CNPJ
-            cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
-            return bool(re.match(cnpj_pattern, self.documento))
-        return False
-
     @property
     def decimal_latitude(self):
         """Converte latitude de GMS para decimal"""
@@ -154,7 +181,6 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.latGraus < 0 else 1
         return Decimal(sign * (abs(self.latGraus) + (self.latMin / 60) + (self.latSeg / 3600))).quantize(Decimal('0.00000001'))
-
     @property
     def decimal_longitude(self):
         """Converte longitude de GMS para decimal"""
@@ -162,7 +188,52 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.longGraus < 0 else 1
         return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
+    @property
+    def approved_documents_count(self):
+        """Retorna o número de documentos aprovados para o projeto."""
+        return self.documents.filter(status=ProjectDocument.APPROVED).count()
 
+    @property
+    def in_analysis_documents_count(self):
+        """Retorna o número de documentos em análise para o projeto."""
+        return self.documents.filter(status=ProjectDocument.IN_ANALYSIS).count()
+
+    @property
+    def rejected_documents_count(self):
+        """Retorna o número de documentos rejeitados para o projeto."""
+        return self.documents.filter(status=ProjectDocument.REJECTED).count()
+
+    @property
+    def total_documents_count(self):
+        """Retorna o número total de documentos para o projeto."""
+        return self.documents.count()
+    
+    @property
+    def created_by_name(self):
+        """Retorna o nome do usuário que criou o projeto"""
+        return self.created_by.name if self.created_by else "Usuário não identificado"
+    
+    @property
+    def created_by_uuid(self):
+        """Retorna o UUID do usuário que criou o projeto"""
+        return str(self.created_by.uuid) if self.created_by else None
+    
+    @property
+    def valor_total(self):
+        """Calcula o valor total do projeto"""
+        if self.tipo_financeiro == 'mensalidade' and self.parcelas:
+            return self.valor_financeiro * self.parcelas
+        return self.valor_financeiro
+
+    @property
+    def resumo_financeiro(self):
+        """Retorna um resumo do financiamento"""
+        if self.tipo_financeiro == 'valor_unico':
+            return f"Valor único: R$ {self.valor_financeiro:,.2f}"
+        else:
+            total = self.valor_total
+            return f"Mensalidade: R$ {self.valor_financeiro:,.2f} x {self.parcelas}x = R$ {total:,.2f}"
+    
     def clean(self):
         """Validação customizada"""
         super().clean()
@@ -217,6 +288,21 @@ class ClientProject(models.Model):
         verbose_name = "Projeto do Cliente"
         verbose_name_plural = "Projetos dos Clientes"
 
+    # Funções
+    def is_documento_valid(self):
+        """ADICIONADO: Valida se o documento está no formato correto"""
+        if not self.documento:
+            return False
+        if self.client_type == 'PF':
+            # Validação para CPF
+            cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}-\d{2}$'
+            return bool(re.match(cpf_pattern, self.documento))
+        elif self.client_type == 'PJ':
+            # Validação para CNPJ
+            cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
+            return bool(re.match(cnpj_pattern, self.documento))
+        return False
+
     def get_required_documents(self):
         """Retorna lista de documentos obrigatórios baseado no tipo de cliente"""
         base_docs = [
@@ -244,27 +330,38 @@ class ClientProject(models.Model):
         )
         self.documentation_complete = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
         self.save(update_fields=['documentation_complete']) # Salva apenas o campo atualizado
-
-    @property
-    def approved_documents_count(self):
-        """Retorna o número de documentos aprovados para o projeto."""
-        return self.documents.filter(status=ProjectDocument.APPROVED).count()
-
-    @property
-    def in_analysis_documents_count(self):
-        """Retorna o número de documentos em análise para o projeto."""
-        return self.documents.filter(status=ProjectDocument.IN_ANALYSIS).count()
-
-    @property
-    def rejected_documents_count(self):
-        """Retorna o número de documentos rejeitados para o projeto."""
-        return self.documents.filter(status=ProjectDocument.REJECTED).count()
-
-    @property
-    def total_documents_count(self):
-        """Retorna o número total de documentos para o projeto."""
-        return self.documents.count()
+ 
+    def __str__(self):
+        return f"{self.client_code} - {self.project_holder_name} (Criado por: {self.created_by_name})"
     
+    def clean_money(self):
+        """Validação personalizada para campos financeiros"""
+        super().clean_money()
+        
+        # Validar parcelas baseado no tipo financeiro
+        if self.tipo_financeiro == 'mensalidade':
+            if not self.parcelas:
+                raise ValidationError({
+                    'parcelas': 'Informe o número de parcelas para mensalidade.'
+                })
+            elif self.parcelas <= 0:
+                raise ValidationError({
+                    'parcelas': 'O número de parcelas deve ser maior que zero.'
+                })
+        else:
+            # Se não for mensalidade, limpa o campo parcelas
+            self.parcelas = None
+        
+        # Valor financeiro é obrigatório em ambos os casos
+        if self.valor_financeiro is None or self.valor_financeiro <= 0:
+            raise ValidationError({
+                'valor_financeiro': 'Informe um valor financeiro válido maior que zero.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Override do save para executar validações"""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
