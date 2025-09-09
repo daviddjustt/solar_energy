@@ -14,9 +14,13 @@ def get_document_upload_path(instance, filename):
     return f'projects/{instance.project.client_code}/documents/{instance.document_type}/{filename}'
 
 class AndamentoDoProjeto(models.TextChoices):
-    EM_ANALISE = 'Projeto em análise'
-    APROVADO = 'Projeto com documentação aprovada'
-    EM_ANDAMENTO = 'Projeto em execução'
+    ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
+    EXECUCAO = "Projeto em Execução"
+    # Pagamento do ART e TRT se encaixa aqui ?
+    ANALISE_TECNICA = 'Projeto em análise técnica'
+    APROVADO = 'Projeto aprovado'
+    REPROVADO = 'Projeto reprovado'
+    VISTORIA = 'Projeto em vistoria'
     CONCLUIDO = 'Projeto finalizado'
 
     @classmethod
@@ -137,7 +141,7 @@ class ClientProject(models.Model):
     status = models.CharField(
            max_length=40,
            choices=AndamentoDoProjeto.choices,
-           default=AndamentoDoProjeto.EM_ANALISE,
+           default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS,
            verbose_name="Status do Projeto"
     )
     
@@ -434,6 +438,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     IN_ANALYSIS = 'IN_ANALYSIS'
     APPROVED = 'APPROVED'
     REJECTED = 'REJECTED'
+
     DOCUMENT_TYPE_CHOICES = [
         # Documentos obrigatórios para PF e PJ
         ('documento_cliente', 'Documento do Cliente'),
@@ -441,6 +446,11 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         ('unidades_consumidoras_fatura', 'Unidades Consumidoras (Fatura)'),
         ('lista_material', 'Lista de Material'),
         ('procuracao_assinada', 'Procuração Assinada'),
+        ('pagamento_art', 'Documento que comprove o pagamento da ART'),
+        ('pagamento_trt', 'Documento que comprove o pagamento da TRT'), # Adicionado vírgula aqui
+        ('inscricao_municipal', 'Documento que comprove o pagamento da inscrição municipal'), # Corrigido "incrição" e adicionado vírgula
+        ('inscricao_estadual', 'Documento que comprove o pagamento da inscrição estadual'), # Corrigido "incrição" e adicionado vírgula
+        ('comprovante_de_pagamento', 'Boleto ou recibo emitido na compra'),
         # Documentos adicionais para PJ
         ('cartao_cnpj', 'Cartão CNPJ'),
         ('inscricao_estadual_municipal', 'Inscrição Estadual ou Municipal'),
@@ -448,6 +458,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]
+
     FILE_TYPE_CHOICES = [
         ('photo', 'Foto'),
         ('pdf', 'PDF'),
@@ -459,7 +470,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         related_name='documents'
     )
     document_type = models.CharField(
-        max_length=50,
+        max_length=80,
         choices=DOCUMENT_TYPE_CHOICES,
         verbose_name="Tipo do documento"
     )
