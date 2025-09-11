@@ -315,13 +315,13 @@ class ClientProject(models.Model):
             'unidades_consumidoras_fatura',
             'lista_material',
             'procuracao_assinada'
-        ]
-        if self.client_type == 'PJ':
-            base_docs.extend([
-                'cartao_cnpj',
-                'inscricao_estadual_municipal',
-                'contrato_social'
-            ])
+            'cartao_cnpj',
+            'inscricao_municipal',
+            'inscricao_estadual_',
+            'contrato_social',
+            'Documentação ART',
+            'Documentação TRT',
+            ]
         return base_docs
 
     def check_documentation_complete(self):
