@@ -7,7 +7,7 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ConsumerUnit
-        fields = ["percentage","tensao","client_code",]
+        fields = ["percentage","priority_level","client_code",]
         """
             {
             "porcentagem": "",

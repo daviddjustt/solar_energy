@@ -384,16 +384,54 @@ class ConsumerUnit(models.Model):
         null=True,
         verbose_name="Porcentagem (%)"
     )
-    tensao = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        verbose_name="Tensão em Volts"
+    priority_level = models.PositiveSmallIntegerField(
+        verbose_name="Nível de Prioridade",
+        help_text="Um valor inteiro, onde o número mais baixo indica maior prioridade. Deve ser único por projeto.",
+        null=False,
+        blank=False,
     )
     class Meta:
         verbose_name = "Unidade Consumidora"
         verbose_name_plural = "Unidades Consumidoras"
+        unique_together = ('project', 'priority_level')
+        ordering = ['priority_level']
+    
+    def clean(self):
+        super().clean()
+        if self.project and self.priority_level is not None:
+            # Contar todas as unidades consumidoras para este projeto
+            all_units_for_project = ConsumerUnit.objects.filter(project=self.project)
+
+            # Se for uma instância existente (update), exclua-a da contagem para a validação de unicidade
+            if self.pk:
+                all_units_for_project = all_units_for_project.exclude(pk=self.pk)
+
+            # Calcula o número atual de unidades para o projeto (sem incluir a atual se for update)
+            current_count_excluding_self = all_units_for_project.count()
+
+            # O valor máximo de prioridade permitido
+            # Se for uma nova unidade, o máximo é (unidades existentes + 1)
+            # Se for uma unidade existente, o máximo é (total de unidades já salvas para o projeto)
+            max_allowed_priority = current_count_excluding_self
+            if not self.pk: # Se for uma nova instância
+                max_allowed_priority += 1
+            else: # Se for uma instância existente, o número total de unidades é o que já está no banco (incluindo ela mesma)
+                max_allowed_priority = ConsumerUnit.objects.filter(project=self.project).count()
+
+
+            if not (1 <= self.priority_level <= max_allowed_priority):
+                raise ValidationError({
+                    'priority_level': f"O nível de prioridade deve ser entre 1 e {max_allowed_priority} para este projeto."
+                })
+
+            # Verifica a unicidade do priority_level entre as outras unidades do projeto
+            if all_units_for_project.filter(priority_level=self.priority_level).exists():
+                raise ValidationError({
+                    'priority_level': f"Já existe uma unidade consumidora com o nível de prioridade {self.priority_level} para este projeto."
+                })
+
+    def __str__(self):
+        return f"UC {self.client_code} - Projeto: {self.project.client_code} (Prioridade: {self.priority_level})"
 
 class BaseModel(models.Model):
     """
