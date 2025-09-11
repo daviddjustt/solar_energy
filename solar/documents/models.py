@@ -72,7 +72,11 @@ class ClientProject(models.Model):
         default='PF',
         verbose_name="Tipo de cliente"
     )
-    
+    voltagem = models.IntegerField(
+        verbose_name='voltagem',
+        help_text='Voltagem da unidade geradora',
+        default=220,
+    )
     # Endereço
     cep = models.CharField(
         max_length=9,
