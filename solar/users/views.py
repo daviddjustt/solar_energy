@@ -21,7 +21,7 @@ from rest_framework.decorators import action
 
 # Local application imports
 from .models import User, UserChangeLog
-from .serializers import UserUpdateSerializer, SpecialCPFTokenCreateSerializer
+from .serializers import UserUpdateSerializer
 
 
 # Configure the logger
@@ -88,7 +88,7 @@ class CustomUserViewSet(UserViewSet):
                  # Note: A lógica de permissão acima já restringe campos para usuários comuns.
                  # Este log manual pode ser para campos específicos que você quer rastrear por esta interface.
                  # Ajuste a lista `fields_to_log_manually` conforme necessário.
-                 fields_to_log_manually = ['celular', 'name', 'cpf', 'is_admin', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
+                 fields_to_log_manually = ['celular', 'name', 'cnpj', 'is_admin', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
                  if field_name in fields_to_log_manually:
                      old_value = original_instance_values.get(field_name)
                      # Compara o valor original com o novo valor salvo no banco
@@ -152,40 +152,6 @@ class CustomUserViewSet(UserViewSet):
 
         return Response(history_data)
 
-class SpecialUserCPFLoginView(TokenCreateView):
-    serializer_class = SpecialCPFTokenCreateSerializer
-    
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.user
-        
-        # Registra primeiro acesso especial se necessário
-        if not user.primeiro_acesso_especial:
-            user.primeiro_acesso_especial = timezone.now()
-            user.save(update_fields=['primeiro_acesso_especial'])
-            
-            # Log da ação
-            UserChangeLog.objects.create(
-                user=user,
-                changed_by=None,  # Sistema automático
-                field_name='primeiro_acesso_especial',
-                old_value=None,
-                new_value=str(timezone.now())
-            )
-        
-        # Gera token
-        token = self._get_token(user)
-        
-        return Response({
-            'access': str(token.access_token),
-            'refresh': str(token),
-        }, status=status.HTTP_200_OK)
-    
-    def _get_token(self, user):
-        from rest_framework_simplejwt.tokens import RefreshToken
-        return RefreshToken.for_user(user)
 
 import base64
 from django.contrib.auth import get_user_model

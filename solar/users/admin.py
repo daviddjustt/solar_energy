@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 class UserAdmin(BaseUserAdmin):
     """Configuração do Admin para o modelo de usuário personalizado com histórico e log de alterações."""
     
-    list_display = ('email', 'name', 'cpf', 'is_active', 'is_admin', 'history_link')
+    list_display = ('email', 'name', 'cnpj', 'is_active', 'is_admin', 'history_link')
     list_filter = ('is_active', 'is_admin', 'is_superuser')
-    search_fields = ('email', 'name', 'cpf')
+    search_fields = ('email', 'name', 'cnpj')
     ordering = ('email', 'name')
     readonly_fields = ('created_at', 'updated_at', 'history_button')
     list_per_page = 20
@@ -37,7 +37,7 @@ class UserAdmin(BaseUserAdmin):
     # Fieldsets corrigidos para modelo customizado
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        (_('Informações Pessoais'), {'fields': ('name', 'cpf', 'celular')}),
+        (_('Informações Pessoais'), {'fields': ('name', 'cnpj', 'celular')}),
         (_('Permissões'), {
             'fields': ('is_active', 'is_admin', 'is_superuser', 'groups', 'user_permissions')
         }),
@@ -48,7 +48,7 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'name', 'cpf', 'celular', 'password1', 'password2'),
+            'fields': ('email', 'name', 'cnpj', 'celular', 'password1', 'password2'),
         }),
         (_('Permissões'), {
             'fields': ('is_active', 'is_admin', 'is_superuser', 'groups', 'user_permissions'),
@@ -263,7 +263,7 @@ class UserChangeLogAdmin(admin.ModelAdmin):
     search_fields = [
         'user__name',
         'user__email',
-        'user__cpf',
+        'user__cnpj',
         'changed_by__name',
         'changed_by__email',
         'field_name',

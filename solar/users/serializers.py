@@ -26,10 +26,10 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
         fields = tuple(set(DjoserUserCreateSerializer.Meta.fields + (
-            'name', 'cpf', 'celular',
+            'name', 'cnpj', 'celular',
         )))
         extra_kwargs = {
-            'cpf': {'required': True},
+            'cnpj': {'required': True},
             'celular': {'required': True},
             'name': {'required': True},
             # 'password' já é required por padrão no DjoserUserCreateSerializer
@@ -40,25 +40,16 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
         attrs = super().validate(attrs)
         # Normalização de campos
         attrs['name'] = attrs.get('name', '').strip().upper()
-        attrs['cpf'] = re.sub(r'\D', '', attrs.get('cpf', '')) # Remove não dígitos
+        attrs['cnpj'] = re.sub(r'\D', '', attrs.get('cnpj', '')) # Remove não dígitos
         attrs['celular'] = re.sub(r'\D', '', attrs.get('celular', '')) # Remove não dígitos
 
-        # Validação de CPF (exemplo básico, considere uma validação mais robusta)
-        if len(attrs['cpf']) != 11:
-             raise DRFValidationError({"cpf": _("CPF deve conter 11 dígitos numéricos.")})
+        # Validação de cnpj (exemplo básico, considere uma validação mais robusta)
+        if len(attrs['cnpj']) != 18:
+             raise DRFValidationError({"cnpj": _("cnpj deve conter 18 caracteres.")})
 
         # Validação de Celular (exemplo básico)
         if len(attrs['celular']) != 11:
              raise DRFValidationError({"celular": _("Celular deve conter 11 dígitos numéricos (DDD + número).")})
-
-
-        # Validação adicional se necessário (ex: unicidade de CPF/celular se não for tratada no modelo)
-        # if User.objects.filter(cpf=attrs['cpf']).exists():
-        #     raise DRFValidationError({"cpf": _("Já existe um usuário com este CPF.")})
-        # if User.objects.filter(celular=attrs['celular']).exists():
-        #      raise DRFValidationError({"celular": _("Já existe um usuário com este celular.")})
-
-
         return attrs
 
     def create(self, validated_data):
@@ -85,7 +76,7 @@ class UserSerializer(DjoserUserSerializer):
     class Meta(DjoserUserSerializer.Meta):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
-            'name', 'cpf', 'celular',
+            'name', 'cnpj', 'celular',
             'is_admin', 'is_active' # Inclui as flags e perfil SAC
         )
         # Campos que podem ser lidos mas não alterados via este serializer (embora Djoser controle isso)
@@ -106,7 +97,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     # Campos somente leitura - serão ignorados se enviados
     email = serializers.EmailField(read_only=True)
     name = serializers.CharField(read_only=True)
-    cpf = serializers.CharField(read_only=True)
+    cnpj = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_admin = serializers.BooleanField(read_only=True)
 
@@ -115,7 +106,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         fields = (
             'celular',
             # Campos somente leitura
-            'email', 'name', 'cpf', 'is_active',
+            'email', 'name', 'cnpj', 'is_active',
             'is_admin',
         )
 
@@ -187,34 +178,3 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         logger.info(f"Usuário {instance.email} atualizado por {request.user.email if request else 'sistema'}")
         return instance
-
-class SpecialCPFTokenCreateSerializer(serializers.Serializer):
-    cpf = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        cpf = attrs.get('cpf')
-        password = attrs.get('password')
-
-        if not cpf or not password:
-            raise serializers.ValidationError('CPF e senha são obrigatórios.')
-
-        # Usa o backend especial para CPF
-        from .backends import SpecialCPFBackend
-        backend = SpecialCPFBackend()
-
-        self.user = backend.authenticate(
-            request=self.context.get('request'),
-            username=cpf,
-            password=password,
-        )
-
-        if not self.user:
-            raise serializers.ValidationError(
-                'CPF não encontrado, senha incorreta ou usuário sem acesso especial.'
-            )
-
-        if not self.user.is_active:
-            raise serializers.ValidationError('Conta inativa.')
-
-        return attrs
