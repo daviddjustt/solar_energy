@@ -256,7 +256,6 @@ class Common(Configuration):
             'user': 'solar.users.serializers.UserSerializer',
             'current_user': 'solar.users.serializers.UserSerializer',
             'user_update': 'solar.users.serializers.UserUpdateSerializer',
-            'token_create': 'solar.users.serializers.SpecialCPFTokenCreateSerializer',
         },
         'PERMISSIONS': {
             'user': ['rest_framework.permissions.IsAuthenticated'],
@@ -277,7 +276,7 @@ class Common(Configuration):
     # Simple JWT
     SIMPLE_JWT = {
         "AUTH_HEADER_TYPES": ("Bearer",),
-        "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+        "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
         "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
         "ROTATE_REFRESH_TOKENS": True,
         "BLACKLIST_AFTER_ROTATION": True,
