@@ -160,7 +160,8 @@ class ClientProject(models.Model):
         max_digits=10,
         decimal_places=2,
         verbose_name='Valor Financeiro',
-        help_text='Valor em reais com 2 casas decimais'
+        help_text='Valor em reais com 2 casas decimais',
+        default=0.00,
     )
     parcelas = models.PositiveIntegerField(
         null=True,
@@ -359,12 +360,6 @@ class ClientProject(models.Model):
         else:
             # Se não for mensalidade, limpa o campo parcelas
             self.parcelas = None
-        
-        # Valor financeiro é obrigatório em ambos os casos
-        if self.valor_financeiro is None or self.valor_financeiro <= 0:
-            raise ValidationError({
-                'valor_financeiro': 'Informe um valor financeiro válido maior que zero.'
-            })
 
     def save(self, *args, **kwargs):
         """Override do save para executar validações"""

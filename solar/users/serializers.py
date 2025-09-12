@@ -77,7 +77,7 @@ class UserSerializer(DjoserUserSerializer):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
             'name', 'cnpj', 'celular',
-            'is_admin', 'is_active' # Inclui as flags e perfil SAC
+            'is_admin', 'is_active'
         )
         # Campos que podem ser lidos mas não alterados via este serializer (embora Djoser controle isso)
         read_only_fields = DjoserUserSerializer.Meta.read_only_fields + (

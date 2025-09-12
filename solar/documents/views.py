@@ -39,74 +39,58 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filtra os projetos com base no tipo de usuário:
-        - Superusuários veem todos.
-        - Clientes veem apenas seus próprios projetos.
-        - Técnicos veem todos os projetos.
-        - Outros usuários autenticados veem apenas seus próprios projetos.
+        Filtra os projetos com base no tipo de usuário usando as novas flags.
         """
         user = self.request.user
-        
         # Superusuários veem tudo
         if user.is_superuser:
             return ClientProject.objects.all().order_by('-created_at')
-        
-        # Clientes veem apenas seus próprios projetos
-        if user.groups.filter(name='Clientes').exists():
-            return ClientProject.objects.filter(created_by=user).order_by('-created_at')
-            
-        # Técnicos veem todos os projetos
-        if user.groups.filter(name='Tecnicos').exists():
+        # Administradores (usando a nova flag) também veem tudo, se essa for a intenção
+        if user.is_admin: # Nova verificação para administradores
             return ClientProject.objects.all().order_by('-created_at')
-            
-        # Para qualquer outro usuário autenticado (não superuser, tecnico ou cliente),
-        # por padrão, mostramos apenas os projetos que ele criou.
+        # Técnicos veem todos os projetos
+        if user.is_tecnico: # Usando a nova flag
+            return ClientProject.objects.all().order_by('-created_at')
+        # Clientes veem apenas seus próprios projetos
+        if user.is_cliente: # Usando a nova flag
+            return ClientProject.objects.filter(created_by=user).order_by('-created_at')
+        # Para qualquer outro usuário autenticado, mostramos apenas os projetos que ele criou.
         return ClientProject.objects.filter(created_by=user).order_by('-created_at')
 
     def get_serializer_class(self):
         """
-        Retorna o serializer apropriado baseado no tipo de usuário e na ação.
-        - Técnicos e Clientes usam TecnicoClientProjectSerializer (campos financeiros read-only).
-        - Para outros usuários:
-            - ProjectListSerializer para a ação 'list'.
-            - ProjectInfoSerializer para as demais ações (create, retrieve, update, destroy).
+        Retorna o serializer apropriado baseado no tipo de usuário e na ação, usando as novas flags.
         """
         user = self.request.user
-        
         # Técnicos e Clientes usam o serializer com campos financeiros read-only
-        if user.groups.filter(name__in=['Tecnicos', 'Clientes']).exists():
+        if user.is_tecnico or user.is_cliente: # Usando as novas flags
             return TecnicoClientProjectSerializer
-        
         # Para outros usuários (ex: administradores ou usuários padrão)
         if self.action == 'list':
             return ProjectListSerializer
         return ProjectInfoSerializer
 
-    def perform_create(self, serializer):
-        """Automaticamente define o usuário logado como criador"""
-        serializer.save(created_by=self.request.user)
-
     def perform_update(self, serializer):
-        """Verificar permissões antes de atualizar campos financeiros"""
+        """Verificar permissões antes de atualizar campos financeiros, usando as novas flags."""
         user = self.request.user
-        
         # Verificar se é técnico ou cliente tentando modificar campos financeiros
-        if user.groups.filter(name__in=['Tecnicos', 'Clientes']).exists():
+        if user.is_tecnico or user.is_cliente: # Usando as novas flags
             financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
-            
-            # Verificar se algum campo financeiro está sendo modificado
             for field in financial_fields:
                 if field in serializer.validated_data:
                     raise PermissionDenied(
                         f"Usuários do tipo Técnico ou Cliente não podem modificar o campo '{field}'. "
                         "Entre em contato com um administrador."
                     )
-        
         serializer.save()
-
+    
     def perform_partial_update(self, serializer):
-        """Mesmo controle para updates parciais"""
+        """Mesmo controle para updates parciais."""
         self.perform_update(serializer)
+
+    def perform_create(self, serializer):
+        """Automaticamente define o usuário logado como criador"""
+        serializer.save(created_by=self.request.user)
 
     @action(detail=False, methods=['get'])
     def meus_projetos(self, request):
@@ -114,7 +98,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Endpoint para projetos do usuário logado.
         O queryset já é filtrado por `get_queryset` para Clientes.
         """
-        projetos = self.get_queryset().filter(created_by=request.user)
+        # A lógica de get_queryset já filtra por created_by=request.user para clientes e usuários padrão.
+        # Não precisamos de um filtro extra aqui, apenas chamamos get_queryset.
+        projetos = self.get_queryset()
         serializer = self.get_serializer(projetos, many=True)
         return Response(serializer.data)
 
@@ -122,28 +108,23 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def resumo_financeiro(self, request):
         """
         Endpoint para resumo financeiro.
-        Apenas usuários que não são Técnicos ou Clientes podem acessar o resumo completo.
+        Apenas usuários que não são Técnicos ou Clientes podem acessar o resumo completo, usando as novas flags.
         """
         user = self.request.user
-        
         # Técnicos e Clientes não podem ver resumos financeiros completos
-        if user.groups.filter(name__in=['Tecnicos', 'Clientes']).exists():
+        if user.is_tecnico or user.is_cliente: # Usando as novas flags
             return Response({
                 'message': 'Usuários do tipo Técnico ou Cliente não têm permissão para visualizar resumos financeiros completos.',
                 'total_projetos': self.get_queryset().count() # Conta projetos que o usuário *pode* ver
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        # Para outros usuários (ex: administradores)
-        projetos = self.get_queryset() # Este queryset já está filtrado para o usuário, se aplicável
-        
+        # Para outros usuários (ex: administradores ou superusuários)
+        projetos = self.get_queryset()
         total_valor_unico = sum(
             p.valor_financeiro for p in projetos.filter(tipo_financeiro='valor_unico')
         )
-        
         total_mensalidades = sum(
             p.valor_total for p in projetos.filter(tipo_financeiro='mensalidade')
         )
-        
         return Response({
             'total_projetos': projetos.count(),
             'projetos_valor_unico': projetos.filter(tipo_financeiro='valor_unico').count(),

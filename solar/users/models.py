@@ -102,12 +102,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=False,
         verbose_name='Ativo'
     )
-    
-    is_admin = models.BooleanField(
-        default=False,
-        verbose_name='Administrador'
-    )
-    
+    is_admin = models.BooleanField(default=False, verbose_name="É Administrador")
+    is_tecnico = models.BooleanField(default=False, verbose_name="É Técnico")
+    is_cliente = models.BooleanField(default=True, verbose_name="É Cliente")
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Criado em'
@@ -158,6 +155,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Salva o usuário após normalizar os campos."""
         self._normalize_text_fields()
         super().save(*args, **kwargs)
+        self._update_groups()
     
     # CORREÇÃO PRINCIPAL: is_staff como property
     @property
@@ -183,6 +181,28 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
             """Retorna o primeiro nome ou uma versão curta do nome do usuário."""
             return self.name.split(' ')[0] if self.name else ''
+    
+    def _update_groups(self):
+        adm_group, _ = Group.objects.get_or_create(name='Administradores')
+        tecnico_group, _ = Group.objects.get_or_create(name='Tecnicos')
+        cliente_group, _ = Group.objects.get_or_create(name='Clientes')
+
+        # Lógica para adicionar/remover o usuário dos grupos com base nas flags
+        if self.is_admin:
+            self.groups.add(adm_group)
+        else:
+            self.groups.remove(adm_group)
+
+        if self.is_tecnico:
+            self.groups.add(tecnico_group)
+        else:
+            self.groups.remove(tecnico_group)
+
+        if self.is_cliente:
+            self.groups.add(cliente_group)
+        else:
+            self.groups.remove(cliente_group)
+    
 
 class Tecnico(User):
     """

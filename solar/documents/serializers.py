@@ -7,16 +7,7 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ConsumerUnit
-        fields = ["percentage","priority_level","client_code",]
-        """
-            {
-            "porcentagem": "",
-            "tensao": "string",
-            "percentage": "-76.93",
-            "voltage": "string",
-            "project": 0
-            }
-        """
+        fields = "__all__"
 
 # Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
@@ -53,12 +44,6 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         else:
             # Se não for mensalidade, remove parcelas
             data['parcelas'] = None
-
-        # Validar valor financeiro
-        if not valor_financeiro or valor_financeiro <= 0:
-            raise serializers.ValidationError({
-                'valor_financeiro': 'Valor financeiro deve ser maior que zero.'
-            })
 
         return data
     
