@@ -11,7 +11,7 @@ from solar.users.models import User
 
 def get_document_upload_path(instance, filename):
     """Gera o caminho de upload baseado no projeto e tipo de documento"""
-    return f'projects/{instance.project.client_code}/documents/{instance.document_type}/{filename}'
+    return f'projects/{instance.project.codigoCliente}/documents/{instance.document_type}/{filename}'
 
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
@@ -36,7 +36,6 @@ class ClientProject(models.Model):
     
     # Choices simples do documento 
     DOCUMENT_TYPE_CHOICES = [
-        ('PF', 'Pessoa Física'),
         ('PJ', 'Pessoa Jurídica'),
     ]
     FINANCEIRO_CHOICES = [
@@ -45,7 +44,7 @@ class ClientProject(models.Model):
     ]
 
     # Informações básicas do projeto
-    client_code = models.CharField(
+    codigoCliente = models.CharField(
         max_length=50,
         verbose_name="Código único do cliente",
         )
@@ -57,19 +56,18 @@ class ClientProject(models.Model):
         related_name='created_projects',
         verbose_name='Criado por'
     )
-    project_holder_name = models.CharField(
+    nomeTitular = models.CharField(
         max_length=200,
         verbose_name="Nome do titular do projeto"
     )
-    project_class = models.CharField(
+    classe = models.CharField(
         max_length=100,
         verbose_name="Classe"
     )
-    email = models.EmailField(verbose_name="E-mail")
-    client_type = models.CharField(
+    tipoDocumento = models.CharField(
         max_length=2,
         choices=DOCUMENT_TYPE_CHOICES,
-        default='PF',
+        default='PJ',
         verbose_name="Tipo de cliente"
     )
     voltagem = models.IntegerField(
@@ -83,32 +81,15 @@ class ClientProject(models.Model):
         validators=[RegexValidator(regex=r'^\d{5}-?\d{3}$', message="CEP deve estar no formato XXXXX-XXX")],
         verbose_name="CEP"
     )
-    street = models.CharField(max_length=200, verbose_name="Logradouro")
-    number = models.CharField(max_length=20, verbose_name="Número")
-    neighborhood = models.CharField(max_length=100, verbose_name="Bairro")
-    city = models.CharField(max_length=100, verbose_name="Cidade")
-    complement = models.CharField(
+    rua = models.CharField(max_length=200, verbose_name="Logradouro")
+    numero = models.CharField(max_length=20, verbose_name="Número")
+    bairro = models.CharField(max_length=100, verbose_name="Bairro")
+    cidade = models.CharField(max_length=100, verbose_name="Cidade")
+    complemento = models.CharField(
         max_length=200,
         blank=True,
         null=True,
-        verbose_name="Complemento"
-    )
-    
-    # Campo documento dinâmico
-    documento = models.CharField(
-        max_length=18,
-        verbose_name="Númeor doo CPF ou CNPJ",
-        help_text="CPF no formato XXX.XXX.XXX-XX ou CNPJ no formato XX.XXX.XXX/XXXX-XX"
-    )
-   
-    # Contato - MELHORADO: regex mais flexível
-    phone = models.CharField(
-        max_length=15,
-        validators=[RegexValidator(
-            regex=r'^\(\d{2}\)\s?\d{4,5}-?\d{4}$',
-            message="Telefone deve estar no formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX"
-        )],
-        verbose_name="Telefone do titular"
+        verbose_name="complementoo"
     )
     
     #Localização em graus, minutos, segundos
@@ -137,8 +118,8 @@ class ClientProject(models.Model):
         help_text="Segundos da longitude (0 a 59)"
     )
     
-    # Status da documentação (será complementado pelos status dos documentos individuais)
-    documentation_complete = models.BooleanField(
+    # Status da documentação (será complementoado pelos status dos documentos individuais)
+    documetacaoCompleta = models.BooleanField(
         default=False,
         verbose_name="Documentação completa"
     )
@@ -174,11 +155,18 @@ class ClientProject(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # Propriedades
+    @property
+    def cnpj_do_cliente(self):
+        """
+        Retorna o valor do campo CNPJ do usuário associado a este projeto.
+        """
+        if self.user:
+            return self.user.cnpj
+        
     @property
     def documento_tipo(self):
-        """Retorna o tipo do documento baseado no client_type"""
-        return 'CPF' if self.client_type == 'PF' else 'CNPJ'
+        """Retorna o tipo do documento baseado no tipoDocumento"""
+        return 'CPF' if self.tipoDocumento == 'PF' else 'CNPJ'
     @property
     def documento_label(self):
         """Retorna o label apropriado para exibição"""
@@ -246,20 +234,6 @@ class ClientProject(models.Model):
     def clean(self):
         """Validação customizada"""
         super().clean()
-        if not self.documento:
-            raise ValidationError({
-                'documento': f'{self.documento_tipo} é obrigatório.'
-            })
-        # Validação do documento
-        if not self.is_documento_valid():
-            if self.client_type == 'PF':
-                raise ValidationError({
-                    'documento': 'CPF deve estar no formato XXX.XXX.XXX-XX'
-                })
-            else:
-                raise ValidationError({
-                    'documento': 'CNPJ deve estar no formato XX.XXX.XXX/XXXX-XX'
-                })
         # ADICIONADO: Validação de coordenadas GMS
         if not (-90 <= self.latGraus <= 90):
             raise ValidationError({
@@ -297,20 +271,6 @@ class ClientProject(models.Model):
         verbose_name = "Projeto do Cliente"
         verbose_name_plural = "Projetos dos Clientes"
 
-    # Funções
-    def is_documento_valid(self):
-        """ADICIONADO: Valida se o documento está no formato correto"""
-        if not self.documento:
-            return False
-        if self.client_type == 'PF':
-            # Validação para CPF
-            cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}-\d{2}$'
-            return bool(re.match(cpf_pattern, self.documento))
-        elif self.client_type == 'PJ':
-            # Validação para CNPJ
-            cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
-            return bool(re.match(cnpj_pattern, self.documento))
-        return False
 
     def get_required_documents(self):
         """Retorna lista de documentos obrigatórios baseado no tipo de cliente"""
@@ -329,7 +289,7 @@ class ClientProject(models.Model):
             ]
         return base_docs
 
-    def check_documentation_complete(self):
+    def check_documetacaoCompleta(self):
         """Verifica se toda documentação obrigatória foi enviada E APROVADA"""
         required_docs = self.get_required_documents()
         # Agora, consideramos apenas documentos aprovados para a completude
@@ -337,11 +297,11 @@ class ClientProject(models.Model):
             self.documents.filter(status=ProjectDocument.APPROVED)
             .values_list('document_type', flat=True)
         )
-        self.documentation_complete = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
-        self.save(update_fields=['documentation_complete']) # Salva apenas o campo atualizado
+        self.documetacaoCompleta = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
+        self.save(update_fields=['documetacaoCompleta']) # Salva apenas o campo atualizado
  
     def __str__(self):
-        return f"{self.client_code} - {self.project_holder_name} (Criado por: {self.created_by_name})"
+        return f"{self.codigoCliente} - {self.nomeTitular} (Criado por: {self.created_by_name})"
     
     def clean_money(self):
         """Validação personalizada para campos financeiros"""
@@ -372,11 +332,11 @@ class ConsumerUnit(models.Model):
         on_delete=models.CASCADE,
         related_name='consumer_units'
     )
-    client_code = models.CharField(
+    codigoCliente = models.CharField(
         max_length=50,
         verbose_name="Código único do cliente",
     )
-    percentage = models.DecimalField(
+    porcentagem = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         blank=True,
@@ -430,7 +390,7 @@ class ConsumerUnit(models.Model):
                 })
 
     def __str__(self):
-        return f"UC {self.client_code} - Projeto: {self.project.client_code} (Prioridade: {self.priority_level})"
+        return f"UC {self.codigoCliente} - Projeto: {self.project.codigoCliente} (Prioridade: {self.priority_level})"
 
 class BaseModel(models.Model):
     """
@@ -535,7 +495,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         verbose_name_plural = "Documentos do Projeto"
 
     def __str__(self):
-        return f"{self.get_document_type_display()} - {self.project.client_code} ({self.get_status_display()})"
+        return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
 
     def save(self, *args, **kwargs):
         # Se o status mudou para APROVADO, registra a data e o usuário
@@ -557,8 +517,8 @@ class ProjectDocument(BaseModel, ArquivoMixin):
             self.rejection_reason = None
         super().save(*args, **kwargs)
         # Verifica se a documentação do projeto está completa após salvar o documento
-        # Isso é importante para atualizar o campo documentation_complete no ClientProject
-        self.project.check_documentation_complete()
+        # Isso é importante para atualizar o campo documetacaoCompleta no ClientProject
+        self.project.check_documetacaoCompleta()
 
     def delete(self, *args, **kwargs):
         # Remove o arquivo físico
@@ -567,4 +527,4 @@ class ProjectDocument(BaseModel, ArquivoMixin):
                 os.remove(self.arquivo.path)
         super().delete(*args, **kwargs)
         # Revalida a documentação do projeto após a exclusão
-        self.project.check_documentation_complete()
+        self.project.check_documetacaoCompleta()

@@ -8,7 +8,7 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument
 class ConsumerUnitInline(admin.TabularInline):
     model = ConsumerUnit
     extra = 1 # Quantidade de formulários extras para adicionar
-    fields = ('percentage',)
+    fields = ('porcentagem',)
     verbose_name = "Unidade Consumidora"
     verbose_name_plural = "Unidades Consumidoras"
 
@@ -24,31 +24,28 @@ class ProjectDocumentInline(admin.TabularInline):
 @admin.register(ClientProject)
 class ClientProjectAdmin(admin.ModelAdmin):
     list_display = (
-        'client_code',
-        'project_holder_name',
-        'email',
-        'client_type',
+        'codigoCliente',
+        'nomeTitular',
+        'tipoDocumento',
         'documento_label',
-        'documentation_complete_display',
+        'documetacaoCompleta_display',
         'total_documents_count_display',
         'approved_documents_count_display',
         'in_analysis_documents_count_display',
         'rejected_documents_count_display',
         'created_at',
     )
-    list_filter = ('client_type', 'documentation_complete', 'created_at',)
+    list_filter = ('tipoDocumento', 'documetacaoCompleta', 'created_at',)
     search_fields = (
-        'client_code',
-        'project_holder_name',
-        'email',
-        'documento',
+        'codigoCliente',
+        'nomeTitular',
         'cep',
-        'city',
+        'cidade',
     )
     readonly_fields = (
         'created_at',
         'updated_at',
-        'documentation_complete',
+        'documetacaoCompleta',
         'approved_documents_count',
         'in_analysis_documents_count',
         'rejected_documents_count',
@@ -59,23 +56,20 @@ class ClientProjectAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': (
-                'client_code',
-                'project_holder_name',
-                'project_class',
-                'email',
-                'client_type',
-                'documento',
-                'phone',
+                'codigoCliente',
+                'nomeTitular',
+                'classe',
+                'tipoDocumento',
             )
         }),
         ('Endereço', {
             'fields': (
                 'cep',
-                'street',
-                'number',
-                'neighborhood',
-                'city',
-                'complement',
+                'rua',
+                'numero',
+                'bairro',
+                'cidade',
+                'complemento',
             )
         }),
         ('Localização (Graus, Minutos, Segundos)', {
@@ -87,7 +81,7 @@ class ClientProjectAdmin(admin.ModelAdmin):
         }),
         ('Status da Documentação', {
             'fields': (
-                'documentation_complete',
+                'documetacaoCompleta',
                 ('approved_documents_count', 'in_analysis_documents_count', 'rejected_documents_count', 'total_documents_count'),
             )
         }),
@@ -99,12 +93,12 @@ class ClientProjectAdmin(admin.ModelAdmin):
     inlines = [ConsumerUnitInline, ProjectDocumentInline]
 
     # Customização para exibir o status da documentação com ícone
-    def documentation_complete_display(self, obj):
-        if obj.documentation_complete:
+    def documetacaoCompleta_display(self, obj):
+        if obj.documetacaoCompleta:
             return format_html('<span style="color: green; font-weight: bold;">&#10004; Sim</span>')
         return format_html('<span style="color: red; font-weight: bold;">&#10008; Não</span>')
-    documentation_complete_display.short_description = "Doc. Completa"
-    documentation_complete_display.admin_order_field = 'documentation_complete'
+    documetacaoCompleta_display.short_description = "Doc. Completa"
+    documetacaoCompleta_display.admin_order_field = 'documetacaoCompleta'
 
     # Métodos para exibir contagens de documentos na list_display
     def approved_documents_count_display(self, obj):
@@ -134,9 +128,9 @@ class ClientProjectAdmin(admin.ModelAdmin):
 
 @admin.register(ConsumerUnit)
 class ConsumerUnitAdmin(admin.ModelAdmin):
-    list_display = ('project','percentage',)
+    list_display = ('project','porcentagem',)
     list_filter = ('project',)
-    search_fields = ('project__client_code', 'project__project_holder_name',)
+    search_fields = ('project__codigoCliente', 'project__nomeTitular',)
     raw_id_fields = ('project',) # Para projetos com muitos itens, melhora a performance
 
 @admin.register(ProjectDocument)
@@ -153,8 +147,8 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
     list_filter = ('status', 'document_type', 'file_type', 'project',)
     search_fields = (
         'document_type',
-        'project__client_code',
-        'project__project_holder_name',
+        'project__codigoCliente',
+        'project__nomeTitular',
         'rejection_reason',
     )
     raw_id_fields = ('project',) # Usa um widget de pesquisa para ForeignKeys
@@ -187,7 +181,7 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
     def project_link(self, obj):
         # Cria um link para a página de edição do ClientProject
         link = reverse("admin:%s_%s_change" % (obj.project._meta.app_label, obj.project._meta.model_name), args=[obj.project.id])
-        return format_html('<a href="{}">{}</a>', link, obj.project.client_code)
+        return format_html('<a href="{}">{}</a>', link, obj.project.codigoCliente)
     project_link.short_description = "Projeto"
-    project_link.admin_order_field = 'project__client_code' # Permite ordenar por este campo
+    project_link.admin_order_field = 'project__codigoCliente' # Permite ordenar por este campo
 
