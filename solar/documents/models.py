@@ -330,7 +330,8 @@ class ConsumerUnit(models.Model):
     project = models.ForeignKey(
         ClientProject,
         on_delete=models.CASCADE,
-        related_name='consumer_units'
+        related_name='consumer_units',
+        default=0,
     )
     codigoCliente = models.CharField(
         max_length=50,

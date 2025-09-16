@@ -4,10 +4,11 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
     # codigoCliente = serializers.CharField(source='codigoCliente')
-
+    # project = serializers.PrimaryKeyRelatedField(queryset=ClientProject.objects.all(), read_only=True)
     class Meta:
         model = ConsumerUnit
         fields = "__all__"
+        read_only_fields = ['project']
 
 # Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
