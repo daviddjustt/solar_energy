@@ -88,7 +88,7 @@ class CustomUserViewSet(UserViewSet):
                  # Note: A lógica de permissão acima já restringe campos para usuários comuns.
                  # Este log manual pode ser para campos específicos que você quer rastrear por esta interface.
                  # Ajuste a lista `fields_to_log_manually` conforme necessário.
-                 fields_to_log_manually = ['celular', 'name', 'cnpj', 'is_admin', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
+                 fields_to_log_manually = ['celular', 'name', 'cnpj','cpf', 'is_admin', 'is_active'] # Exemplo: loga mais campos se admin estiver atualizando
                  if field_name in fields_to_log_manually:
                      old_value = original_instance_values.get(field_name)
                      # Compara o valor original com o novo valor salvo no banco

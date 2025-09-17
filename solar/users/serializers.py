@@ -26,10 +26,11 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
         fields = tuple(set(DjoserUserCreateSerializer.Meta.fields + (
-            'name', 'cnpj', 'celular',
+            'name', 'cnpj','cpf', 'celular',
         )))
         extra_kwargs = {
             'cnpj': {'required': True},
+            'cpf': {'required': True},
             'celular': {'required': True},
             'name': {'required': True},
             # 'password' já é required por padrão no DjoserUserCreateSerializer
@@ -41,11 +42,15 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
         # Normalização de campos
         attrs['name'] = attrs.get('name', '').strip().upper()
         attrs['cnpj'] = re.sub(r'\D', '', attrs.get('cnpj', '')) # Remove não dígitos
+        attrs['cpf'] = re.sub(r'\D', '', attrs.get('cpf', '')) # Remove não dígitos
         attrs['celular'] = re.sub(r'\D', '', attrs.get('celular', '')) # Remove não dígitos
 
         # Validação de cnpj (exemplo básico, considere uma validação mais robusta)
         if len(attrs['cnpj']) != 18:
              raise DRFValidationError({"cnpj": _("cnpj deve conter 18 caracteres.")})
+        
+        if len(attrs['cpf']) != 14:
+             raise DRFValidationError({"cpf": _("cpf deve conter 14 caracteres.")})
 
         # Validação de Celular (exemplo básico)
         if len(attrs['celular']) != 11:
@@ -77,7 +82,7 @@ class UserSerializer(DjoserUserSerializer):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
             'name', 'cnpj', 'celular',
-            'is_admin', 'is_active'
+            'is_admin', 'is_active', 'cpf'
         )
         # Campos que podem ser lidos mas não alterados via este serializer (embora Djoser controle isso)
         read_only_fields = DjoserUserSerializer.Meta.read_only_fields + (
@@ -98,6 +103,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(read_only=True)
     name = serializers.CharField(read_only=True)
     cnpj = serializers.CharField(read_only=True)
+    cpf = serializers.CharField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_admin = serializers.BooleanField(read_only=True)
 
@@ -107,7 +113,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'celular',
             # Campos somente leitura
             'email', 'name', 'cnpj', 'is_active',
-            'is_admin',
+            'is_admin', 'cpf',
         )
 
     def validate_celular(self, value):

@@ -16,6 +16,17 @@ from django.contrib.auth.models import AbstractUser, Group # Importar Group
 CELULAR_REGEX = r'^\d{11}$'
 MAX_IMAGE_SIZE_MB = 7
 
+def validate_cpf(cpf):
+    cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}/\d{2}$'
+    """Valida o cpf de forma simplificada."""
+    cpf = ''.join(filter(str.isdigit, cpf))
+    if len(cpf) != 11:
+        raise ValidationError('cpf deve conter 18 dígitos')
+    if all(d == cpf[0] for d in cpf):
+        raise ValidationError('cpf inválido')
+    
+    return bool(re.match(cpf_pattern, cpf))
+
 def validate_cnpj(cnpj):
     cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
     """Valida o cnpj de forma simplificada."""
@@ -35,16 +46,33 @@ def validate_image_size(image):
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
-    def create_user(self, email, name, cnpj, celular, password=None, **extra_fields):
+    def create_user(self, email, name, cnpj, cpf, celular=None, password=None, **extra_fields):
             try:
                 validate_cnpj(cnpj)
             except ValidationError as e:
                 raise ValueError(f"Erro de validação de cnpj: {e.message}") # Ou apenas raise e
+            
+            if cnpj:
+                    try:
+                        validate_cnpj(cnpj)
+                    except ValidationError as e:
+                        raise ValueError(f"Erro de validação de CNPJ: {e.message}")
+            
+            try:
+                validate_cpf(cpf)
+            except ValidationError as e:
+                raise ValueError(f"Erro de validação de CPF: {e.message}") # Ou apenas raise e
+            if cpf:
+                    try:
+                        validate_cpf(cpf)
+                    except ValidationError as e:
+                        raise ValueError(f"Erro de validação de CPF: {e.message}")
 
             user = self.model(
                 email=email,
                 name=name.upper() if name else None,
                 cnpj=cnpj,
+                cpf=cpf,
                 celular=celular,
                 **extra_fields
             )
@@ -52,13 +80,12 @@ class UserManager(BaseUserManager):
             user.save(using=self._db)
             return user
 
-    def create_superuser(self, email, name, cnpj, celular, password=None):
-            # ... (código existente)
-            # A validação de cnpj já será chamada por create_user
+    def create_superuser(self, email, name, cnpj, cpf, celular, password=None):
             return self.create_user(
                 email=email,
                 name=name,
                 cnpj=cnpj,
+                cpf=cpf,
                 celular=celular,
                 password=password,
                 is_admin=True,
@@ -87,7 +114,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         verbose_name='cnpj'
     )
-    
+    cpf = models.CharField(
+        max_length=14, # 11 dígitos + 3 caracteres de formatação (XXX.XXX.XXX-XX)
+        unique=True,
+        verbose_name='CPF'
+    )
     celular_validator = RegexValidator(
         regex=CELULAR_REGEX,
         message='Celular inválido'
@@ -99,7 +130,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     
     is_active = models.BooleanField(
-        default=False,
+        default=True,
         verbose_name='Ativo'
     )
     is_admin = models.BooleanField(default=False, verbose_name="É Administrador")
@@ -118,7 +149,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'cnpj', 'celular']
+    REQUIRED_FIELDS = ['name', 'cnpj', 'celular', 'cpf']
     
     class Meta:
         verbose_name = 'Usuário'
@@ -141,13 +172,20 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.celular = ''.join(filter(str.isdigit, self.celular))
     
     def clean(self):
-        """Valida o usuário antes de salvar."""
+        if not self.cpf:
+            raise ValidationError({'cpf': 'É obrigatório informar CPF'})
+        try:
+            validate_cpf(self.cpf)
+        except ValidationError as e:
+            raise ValidationError({'cpf': e})
+        
         if not self.cnpj:
             raise ValidationError({'cnpj': 'O cnpj é obrigatório.'})
         try:
             validate_cnpj(self.cnpj)
         except ValidationError as e:
             raise ValidationError({'cnpj': e})
+        
         if not self.celular:
             raise ValidationError({'celular': 'O celular é obrigatório.'})
     
