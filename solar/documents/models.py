@@ -8,6 +8,7 @@ import os
 import re
 from django.utils import timezone # Importar timezone para usar em approved_at
 from solar.users.models import User
+CELULAR_REGEX = r'^\d{11}$'
 
 def get_document_upload_path(instance, filename):
     """Gera o caminho de upload baseado no projeto e tipo de documento"""
@@ -74,6 +75,20 @@ class ClientProject(models.Model):
         verbose_name='voltagem',
         help_text='Voltagem da unidade geradora',
         default=220,
+    )
+    email = models.EmailField(
+        max_length=255,
+        unique=True,
+        verbose_name='Email'
+    )
+    celular_validator = RegexValidator(
+        regex=CELULAR_REGEX,
+        message='Celular inválido'
+    )
+    telefone = models.CharField(
+        max_length=11,
+        validators=[celular_validator],
+        verbose_name='Telefone'
     )
     # Endereço
     cep = models.CharField(
@@ -271,6 +286,14 @@ class ClientProject(models.Model):
         verbose_name = "Projeto do Cliente"
         verbose_name_plural = "Projetos dos Clientes"
 
+    def _normalize_text_fields(self):
+        """Normaliza os campos de texto."""
+        if self.name:
+            self.name = self.name.upper()
+        if self.cnpj:
+            self.cnpj = ''.join(filter(str.isdigit, self.cnpj))
+        if self.telefone:
+            self.telefone = ''.join(filter(str.isdigit, self.telefone))
 
     def get_required_documents(self):
         """Retorna lista de documentos obrigatórios baseado no tipo de cliente"""
