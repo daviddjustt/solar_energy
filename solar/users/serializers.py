@@ -37,7 +37,7 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
         }
 
     def validate(self, attrs):
-        """Validação global com normalização de dados."""
+        """Validação global com normalização de dados. Importante !"""
         attrs = super().validate(attrs)
         # Normalização de campos
         attrs['name'] = attrs.get('name', '').strip().upper()
