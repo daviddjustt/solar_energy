@@ -28,7 +28,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClientProject
         fields = "__all__" # 'codigoCliente' será incluído aqui automaticamente do request body
-        read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
+        read_only_fields = ('valor_total', 'resumo_financeiro')
     
     def validate_money(self, data):
         """Validação customizada no serializer"""
@@ -177,7 +177,6 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         model = ClientProject
         fields = '__all__'
         read_only_fields = (
-            'created_by', 'created_at', 'updated_at', 
             'valor_total', 'resumo_financeiro',
             'tipo_financeiro', 'valor_financeiro', 'parcelas'  # Campos financeiros
         )
