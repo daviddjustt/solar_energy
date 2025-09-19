@@ -451,7 +451,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         ('comprovante_de_pagamento', 'Boleto ou recibo emitido na compra'),
         # Documentos adicionais para PJ
         ('cartao_cnpj', 'Cartão CNPJ'),
-        ('inscricao_estadual_municipal', 'Inscrição Estadual ou Municipal'),
         ('contrato_social', 'Contrato Social'),
         # Outros documentos
         ('outros', 'Outros Documentos'),
