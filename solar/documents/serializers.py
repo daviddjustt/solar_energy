@@ -28,8 +28,15 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClientProject
         fields = "__all__" # 'codigoCliente' será incluído aqui automaticamente do request body
-        read_only_fields = ('valor_total', 'resumo_financeiro')
+        read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        for field_name in read_only_fields:
+            if field_name in self.fields:
+                self.fields[field_name].read_only = True
+
     def validate_money(self, data):
         """Validação customizada no serializer"""
         tipo_financeiro = data.get('tipo_financeiro')
@@ -177,9 +184,17 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         model = ClientProject
         fields = '__all__'
         read_only_fields = (
+            'created_by', 'created_at', 'updated_at', 
             'valor_total', 'resumo_financeiro',
             'tipo_financeiro', 'valor_financeiro', 'parcelas'  # Campos financeiros
         )
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        for field_name in read_only_fields:
+            if field_name in self.fields:
+                self.fields[field_name].read_only = True
     
     def validate(self, data):
         """Validação para impedir modificação de campos financeiros por técnicos/clientes"""
