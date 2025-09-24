@@ -296,7 +296,7 @@ class ClientProject(models.Model):
             self.telefone = ''.join(filter(str.isdigit, self.telefone))
 
     def get_required_documents(self):
-        """Retorna lista de documentos obrigatórios baseado no tipo de cliente"""
+        """Retorna lista de documentos obrigatórios"""
         base_docs = [
             'documento_cliente',
             'unidade_geradora_fatura',
