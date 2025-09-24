@@ -304,7 +304,6 @@ class ClientProject(models.Model):
             'lista_material',
             'procuracao_assinada'
             'cartao_cnpj',
-            'inscricao_municipal',
             'inscricao_estadual_',
             'contrato_social',
             'Documentação ART',
