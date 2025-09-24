@@ -18,6 +18,7 @@ class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
     # Pagamento do ART e TRT se encaixa aqui ?
+    PAGAMENTOS = 'Pagamento da TRT/ART e pagamento do projeto'
     ANALISE_TECNICA = 'Projeto em análise técnica'
     APROVADO = 'Projeto aprovado'
     REPROVADO = 'Projeto reprovado'
@@ -78,7 +79,7 @@ class ClientProject(models.Model):
     )
     email = models.EmailField(
         max_length=255,
-        unique=True,
+        unique=False,
         verbose_name='Email'
     )
     celular_validator = RegexValidator(
