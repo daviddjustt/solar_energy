@@ -392,13 +392,12 @@ class ConsumerUnit(models.Model):
     priority_level = models.PositiveSmallIntegerField(
         verbose_name="Nível de Prioridade",
         help_text="Um valor inteiro, onde o número mais baixo indica maior prioridade. Deve ser único por projeto.",
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
     class Meta:
         verbose_name = "Unidade Consumidora"
         verbose_name_plural = "Unidades Consumidoras"
-        unique_together = ('project', 'priority_level')
         ordering = ['priority_level']
     
     def clean(self):
@@ -427,12 +426,6 @@ class ConsumerUnit(models.Model):
             if not (1 <= self.priority_level <= max_allowed_priority):
                 raise ValidationError({
                     'priority_level': f"O nível de prioridade deve ser entre 1 e {max_allowed_priority} para este projeto."
-                })
-
-            # Verifica a unicidade do priority_level entre as outras unidades do projeto
-            if all_units_for_project.filter(priority_level=self.priority_level).exists():
-                raise ValidationError({
-                    'priority_level': f"Já existe uma unidade consumidora com o nível de prioridade {self.priority_level} para este projeto."
                 })
 
     def __str__(self):
