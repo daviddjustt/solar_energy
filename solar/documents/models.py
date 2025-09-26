@@ -140,7 +140,7 @@ class ClientProject(models.Model):
         verbose_name="Documentação completa"
     )
     status = models.CharField(
-           max_length=40,
+           max_length=43,
            choices=AndamentoDoProjeto.choices,
            default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS,
            verbose_name="Status do Projeto"
@@ -182,7 +182,7 @@ class ClientProject(models.Model):
     @property
     def documento_tipo(self):
         """Retorna o tipo do documento baseado no tipoDocumento"""
-        return 'CPF' if self.tipoDocumento == 'PF' else 'CNPJ'
+        return 'CPF' if self.tipoDocumento == 'PF' else 'PJ'
     @property
     def documento_label(self):
         """Retorna o label apropriado para exibição"""
@@ -277,6 +277,7 @@ class ClientProject(models.Model):
                 'longSeg': 'Segundos da Longitude devem estar entre 0 e 59.'
             })
 
+
     def save(self, *args, **kwargs):
         """Override do save"""
         self.full_clean()
@@ -312,6 +313,27 @@ class ClientProject(models.Model):
             ]
         return base_docs
 
+    @property
+    def is_payment_complete(self):
+        """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
+        if self.document_type == 'boleto':
+            return self.payment_proofs.filter(status=self.APPROVED).exists()
+        elif self.document_type == 'comprovante_de_pagamento':
+            return self.status == self.APPROVED and self.related_payment_document is not None
+        return False
+
+    @property
+    def payment_status(self):
+        """Status do pagamento para boletos"""
+        if self.document_type == 'boleto':
+            if self.payment_proofs.filter(status=self.APPROVED).exists():
+                return 'PAGO'
+            elif self.payment_proofs.exists():
+                return 'COMPROVANTE_EM_ANALISE'
+            else:
+                return 'PENDENTE'
+        return None
+    
     def check_documetacaoCompleta(self):
         """Verifica se toda documentação obrigatória foi enviada E APROVADA"""
         required_docs = self.get_required_documents()
@@ -471,10 +493,12 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         ('pagamento_trt', 'Documento que comprove o pagamento da TRT'), # Adicionado vírgula aqui
         ('inscricao_municipal', 'Documento que comprove o pagamento da inscrição municipal'), # Corrigido "incrição" e adicionado vírgula
         ('inscricao_estadual', 'Documento que comprove o pagamento da inscrição estadual'), # Corrigido "incrição" e adicionado vírgula
-        ('comprovante_de_pagamento', 'Boleto ou recibo emitido na compra'),
         # Documentos adicionais para PJ
         ('cartao_cnpj', 'Cartão CNPJ'),
         ('contrato_social', 'Contrato Social'),
+        #Pagamentos
+        ('boleto', 'Boleto'),
+        ('comprovante_de_pagamento', 'Comprovante de Pagamento'),
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]
@@ -494,10 +518,14 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         choices=DOCUMENT_TYPE_CHOICES,
         verbose_name="Tipo do documento"
     )
-    file_type = models.CharField(
-        max_length=10,
-        choices=FILE_TYPE_CHOICES,
-        verbose_name="Tipo de arquivo"
+    # NOVO CAMPO para ligação
+    related_payment_document = models.ForeignKey(
+        'self', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='payment_proofs',
+        help_text="Documento relacionado (boleto para comprovante ou vice-versa)"
     )
     # NOVO CAMPO: Status do documento
     status = models.CharField(

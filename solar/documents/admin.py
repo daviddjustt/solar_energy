@@ -16,7 +16,7 @@ class ConsumerUnitInline(admin.TabularInline):
 class ProjectDocumentInline(admin.TabularInline):
     model = ProjectDocument
     extra = 0 # Não exibir formulários extras por padrão, já que documentos são carregados
-    fields = ('document_type', 'file_type', 'arquivo', 'status', 'rejection_reason', 'approved_at',)
+    fields = ('document_type', 'arquivo', 'status', 'rejection_reason', 'approved_at',)
     readonly_fields = ('approved_at', 'created_at', 'updated_at',)
     verbose_name = "Documento do Projeto"
     verbose_name_plural = "Documentos do Projeto"
@@ -140,11 +140,10 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
         'project_link', # Link para o projeto relacionado
         'document_type',
         'status',
-        'file_type',
         'approved_at',
         'created_at',
     )
-    list_filter = ('status', 'document_type', 'file_type', 'project',)
+    list_filter = ('status', 'document_type', 'project',)
     search_fields = (
         'document_type',
         'project__codigoCliente',
@@ -158,7 +157,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
             'fields': (
                 'project',
                 'document_type',
-                'file_type',
                 'arquivo',
             )
         }),

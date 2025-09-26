@@ -14,6 +14,7 @@ from .serializers import (
     DocumentUploadSerializer,
     ConsumerUnitSerializer,
     TecnicoClientProjectSerializer,
+    PaymentDocumentSerializer,
 )
     
 from rest_framework import viewsets, permissions, status
@@ -202,10 +203,43 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         document_type = serializer.validated_data.get('document_type')
         file_obj = serializer.validated_data.get('file')
         description = serializer.validated_data.get('description', '')
+        user = self.request.user
+
+        # Validações de permissão
+        if document_type == 'boleto':
+            if not (user.is_admin or user.is_tecnico or user.is_superuser):
+                raise PermissionDenied("Apenas administradores e técnicos podem criar boletos.")
+            
+            # Verificar se já existe boleto para o projeto
+            if project.documents.filter(document_type='boleto').exists():
+                raise ValidationError("Este projeto já possui um boleto.")
+        
+        elif document_type == 'comprovante_de_pagamento':
+            # Cliente só pode enviar comprovante do próprio projeto
+            if user.is_cliente and project.created_by != user:
+                raise PermissionDenied("Você só pode enviar comprovante para seus próprios projetos.")
+            
+            # Verificar se existe boleto antes de permitir comprovante
+            if not project.documents.filter(document_type='boleto').exists():
+                raise ValidationError("Não é possível enviar comprovante sem um boleto criado primeiro.")
+            
+            # Verificar se já existe comprovante
+            existing_comprovante = project.documents.filter(document_type='comprovante_de_pagamento').first()
+            if existing_comprovante:
+                # Atualizar comprovante existente
+                existing_comprovante.file = serializer.validated_data.get('file')
+                existing_comprovante.status = 'IN_ANALYSIS'
+                existing_comprovante.rejection_reason = None
+                existing_comprovante.save()
+                serializer.instance = existing_comprovante
+                return
+        
+        serializer.save(project=project)
+
 
         # Verifica se já existe um documento deste tipo para o projeto
         existing_doc = project.documents.filter(document_type=document_type).first()
-
+        
         if existing_doc:
             # Se existe, atualiza o documento existente (re-upload)
             if file_obj: # Se um novo arquivo foi enviado
@@ -238,11 +272,38 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return project.documents.all()
 
     def perform_update(self, serializer):
-        # Se um novo arquivo for fornecido durante a atualização, reseta o status de aprovação
+        user = self.request.user
+        document = self.get_object()
+        
+        # Validações de permissão para atualização
+        if document.document_type == 'boleto':
+            if not (user.is_admin or user.is_tecnico or user.is_superuser):
+                raise PermissionDenied("Apenas administradores e técnicos podem editar boletos.")
+        
+        elif document.document_type == 'comprovante_de_pagamento':
+            if user.is_cliente and document.project.created_by != user:
+                raise PermissionDenied("Você só pode editar comprovante dos seus próprios projetos.")
+        
+        # Se um novo arquivo for fornecido, reseta o status
         if 'file' in serializer.validated_data:
-            serializer.instance.is_approved = False
-            serializer.instance.rejection_reason = None
+            serializer.validated_data['status'] = 'IN_ANALYSIS'
+            serializer.validated_data['rejection_reason'] = None
+        
         serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        
+        # Validações de permissão para exclusão
+        if instance.document_type == 'boleto':
+            if not (user.is_admin or user.is_tecnico or user.is_superuser):
+                raise PermissionDenied("Apenas administradores e técnicos podem excluir boletos.")
+        
+        elif instance.document_type == 'comprovante_de_pagamento':
+            if user.is_cliente and instance.project.created_by != user:
+                raise PermissionDenied("Você só pode excluir comprovante dos seus próprios projetos.")
+        
+        instance.delete()
 
 
 # 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
@@ -280,3 +341,43 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
         project = get_object_or_404(ClientProject, pk=project_pk)
         return project.consumer_units.all()
 
+# Nova view específica para documentos de pagamento
+class PaymentDocumentView(generics.RetrieveUpdateAPIView):
+    """
+    View específica para gerenciar documentos de pagamento (boleto e comprovante)
+    """
+    serializer_class = PaymentDocumentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        project_pk = self.kwargs['project_pk']
+        document_type = self.kwargs['document_type']  # 'boleto' ou 'comprovante_de_pagamento'
+        
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        document = get_object_or_404(
+            ProjectDocument, 
+            project=project, 
+            document_type=document_type
+        )
+        
+        # Verificar permissões de acesso
+        user = self.request.user
+        if document_type == 'comprovante_de_pagamento':
+            if user.is_cliente and project.created_by != user:
+                raise PermissionDenied("Você não tem acesso a este comprovante.")
+        
+        return document
+    
+    def perform_update(self, serializer):
+        user = self.request.user
+        document = self.get_object()
+        
+        if document.document_type == 'boleto':
+            if not (user.is_admin or user.is_tecnico or user.is_superuser):
+                raise PermissionDenied("Apenas administradores e técnicos podem editar boletos.")
+        
+        elif document.document_type == 'comprovante_de_pagamento':
+            if user.is_cliente and document.project.created_by != user:
+                raise PermissionDenied("Você só pode editar comprovante dos seus próprios projetos.")
+        
+        serializer.save()

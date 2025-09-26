@@ -12,12 +12,47 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
 
 # Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
             'uploaded_at', 'is_approved', 'rejection_reason', 'project',
         ]
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            
+            # Controle de permissões por tipo de documento
+            if hasattr(self, 'initial_data') and self.initial_data:
+                document_type = self.initial_data.get('document_type')
+                
+                # Cliente não pode criar/editar boleto
+                if user.is_cliente and document_type == 'boleto':
+                    raise serializers.ValidationError({
+                        'document_type': 'Clientes não podem criar ou editar boletos.'
+                    })
+
+    def validate(self, data):
+        request = self.context.get('request')
+        user = request.user if request else None
+        document_type = data.get('document_type')
+        
+        # Validações de permissão
+        if user and user.is_cliente and document_type == 'boleto':
+            raise serializers.ValidationError({
+                'document_type': 'Clientes não podem criar ou editar boletos.'
+            })
+        
+        # Admin e técnico podem criar boleto
+        if document_type == 'boleto' and not (user.is_admin or user.is_tecnico or user.is_superuser):
+            raise serializers.ValidationError({
+                'document_type': 'Apenas administradores e técnicos podem criar boletos.'
+            })
+        
+        return data
 
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
@@ -25,6 +60,10 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     valor_total = serializers.ReadOnlyField()
     resumo_financeiro = serializers.ReadOnlyField()
 
+    # Campos para documentos de pagamento
+    boleto = serializers.SerializerMethodField()
+    comprovante_pagamento = serializers.SerializerMethodField()
+    
     class Meta:
         model = ClientProject
         fields = "__all__" # 'codigoCliente' será incluído aqui automaticamente do request body
@@ -36,6 +75,49 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         for field_name in read_only_fields:
             if field_name in self.fields:
                 self.fields[field_name].read_only = True
+
+    def get_boleto(self, obj):
+        """Retorna informações do boleto"""
+        boleto = obj.documents.filter(document_type='boleto').first()
+        if boleto:
+            return {
+                'id': boleto.id,
+                'file_url': boleto.file.url if boleto.file else None,
+                'status': boleto.status,
+                'uploaded_at': boleto.uploaded_at,
+                'can_edit': self._can_edit_boleto()
+            }
+        return None
+
+    def get_comprovante_pagamento(self, obj):
+        """Retorna informações do comprovante"""
+        comprovante = obj.documents.filter(document_type='comprovante_de_pagamento').first()
+        if comprovante:
+            return {
+                'id': comprovante.id,
+                'file_url': comprovante.file.url if comprovante.file else None,
+                'status': comprovante.status,
+                'uploaded_at': comprovante.uploaded_at,
+                'can_edit': self._can_edit_comprovante(obj)
+            }
+        return None
+
+    def _can_edit_boleto(self):
+        """Verifica se o usuário pode editar boleto"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        user = request.user
+        return user.is_admin or user.is_tecnico or user.is_superuser
+
+    def _can_edit_comprovante(self, project):
+        """Verifica se o usuário pode editar comprovante"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        user = request.user
+        # Cliente pode editar se for o dono do projeto, admin/técnico sempre podem
+        return (user.is_cliente and project.created_by == user) or user.is_admin or user.is_tecnico or user.is_superuser
 
     def validate_money(self, data):
         """Validação customizada no serializer"""
@@ -91,9 +173,8 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         return data
 
     def validate_tipoDocumento(self, value):
-        if value and value.lower() not in ['cpf', 'cnpj']:
-            raise serializers.ValidationError("Tipo de documento deve ser 'cpf' ou 'cnpj'.")
-        return value
+        if value :
+            return value
 
     def validate_documents(self, data):
         tipo_documento = data.get('tipoDocumento', '').lower()
@@ -107,7 +188,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'client_document': 'CPF deve estar no formato XXX.XXX.XXX-XX'
                     })
-        elif tipo_documento == 'cnpj':
+        elif tipo_documento == 'PJ':
             data['tipoDocumento'] = 'PJ'
             if documento:
                 import re
@@ -160,7 +241,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_tipoDocumento(self, obj):
-        return 'cpf' if obj.tipoDocumento == 'PF' else 'cnpj'
+        return 'cpf' if obj.tipoDocumento == 'PF' else 'PJ'
 
     def get_documents_count(self, obj):
         return obj.documents.count()
@@ -174,6 +255,10 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     valor_total = serializers.ReadOnlyField()
     resumo_financeiro = serializers.ReadOnlyField()
+    
+    # Campos para documentos de pagamento
+    boleto = serializers.SerializerMethodField()
+    comprovante_pagamento = serializers.SerializerMethodField()
     
     # Campos financeiros como read-only para técnicos e clientes
     tipo_financeiro = serializers.CharField(read_only=True)
@@ -196,6 +281,48 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
             if field_name in self.fields:
                 self.fields[field_name].read_only = True
     
+    def get_boleto(self, obj):
+        """Retorna informações do boleto"""
+        boleto = obj.documents.filter(document_type='boleto').first()
+        if boleto:
+            return {
+                'id': boleto.id,
+                'file_url': boleto.file.url if boleto.file else None,
+                'status': boleto.status,
+                'uploaded_at': boleto.uploaded_at,
+                'can_edit': self._can_edit_boleto()
+            }
+        return None
+
+    def get_comprovante_pagamento(self, obj):
+        """Retorna informações do comprovante"""
+        comprovante = obj.documents.filter(document_type='comprovante_de_pagamento').first()
+        if comprovante:
+            return {
+                'id': comprovante.id,
+                'file_url': comprovante.file.url if comprovante.file else None,
+                'status': comprovante.status,
+                'uploaded_at': comprovante.uploaded_at,
+                'can_edit': self._can_edit_comprovante(obj)
+            }
+        return None
+
+    def _can_edit_boleto(self):
+        """Técnicos podem editar boleto, clientes não"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        user = request.user
+        return user.is_tecnico
+
+    def _can_edit_comprovante(self, project):
+        """Clientes podem editar comprovante se for seu projeto, técnicos sempre podem"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        user = request.user
+        return (user.is_cliente and project.created_by == user) or user.is_tecnico
+    
     def validate(self, data):
         """Validação para impedir modificação de campos financeiros por técnicos/clientes"""
         user = self.context['request'].user
@@ -212,4 +339,23 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         
         return data
     
-    
+# Serializer específico para documentos de pagamento
+class PaymentDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectDocument
+        fields = ['id', 'document_type', 'file', 'status', 'uploaded_at', 'rejection_reason']
+        read_only_fields = ['uploaded_at', 'status', 'rejection_reason']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            
+            # Se for cliente, só pode criar/editar comprovante
+            if user.is_cliente:
+                if self.instance and self.instance.document_type == 'boleto':
+                    # Cliente não pode editar boleto
+                    for field in self.fields:
+                        if field != 'id':
+                            self.fields[field].read_only = True
