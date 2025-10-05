@@ -82,9 +82,9 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         if boleto:
             return {
                 'id': boleto.id,
-                'file_url': boleto.file.url if boleto.file else None,
+                'file_url': boleto.arquivo.url if boleto.arquivo else None,
                 'status': boleto.status,
-                'uploaded_at': boleto.uploaded_at,
+                'created_at': boleto.created_at,
                 'can_edit': self._can_edit_boleto()
             }
         return None
@@ -95,7 +95,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         if comprovante:
             return {
                 'id': comprovante.id,
-                'file_url': comprovante.file.url if comprovante.file else None,
+                'file_url': comprovante.arquivo.url if comprovante.arquivo else None,
                 'status': comprovante.status,
                 'uploaded_at': comprovante.uploaded_at,
                 'can_edit': self._can_edit_comprovante(obj)
@@ -287,7 +287,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         if boleto:
             return {
                 'id': boleto.id,
-                'file_url': boleto.file.url if boleto.file else None,
+                'file_url': boleto.arquivo.url if boleto.arquivo else None,
                 'status': boleto.status,
                 'uploaded_at': boleto.uploaded_at,
                 'can_edit': self._can_edit_boleto()
@@ -300,7 +300,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         if comprovante:
             return {
                 'id': comprovante.id,
-                'file_url': comprovante.file.url if comprovante.file else None,
+                'file_url': comprovante.arquivo.url if comprovante.arquivo else None,
                 'status': comprovante.status,
                 'uploaded_at': comprovante.uploaded_at,
                 'can_edit': self._can_edit_comprovante(obj)
@@ -343,7 +343,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
 class PaymentDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
-        fields = ['id', 'document_type', 'file', 'status', 'uploaded_at', 'rejection_reason']
+        fields = ['id', 'document_type', 'status', 'uploaded_at', 'rejection_reason']
         read_only_fields = ['uploaded_at', 'status', 'rejection_reason']
 
     def __init__(self, *args, **kwargs):
