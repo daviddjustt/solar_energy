@@ -74,6 +74,7 @@ class UserManager(BaseUserManager):
                 cnpj=cnpj,
                 cpf=cpf,
                 celular=celular,
+                is_cliente=True,
                 **extra_fields
             )
             user.set_password(password)
@@ -135,7 +136,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     is_admin = models.BooleanField(default=False, verbose_name="É Administrador")
     is_tecnico = models.BooleanField(default=False, verbose_name="É Técnico")
-    is_cliente = models.BooleanField(default=True, verbose_name="É Cliente")
+    is_cliente = models.BooleanField(default=False, verbose_name="É Cliente")
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Criado em'
