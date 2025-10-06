@@ -17,7 +17,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
-            'uploaded_at', 'is_approved', 'rejection_reason', 'project',
+            'is_approved', 'rejection_reason', 'project',
         ]
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,7 +97,6 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
                 'id': comprovante.id,
                 'file_url': comprovante.arquivo.url if comprovante.arquivo else None,
                 'status': comprovante.status,
-                'uploaded_at': comprovante.uploaded_at,
                 'can_edit': self._can_edit_comprovante(obj)
             }
         return None
@@ -289,7 +288,6 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
                 'id': boleto.id,
                 'file_url': boleto.arquivo.url if boleto.arquivo else None,
                 'status': boleto.status,
-                'uploaded_at': boleto.uploaded_at,
                 'can_edit': self._can_edit_boleto()
             }
         return None
@@ -302,7 +300,6 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
                 'id': comprovante.id,
                 'file_url': comprovante.arquivo.url if comprovante.arquivo else None,
                 'status': comprovante.status,
-                'uploaded_at': comprovante.uploaded_at,
                 'can_edit': self._can_edit_comprovante(obj)
             }
         return None
@@ -343,8 +340,8 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
 class PaymentDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
-        fields = ['id', 'document_type', 'status', 'uploaded_at', 'rejection_reason']
-        read_only_fields = ['uploaded_at', 'status', 'rejection_reason']
+        fields = ['id', 'document_type', 'status', 'rejection_reason']
+        read_only_fields = ['status', 'rejection_reason']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
