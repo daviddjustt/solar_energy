@@ -209,10 +209,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         if document_type == 'boleto':
             if not (user.is_admin or user.is_tecnico or user.is_superuser):
                 raise PermissionDenied("Apenas administradores e técnicos podem criar boletos.")
-            
-            # Verificar se já existe boleto para o projeto
-            if project.documents.filter(document_type='boleto').exists():
-                raise ValidationError("Este projeto já possui um boleto.")
         
         elif document_type == 'comprovante_de_pagamento':
             # Cliente só pode enviar comprovante do próprio projeto
@@ -224,15 +220,13 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 raise ValidationError("Não é possível enviar comprovante sem um boleto criado primeiro.")
             
             # Verificar se já existe comprovante
-            existing_comprovante = project.documents.filter(document_type='comprovante_de_pagamento').first()
-            if existing_comprovante:
-                # Atualizar comprovante existente
-                existing_comprovante.file = serializer.validated_data.get('file')
-                existing_comprovante.status = 'IN_ANALYSIS'
-                existing_comprovante.rejection_reason = None
-                existing_comprovante.save()
-                serializer.instance = existing_comprovante
-                return
+            # existing_comprovante = project.documents.filter(document_type='comprovante_de_pagamento').first()
+                # Novo ocmprovante será adicionado
+            serializer.save(
+                project=project,
+                status='IN_ANALYSIS', # Define o status inicial para comprovantes
+                rejection_reason=None
+            )
         
         serializer.save(project=project)
 
