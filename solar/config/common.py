@@ -58,7 +58,7 @@ class Common(Configuration):
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@solarenergy.com')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@sntechsolar.com')
     
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
@@ -83,7 +83,9 @@ class Common(Configuration):
 
     # Static files
     STATIC_ROOT = os.path.normpath(join(os.path.dirname(BASE_DIR), 'static'))
-    STATICFILES_DIRS = []
+    STATICFILES_DIRS = [
+        os.path.join(BASE_DIR, 'static'),
+    ]
     STATIC_URL = '/static/'
     STATICFILES_FINDERS = (
         'django.contrib.staticfiles.finders.FileSystemFinder',
@@ -327,7 +329,7 @@ class Common(Configuration):
     }
 
     # Site configurations
-    SITE_NAME = os.getenv('SITE_NAME', 'SolarEnergy')
+    SITE_NAME = os.getenv('SITE_NAME', 'SN Tech Solar')
     SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     DOMAIN = os.getenv('DOMAIN', 'localhost:8080')

@@ -18,7 +18,7 @@ class ActivationEmail(BaseActivationEmail):
         
         # Obter configurações do Django settings
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         # Construir URL de ativação personalizada
         user = context.get('user')
@@ -48,7 +48,7 @@ class ConfirmationEmail(BaseConfirmationEmail):
         context = super().get_context_data()
         
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         context.update({
             'frontend_url': frontend_url,
@@ -66,7 +66,13 @@ class PasswordResetEmail(BasePasswordResetEmail):
         context = super().get_context_data()
         
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
+
+        # --- ADICIONE ESTAS LINHAS ---
+        _protocol = "http" 
+                          
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080') # Pega do settings.DOMAIN que configuramos no docker-compose
+        _static_url = settings.STATIC_URL
         
         # Construir URL de reset de senha para o frontend
         uid = context.get('uid')
@@ -79,9 +85,14 @@ class PasswordResetEmail(BasePasswordResetEmail):
             'password_reset_url': password_reset_url,
             'uid': uid,
             'token': token,
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': _static_url,
         })
         
         logger.info("Email de reset de senha preparado")
+        generated_logo_url = f"{_protocol}://{_domain}{_static_url}images/logo-com-nome.png"
+        logger.info(f"DEBUG: URL da logo gerada para o e-mail: {generated_logo_url}")
         return context
 
 
@@ -92,7 +103,7 @@ class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
         context = super().get_context_data()
         
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         context.update({
             'frontend_url': frontend_url,
@@ -111,7 +122,7 @@ class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
         context = super().get_context_data()
         
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         context.update({
             'frontend_url': frontend_url,
@@ -130,7 +141,7 @@ class UsernameResetEmail(BaseUsernameResetEmail):
         context = super().get_context_data()
         
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SolarEnergy')
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         # Construir URL de reset de username para o frontend
         uid = context.get('uid')

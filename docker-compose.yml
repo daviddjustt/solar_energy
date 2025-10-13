@@ -6,6 +6,7 @@ services:
   web:
     restart: always
     environment:
+      - DOMAIN=localhost:8080
       - DJANGO_SECRET_KEY=local
     build: ./
     command: >

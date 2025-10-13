@@ -32,7 +32,7 @@ class EmailService:
             context = {
                 'user': user,
                 'user_name': user.get_full_name() or user.first_name or user.email.split('@')[0],
-                'site_name': getattr(settings, 'SITE_NAME', 'SolarEnergy'),
+                'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
                 'site_url': getattr(settings, 'SITE_URL', 'http://localhost:8000'),
                 'plain_password': plain_password,
                 'login_url': f"{getattr(settings, 'SITE_URL', 'http://localhost:8000')}/login/",
@@ -83,7 +83,7 @@ class EmailService:
             context = {
                 'user': user,
                 'user_name': user.get_full_name() or user.first_name or user.email.split('@')[0],
-                'site_name': getattr(settings, 'SITE_NAME', 'SolarEnergy'),
+                'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
                 'site_url': getattr(settings, 'SITE_URL', 'http://localhost:8000'),
                 'email': user.email,
                 'password': plain_password,
@@ -132,7 +132,7 @@ class EmailService:
             context = {
                 'user': user,
                 'user_name': user.get_full_name() or user.first_name or user.email.split('@')[0],
-                'site_name': getattr(settings, 'SITE_NAME', 'SolarEnergy'),
+                'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
                 'site_url': getattr(settings, 'SITE_URL', 'http://localhost:8000'),
                 'created_by_admin': created_by_admin,
                 'login_url': f"{getattr(settings, 'SITE_URL', 'http://localhost:8000')}/login/",
