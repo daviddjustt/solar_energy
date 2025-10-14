@@ -31,7 +31,7 @@ class ActivationEmail(BaseActivationEmail):
         context.update({
             'frontend_url': frontend_url,
             'site_name': site_name,
-            'activation_url': activation_url,  # URL personalizada
+            # 'activation_url': activation_url,  # URL personalizada
             'user': user,
             'uuid': uuid,
             'token': token,

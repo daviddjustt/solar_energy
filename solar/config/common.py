@@ -236,7 +236,11 @@ class Common(Configuration):
         'solar.users.backends.EmailOrCPFBackend',
         'django.contrib.auth.backends.ModelBackend',
     ]
-
+    # Site configurations
+    SITE_NAME = os.getenv('SITE_NAME', 'SN Tech Solar')
+    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
+    FRONTEND_URL = 'http://localhost:3000'
+    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')
     # Djoser Settings (mantido como estava)
     DJOSER = {
         'LOGIN_FIELD': 'email',
@@ -247,11 +251,8 @@ class Common(Configuration):
         'SET_PASSWORD_RETYPE': True,
         'SET_USERNAME_RETYPE': True,
         # ATENÇÃO: Mude esta linha para o caminho completo e absoluto
-        'PASSWORD_RESET_CONFIRM_URL': 'http://localhost:8080/api/v1/users/reset_password_confirm/{uid}/{token}',
-        # ATENÇÃO: Mude esta linha também para o caminho completo e absoluto, se aplicável
-        'USERNAME_RESET_CONFIRM_URL': 'http://localhost:8080/api/v1/users/set_username_confirm/{uid}/{token}',
-        # ATENÇÃO: Mude esta linha também para o caminho completo e absoluto, se aplicável
-        'ACTIVATION_URL': 'http://localhost:8080/api/v1/users/activate/{uid}/{token}',
+        'PASSWORD_RESET_CONFIRM_URL': FRONTEND_URL + '/reset-password/{uid}/{token}',
+        'ACTIVATION_URL': FRONTEND_URL + '/activate/{uid}/{token}',
         'SEND_ACTIVATION_EMAIL': True,
         'SERIALIZERS': {
             'user_create': 'solar.users.serializers.UserCreateSerializer',
@@ -328,11 +329,6 @@ class Common(Configuration):
         'PAGE_SIZE': 20,
     }
 
-    # Site configurations
-    SITE_NAME = os.getenv('SITE_NAME', 'SN Tech Solar')
-    SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
-    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-    DOMAIN = os.getenv('DOMAIN', 'localhost:8080')
 
 # Configuração para desenvolvimento
 class Local(Common):
