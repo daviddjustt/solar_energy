@@ -74,7 +74,7 @@ class UserManager(BaseUserManager):
                 cnpj=cnpj,
                 cpf=cpf,
                 celular=celular,
-                is_cliente=True,
+                is_cliente=False,
                 **extra_fields
             )
             user.set_password(password)
@@ -242,7 +242,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             self.groups.remove(cliente_group)
     
-
 class Tecnico(User):
     """
     Perfil de usuário Técnico. Pode ver todos os projetos, mas não edita campos financeiros.
