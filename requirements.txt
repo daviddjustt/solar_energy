@@ -39,8 +39,8 @@ drf-spectacular == 0.28.0
 
 # Data Import/Export
 django-import-export==4.3.2
-pandas==2.2.0
-openpyxl==3.1.2
+# pandas==2.2.0
+# openpyxl==3.1.2
 
 #Admin Enhancements
 django-admin-interface==0.29.4
@@ -51,4 +51,4 @@ django-simple-history==3.4.0
 django-auditlog==2.3.0
 
 # PDF Processing
-reportlab==4.4.1
+# reportlab==4.4.1
