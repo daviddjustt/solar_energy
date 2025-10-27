@@ -23,7 +23,6 @@ class Common(Configuration):
         'drf_spectacular',
         'corsheaders',
         'djoser',
-        'rest_framework_simplejwt.token_blacklist',
         'import_export',
         'simple_history',  # ADICIONADO - estava faltando
         
@@ -282,7 +281,6 @@ class Common(Configuration):
         "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
         "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
         "ROTATE_REFRESH_TOKENS": True,
-        "BLACKLIST_AFTER_ROTATION": True,
         "UPDATE_LAST_LOGIN": True,
         'USER_ID_FIELD': 'uuid',
         'USER_ID_CLAIM': 'user_id',

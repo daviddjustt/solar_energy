@@ -1,16 +1,13 @@
-# Python standard library imports
-import os
 import uuid
 import re
-from datetime import datetime
 
 # Django imports
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator, FileExtensionValidator
+from django.core.validators import RegexValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
-from django.contrib.auth.models import AbstractUser, Group # Importar Group
+from django.contrib.auth.models import Group # Importar Group
 
 # Constantes para validações
 CELULAR_REGEX = r'^\d{11}$'
@@ -273,7 +270,7 @@ class Tecnico(User):
     def __str__(self):
         return f"Técnico: {self.get_full_name() or self.username}"
 
-class Cliente(Tecnico): # Cliente herda de Técnico conforme solicitado
+class Cliente(Tecnico):
     """
     Perfil de usuário Cliente. Não pode editar campos financeiros e
     só pode acessar seus próprios projetos.
@@ -307,19 +304,6 @@ class Cliente(Tecnico): # Cliente herda de Técnico conforme solicitado
 
     def __str__(self):
         return f"Cliente: {self.get_full_name() or self.username}"
-
-class UserExport(User):
-    class Meta:
-        proxy = True
-        verbose_name = ("Exportação de Usuários")
-        verbose_name_plural = ("Exportações de Usuários")
-
-class UserImport(models.Model):
-    class Meta:
-        verbose_name = ("Importação de Usuários")
-        verbose_name_plural = ("Importação de Usuários")
-        app_label = 'users'
-        managed = False
 
 class EmailLog(models.Model):
     """Registra todos os e-mails enviados pelo sistema."""

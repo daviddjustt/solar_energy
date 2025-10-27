@@ -178,31 +178,6 @@ class TestJWTAuthentication:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_jwt_blacklist(self, api_client, refresh_token):
-        """Teste de adição de token à blacklist (logout)."""
-        # Teste do endpoint de blacklist
-        url = "/api/v1/auth/token/blacklist/"
-        data = {
-            "refresh": refresh_token
-        }
-
-        response = api_client.post(url, data)
-
-        # Verifica se a resposta é bem-sucedida (204 No Content ou 200 OK)
-        assert response.status_code in [status.HTTP_204_NO_CONTENT, status.HTTP_200_OK]
-
-        # Tenta usar o token invalidado
-        refresh_url = "/api/v1/auth/jwt/refresh/"
-        refresh_data = {
-            "refresh": refresh_token
-        }
-
-        refresh_response = api_client.post(refresh_url, refresh_data)
-
-        # Verifica se o token foi realmente invalidado (deve retornar 401)
-        assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
 @pytest.mark.django_db
 class TestUserManagement:
     def test_user_registration(self, api_client):

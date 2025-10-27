@@ -1,23 +1,24 @@
 import logging
-import traceback
-
-# Django imports
 from django.conf import settings
-from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db.models import Q
-from django.http import HttpResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import FormView, ListView
 from django.contrib.auth import get_user_model
-from django.contrib.auth import authenticate
 
 # Third-party imports
-from djoser.views import UserViewSet,TokenCreateView
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
-from rest_framework import status, views
+from djoser.views import UserViewSet
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+
+import base64
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
+from django.views import View
+from django.db import transaction
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
 
 # Local application imports
 from .models import User, UserChangeLog
@@ -152,19 +153,6 @@ class CustomUserViewSet(UserViewSet):
 
         return Response(history_data)
 
-
-import base64
-from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
-from django.core.exceptions import ValidationError
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views import View
-from django.db import transaction
-import logging
-# erro
-logger = logging.getLogger(__name__)
-User = get_user_model()
 
 class ActivateAccountView(View):
     

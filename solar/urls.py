@@ -1,7 +1,6 @@
 from django.urls import path, include, re_path
 from django.contrib import admin
 from django.conf import settings
-from rest_framework_simplejwt.views import TokenBlacklistView
 from django.conf.urls.static import static
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -50,8 +49,6 @@ urlpatterns = [
     # pode haver conflitos. O ideal é que CustomUserViewSet estenda as views do Djoser
     # ou seja configurado para não conflitar com as URLs padrão do Djoser.
     path('api/v1/', include(router.urls)),
-
-    path('api/v1/auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
 
     # Endpoints para Documentos (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),

@@ -1,16 +1,11 @@
 import logging
-import re
 # Django imports
-from django.contrib import admin, messages
-from django.contrib.admin import helpers
-from django.http import HttpResponse, HttpResponseRedirect
+from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from django.shortcuts import render, redirect
-from django.urls import path, reverse, NoReverseMatch # Importe NoReverseMatch
-from django.utils.html import format_html, mark_safe
+from django.urls import reverse, NoReverseMatch
+from django.utils.html import format_html
 from django.conf import settings
-from django.contrib.admin.views.main import ChangeList
 from django import forms
 # Imports models
 from .models import (

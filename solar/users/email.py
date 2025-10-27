@@ -1,9 +1,7 @@
 from djoser.email import ActivationEmail as BaseActivationEmail
-from djoser.email import ConfirmationEmail as BaseConfirmationEmail
 from djoser.email import PasswordResetEmail as BasePasswordResetEmail
 from djoser.email import PasswordChangedConfirmationEmail as BasePasswordChangedConfirmationEmail
 from djoser.email import UsernameChangedConfirmationEmail as BaseUsernameChangedConfirmationEmail
-from djoser.email import UsernameResetEmail as BaseUsernameResetEmail
 from django.conf import settings
 import logging
 
@@ -38,24 +36,6 @@ class ActivationEmail(BaseActivationEmail):
         })
         
         logger.info(f"Email de ativação preparado para usuário: {user.email if user else 'N/A'}")
-        return context
-
-
-class ConfirmationEmail(BaseConfirmationEmail):
-    template_name = 'email/confirmation.html'
-    
-    def get_context_data(self):
-        context = super().get_context_data()
-        
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
-        
-        context.update({
-            'frontend_url': frontend_url,
-            'site_name': site_name,
-        })
-        
-        logger.info("Email de confirmação preparado")
         return context
 
 
@@ -131,30 +111,4 @@ class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
         })
         
         logger.info("Email de confirmação de mudança de username preparado")
-        return context
-
-
-class UsernameResetEmail(BaseUsernameResetEmail):
-    template_name = 'email/username_reset.html'
-    
-    def get_context_data(self):
-        context = super().get_context_data()
-        
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
-        
-        # Construir URL de reset de username para o frontend
-        uid = context.get('uid')
-        token = context.get('token')
-        username_reset_url = f"{frontend_url}/username/reset/confirm/{uid}/{token}/"
-        
-        context.update({
-            'frontend_url': frontend_url,
-            'site_name': site_name,
-            'username_reset_url': username_reset_url,
-            'uid': uid,
-            'token': token,
-        })
-        
-        logger.info("Email de reset de username preparado")
         return context

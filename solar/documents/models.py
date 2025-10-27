@@ -5,8 +5,7 @@ from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 import os
-import re
-from django.utils import timezone # Importar timezone para usar em approved_at
+from django.utils import timezone
 from solar.users.models import User
 CELULAR_REGEX = r'^\d{11}$'
 

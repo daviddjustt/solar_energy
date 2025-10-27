@@ -1,13 +1,14 @@
-from rest_framework import generics, status, viewsets
+from rest_framework import generics, status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
-from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
-from .models import ClientProject, ConsumerUnit, ProjectDocument
+from .models import ClientProject, ProjectDocument
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -16,14 +17,7 @@ from .serializers import (
     TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
 )
-    
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import ClientProject
+
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """
