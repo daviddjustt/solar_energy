@@ -11,7 +11,7 @@ echo ""
 
 # Criar superuser automaticamente
 echo "👤 Criando superuser..."
-python create_superuser.py
+python create_admin_now.py
 echo ""
 
 # Iniciar Gunicorn
