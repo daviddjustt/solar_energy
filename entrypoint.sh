@@ -9,10 +9,10 @@ echo "🔄 Aplicando migrações..."
 python manage.py migrate --noinput
 echo ""
 
-# Criar superuser automaticamente (COMENTADO TEMPORARIAMENTE)
-# echo "👤 Criando superuser..."
-# python create_admin_now.py
-# echo ""
+# Criar superuser via management command
+echo "👤 Criando superuser..."
+python manage.py create_initial_superuser
+echo ""
 
 # Iniciar Gunicorn
 echo "✅ Iniciando servidor Gunicorn..."
