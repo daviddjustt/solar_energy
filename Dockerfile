@@ -6,8 +6,9 @@ COPY ./requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir --target=/packages -r requirements.txt
 
 FROM base AS runtime
-# Copia pacotes do builder para o local correto
-COPY --from=builder /packages /usr/local/lib/python3.12/site-packages
+# Instalar dependências diretamente no runtime para ter os executáveis
+COPY ./requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Security Context
 RUN useradd -m nonroot
