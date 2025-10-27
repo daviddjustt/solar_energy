@@ -1,4 +1,4 @@
-# ========= Base image =========
+# ========= Base image ==========
 FROM python:3.12.4-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
