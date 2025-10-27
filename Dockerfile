@@ -43,7 +43,7 @@ WORKDIR /code
 COPY --chown=nonroot:nonroot . /code/
 
 # Copiar e configurar scripts de inicialização
-COPY --chown=nonroot:nonroot entrypoint.sh create_superuser.py /code/
+COPY --chown=nonroot:nonroot entrypoint.sh create_admin_now.py /code/
 
 # Tornar o entrypoint executável
 RUN chmod +x /code/entrypoint.sh
