@@ -1,7 +1,6 @@
 FROM python:3.12.4-slim as base
-FROM base as builder
 
-# Allows docker to cache installed dependencies between builds
+FROM base as builder
 RUN apt-get update && apt-get -y install libpq-dev gcc
 COPY ./requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir --target=packages -r requirements.txt
@@ -16,7 +15,7 @@ USER nonroot
 
 COPY . code
 WORKDIR code
-
 EXPOSE 8000
-# Run the production server
-CMD run-program gunicorn --bind 0.0.0.0:$PORT --access-logfile - solar.wsgi:application
+
+# Run the production server with New Relic
+CMD python -m newrelic.admin run-program gunicorn --bind 0.0.0.0:${PORT} --access-logfile - solar.wsgi:application
