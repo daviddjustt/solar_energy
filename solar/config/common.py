@@ -41,7 +41,14 @@ class Common(Configuration):
         'django.contrib.messages.middleware.MessageMiddleware',
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'simple_history.middleware.HistoryRequestMiddleware',
+        'whitenoise.middleware.WhiteNoiseMiddleware',
     )
+
+    # CSRF Trusted Origins
+    CSRF_TRUSTED_ORIGINS = os.getenv(
+        'CSRF_TRUSTED_ORIGINS',
+        'https://solarenergy-production.up.railway.app'
+    ).split(',')
 
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'

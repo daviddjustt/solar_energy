@@ -4,6 +4,11 @@ set -e
 echo "🚀 Iniciando aplicação Solar Energy..."
 echo ""
 
+# Coletar arquivos estáticos
+echo "📦 Coletando arquivos estáticos..."
+python manage.py collectstatic --noinput
+echo ""
+
 # Rodar migrações
 echo "🔄 Aplicando migrações..."
 python manage.py migrate --noinput
