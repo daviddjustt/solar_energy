@@ -49,7 +49,7 @@ class Common(Configuration):
         'CSRF_TRUSTED_ORIGINS',
         'https://solarenergy-production.up.railway.app'
     ).split(',')
-
+    
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
@@ -87,25 +87,17 @@ class Common(Configuration):
     USE_TZ = True
     LOGIN_REDIRECT_URL = '/'
 
-    # Base directory
-    BASE_DIR = __path__(__file__).resolve().parent.parent
-
-    # Static files (CSS, JavaScript, Images)
-    STATIC_URL = '/static/'
-    STATIC_ROOT = BASE_DIR / 'staticfiles'  # ✅ Dentro do projeto
-
-    # Se você tem arquivos estáticos customizados, use:
+    # Static files
+    STATIC_ROOT = os.path.normpath(join(os.path.dirname(BASE_DIR), 'static'))
     STATICFILES_DIRS = [
-        BASE_DIR / 'static_custom',  # ✅ Diretório diferente de STATIC_ROOT
+        os.path.join(BASE_DIR, 'static'),
     ]
-
-    # OU, se não tiver arquivos customizados, remova STATICFILES_DIRS:
-    # STATICFILES_DIRS = []  # Vazio ou comente
-
+    STATIC_URL = '/static/'
     STATICFILES_FINDERS = (
         'django.contrib.staticfiles.finders.FileSystemFinder',
         'django.contrib.staticfiles.finders.AppDirectoriesFinder',
     )
+
     # Media files
     MEDIA_ROOT = join(os.path.dirname(BASE_DIR), 'media')
     MEDIA_URL = '/media/'

@@ -1,0 +1,43 @@
+name: Backup Mensal PostgreSQL
+
+on:
+  schedule:
+    # Executa no dia 1 de cada mês às 03:00 UTC
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Instalar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client awscli
+      
+      - name: 🚂 Instalar Railway CLI
+        run: npm install -g @railway/cli
+      
+      - name: 🔐 Configurar credenciais
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+        run: |
+          aws configure set aws_access_key_id "$R2_ACCESS_KEY"
+          aws configure set aws_secret_access_key "$R2_SECRET_KEY"
+      
+      - name: 📦 Executar backup mensal
+        env:
+          BACKUP_TYPE: monthly
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/backup.sh
