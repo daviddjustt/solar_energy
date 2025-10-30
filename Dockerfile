@@ -1,9 +1,7 @@
 FROM python:3.12-slim
 
-# Definir diretório de trabalho
 WORKDIR /code
 
-# Variáveis de ambiente Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -14,32 +12,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements
+# Copiar e instalar requirements
 COPY requirements.txt /code/
-
-# Instalar dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código da aplicação
+# Copiar aplicação
 COPY . /code/
 
-# Criar usuário não-root
+# Criar usuário nonroot
 RUN groupadd -r nonroot && \
     useradd -r -g nonroot -u 65532 nonroot
 
-# Criar diretórios necessários e dar permissões
-RUN mkdir -p /code/staticfiles /code/media && \
-    chown -R nonroot:nonroot /code
+# ✅ Criar diretórios necessários
+# O Railway monta o volume em /app/media automaticamente
+RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
+    chown -R nonroot:nonroot /code /app
 
-# Copiar e dar permissões ao entrypoint
+# Copiar entrypoint e dar permissões
 COPY --chown=nonroot:nonroot entrypoint.sh /code/
 RUN chmod +x /code/entrypoint.sh
 
-# Mudar para usuário não-root
+# Mudar para usuário nonroot
 USER nonroot
 
-# Expor porta
 EXPOSE 8080
 
-# Comando de inicialização
 ENTRYPOINT ["/code/entrypoint.sh"]

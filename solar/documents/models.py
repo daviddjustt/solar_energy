@@ -4,14 +4,104 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
-import os
+import os, uuid
 from django.utils import timezone
 from solar.users.models import User
 CELULAR_REGEX = r'^\d{11}$'
+from django.utils.text import slugify
 
 def get_document_upload_path(instance, filename):
-    """Gera o caminho de upload baseado no projeto e tipo de documento"""
-    return f'projects/{instance.project.codigoCliente}/documents/{instance.document_type}/{filename}'
+    """
+    Gera o caminho de upload organizado e seguro para documentos.
+    
+    Estrutura: projects/{codigoCliente}/documents/{document_type}/{YYYY}/{MM}/{DD}/{uuid}_{filename}
+    
+    Exemplo:
+    projects/CLI-001/documents/boleto/2025/10/29/a1b2c3d4-e5f6-7890-abcd-ef1234567890_fatura.pdf
+    """
+    # 1. Extrair extensão do arquivo
+    ext = os.path.splitext(filename)[1].lower()  # .pdf, .jpg, etc
+    
+    # 2. Slugify do nome do arquivo (remove caracteres especiais)
+    basename = os.path.splitext(filename)[0]
+    slugified_name = slugify(basename)
+    
+    # 3. Limitar tamanho do nome (máximo 50 caracteres)
+    if len(slugified_name) > 50:
+        slugified_name = slugified_name[:50]
+    
+    # 4. Gerar UUID único para evitar conflitos
+    unique_id = uuid.uuid4().hex[:8]  # 8 primeiros caracteres do UUID
+    
+    # 5. Criar nome final do arquivo
+    final_filename = f"{unique_id}_{slugified_name}{ext}"
+    
+    # 6. Obter data atual para organização por data
+    now = timezone.now()
+    year = now.strftime('%Y')
+    month = now.strftime('%m')
+    day = now.strftime('%d')
+    
+    # 7. Construir caminho completo
+    path = os.path.join(
+        'projects',
+        instance.project.codigoCliente,
+        'documents',
+        instance.document_type,
+        year,
+        month,
+        day,
+        final_filename
+    )
+    
+    return path
+
+def validate_file_size(file):
+    """
+    Valida o tamanho do arquivo (máximo 10 MB para LGPD e performance).
+    """
+    max_size_mb = 10
+    if file.size > max_size_mb * 1024 * 1024:
+        raise ValidationError(
+            f'O arquivo não pode ter mais de {max_size_mb} MB. '
+            f'Tamanho atual: {file.size / (1024 * 1024):.2f} MB'
+        )
+
+def validate_file_extension(file):
+    """
+    Valida a extensão do arquivo (apenas tipos permitidos).
+    """
+    allowed_extensions = [
+        '.pdf', '.jpg', '.jpeg', '.png', 
+        '.doc', '.docx', '.xls', '.xlsx'
+    ]
+    
+    ext = os.path.splitext(file.name)[1].lower()
+    
+    if ext not in allowed_extensions:
+        raise ValidationError(
+            f'Tipo de arquivo não permitido: {ext}. '
+            f'Formatos aceitos: {", ".join(allowed_extensions)}'
+        )
+
+class ArquivoMixin(models.Model):
+    """
+    Mixin para campos comuns de arquivos.
+    Fornece estrutura base para modelos que lidam com upload de arquivos,
+    incluindo campos comuns e métodos de validação.
+    """
+    arquivo = models.FileField(
+        verbose_name="Arquivo",
+        upload_to=get_document_upload_path,
+        validators=[validate_file_size, validate_file_extension],
+        help_text=(
+            "Arquivo do documento. "
+            "Máximo 10 MB. Formatos: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX"
+        ),
+    )
+    
+    class Meta:
+        abstract = True
 
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
@@ -32,7 +122,6 @@ class AndamentoDoProjeto(models.TextChoices):
                    return status.value
            return None
        
-
 class ClientProject(models.Model):
     
     # Choices simples do documento 
@@ -443,21 +532,6 @@ class BaseModel(models.Model):
     updated_at = models.DateTimeField(
         verbose_name=("Data de Atualização"),
         auto_now=True
-    )
-    class Meta:
-        abstract = True
-
-class ArquivoMixin(models.Model):
-    """
-    Mixin para campos comuns de arquivos.
-    Fornece estrutura base para modelos que lidam com upload de arquivos,
-    incluindo campos comuns e métodos de validação.
-    """
-    # Alterado upload_to para usar a função customizada
-    arquivo = models.FileField(
-        verbose_name=("Arquivo"),
-        upload_to=get_document_upload_path, # Usando a função customizada aqui
-        help_text=("Arquivo relacionado ao ponto de fiscalização"),
     )
     class Meta:
         abstract = True

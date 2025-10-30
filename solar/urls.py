@@ -9,7 +9,7 @@ from drf_spectacular.views import (
 )
 from rest_framework.routers import DefaultRouter
 from solar.users.views import CustomUserViewSet, ActivateAccountView
-
+from django.views.static import serve
 from solar.documents.views import (
     ProjectViewSet,
     ProjectDocumentListView,
@@ -62,3 +62,12 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+else:
+    urlpatterns += [
+        re_path(
+            r'^media/(?P<path>.*)$',
+            serve,
+            {'document_root': settings.MEDIA_ROOT}
+        ),
+    ]
