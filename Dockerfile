@@ -19,21 +19,26 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar aplicação
 COPY . /code/
 
-# Criar usuário nonroot
+# ==========================================
+# CRIAR USUÁRIO NONROOT
+# ==========================================
 RUN groupadd -r nonroot && \
     useradd -r -g nonroot -u 65532 nonroot
 
-# ✅ Criar diretórios necessários
-# O Railway monta o volume em /app/media automaticamente
+# ==========================================
+# CRIAR DIRETÓRIOS E DAR PERMISSÕES
+# ==========================================
 RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
-    chown -R nonroot:nonroot /code /app
+    chown -R nonroot:nonroot /code /app && \
+    chmod -R 755 /app/media
 
 # Copiar entrypoint e dar permissões
 COPY --chown=nonroot:nonroot entrypoint.sh /code/
 RUN chmod +x /code/entrypoint.sh
 
-# Mudar para usuário nonroot
-USER nonroot
+# ⚠️ NÃO mudar para usuário nonroot ainda
+# Deixar como root para o entrypoint configurar permissões
+# USER nonroot
 
 EXPOSE 8080
 
