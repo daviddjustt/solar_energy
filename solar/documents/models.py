@@ -607,41 +607,156 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     )
     # `uploaded_at` é fornecido por BaseModel.created_at
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
+    
     class Meta:
         verbose_name = "Documento do Projeto"
         verbose_name_plural = "Documentos do Projeto"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['status']),
+        ]
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
-
+    
+    def clean(self):
+        """
+        Validação customizada do modelo.
+        """
+        super().clean()
+        
+        # Validar tamanho do arquivo
+        if self.arquivo:
+            try:
+                validate_file_size(self.arquivo)
+            except ValidationError as e:
+                raise ValidationError({'arquivo': e.message})
+        
+        # Validar motivo da rejeição
+        if self.status == self.REJECTED and not self.rejection_reason:
+            raise ValidationError({
+                'rejection_reason': 'Motivo da rejeição é obrigatório quando o status é Rejeitado.'
+            })
+    
     def save(self, *args, **kwargs):
-        # Se o status mudou para APROVADO, registra a data e o usuário
-        if self.pk: # Se o objeto já existe (é uma atualização)
-            original = ProjectDocument.objects.get(pk=self.pk)
-            if original.status != self.status and self.status == self.APPROVED:
+        """
+        Override do save com lógica de negócio.
+        """
+        # Executar validações
+        self.full_clean()
+        
+        # Lógica de aprovação/rejeição
+        if self.pk:  # Se o objeto já existe (atualização)
+            try:
+                original = ProjectDocument.objects.get(pk=self.pk)
+                
+                # Se status mudou para APROVADO
+                if original.status != self.status and self.status == self.APPROVED:
+                    self.approved_at = timezone.now()
+                    self.rejection_reason = None  # Limpar motivo de rejeição
+                
+                # Se status mudou de APROVADO para outro
+                elif original.status == self.APPROVED and self.status != self.APPROVED:
+                    self.approved_at = None
+            
+            except ProjectDocument.DoesNotExist:
+                pass  # Objeto sendo criado
+        
+        else:  # Novo objeto
+            if self.status == self.APPROVED:
                 self.approved_at = timezone.now()
-                # Assumindo que você tem acesso ao usuário atual no contexto da requisição
-                # ou que o serializer irá passar o usuário.
-                # precisará de um mecanismo para passar o usuário para o model (ex: thread-local storage ou signals).
-                # Para uma API REST, é mais comum definir isso no serializer ou view.
-            elif original.status != self.status and self.status != self.APPROVED:
-                # Se o status mudou de APROVADO para outro (rejeitado ou em análise), limpa a data/usuário de aprovação
-                self.approved_at = None
-        elif self.status == self.APPROVED: # Se é um novo documento e já está sendo criado como APROVADO
-            self.approved_at = timezone.now()
-        # Se o status não é REJEITADO, limpa o motivo da rejeição
+        
+        # Se status não é REJEITADO, limpar motivo
         if self.status != self.REJECTED:
             self.rejection_reason = None
+        
+        # Salvar o objeto
         super().save(*args, **kwargs)
-        # Verifica se a documentação do projeto está completa após salvar o documento
-        # Isso é importante para atualizar o campo documetacaoCompleta no ClientProject
-        self.project.check_documetacaoCompleta()
-
+        
+        # Atualizar documentação completa do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            # Log do erro mas não impede o salvamento
+            print(f"Erro ao verificar documentação completa: {e}")
+    
     def delete(self, *args, **kwargs):
-        # Remove o arquivo físico
-        if self.arquivo:
-            if os.path.isfile(self.arquivo.path):
-                os.remove(self.arquivo.path)
+        """
+        Override do delete para remover arquivo físico (LGPD).
+        """
+        # Guardar referência ao arquivo antes de deletar
+        arquivo_path = self.arquivo.path if self.arquivo else None
+        arquivo_storage = self.arquivo.storage if self.arquivo else None
+        
+        # Deletar o registro do banco
         super().delete(*args, **kwargs)
-        # Revalida a documentação do projeto após a exclusão
-        self.project.check_documetacaoCompleta()
+        
+        # Tentar remover o arquivo físico
+        if arquivo_path:
+            try:
+                # Se estiver usando Railway volume ou filesystem local
+                if os.path.isfile(arquivo_path):
+                    os.remove(arquivo_path)
+                    print(f"✅ Arquivo removido: {arquivo_path}")
+                
+                # Se estiver usando S3/R2 ou outro storage
+                elif arquivo_storage:
+                    arquivo_storage.delete(arquivo_path)
+                    print(f"✅ Arquivo removido do storage: {arquivo_path}")
+            
+            except Exception as e:
+                # Log do erro mas não impede a deleção do registro
+                print(f"⚠️ Erro ao deletar arquivo físico: {e}")
+        
+        # Revalidar documentação do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            print(f"⚠️ Erro ao verificar documentação completa após deleção: {e}")
+    
+    # ==========================================
+    # PROPERTIES E MÉTODOS AUXILIARES
+    # ==========================================
+    
+    @property
+    def is_payment_document(self):
+        """Verifica se o documento é relacionado a pagamento"""
+        return self.document_type in ['boleto', 'comprovante_de_pagamento']
+    
+    @property
+    def is_payment_complete(self):
+        """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
+        if self.document_type == 'boleto':
+            return self.payment_proofs.filter(status=self.APPROVED).exists()
+        elif self.document_type == 'comprovante_de_pagamento':
+            return (
+                self.status == self.APPROVED and 
+                self.related_payment_document is not None
+            )
+        return False
+    
+    @property
+    def payment_status(self):
+        """Status do pagamento para boletos"""
+        if self.document_type == 'boleto':
+            if self.payment_proofs.filter(status=self.APPROVED).exists():
+                return 'PAGO'
+            elif self.payment_proofs.exists():
+                return 'COMPROVANTE_EM_ANALISE'
+            else:
+                return 'PENDENTE'
+        return None
+    
+    @property
+    def days_since_upload(self):
+        """Retorna quantos dias se passaram desde o upload"""
+        if self.created_at:
+            delta = timezone.now() - self.created_at
+            return delta.days
+        return 0
+    
+    @property
+    def is_recent(self):
+        """Verifica se o documento foi enviado recentemente (menos de 7 dias)"""
+        return self.days_since_upload <= 7
