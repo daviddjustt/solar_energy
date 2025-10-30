@@ -14,17 +14,18 @@ class Production(Common):
     # ==========================================
     # FILE UPLOAD SETTINGS
     # ==========================================
-    STATIC_URL = '/static/'
-    STATIC_ROOT = BASE_DIR / 'staticfiles'
-    STATICFILES_DIRS = [
-        BASE_DIR / 'static',
-    ]
     if os.getenv('RAILWAY_ENVIRONMENT'):
         MEDIA_ROOT = '/app/media'  # ← Volume do Railway
     else:
         MEDIA_ROOT = BASE_DIR / 'media'  # ← Desenvolvimento local
     
     MEDIA_URL = '/media/'
+
+    STATIC_URL = '/static/'
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    STATICFILES_DIRS = [
+        BASE_DIR / 'static',
+    ]
 
     FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
     DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
@@ -37,6 +38,15 @@ class Production(Common):
     # https://docs.djangoproject.com/en/2.0/howto/static-files/
     # http://django-storages.readthedocs.org/en/latest/index.html
     STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+            'OPTIONS': {
+                'location': MEDIA_ROOT,
+                'base_url': MEDIA_URL,
+            },
+        },
+        
+        # Storage para arquivos STATIC (CSS, JS)
         'staticfiles': {
             'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
         },
