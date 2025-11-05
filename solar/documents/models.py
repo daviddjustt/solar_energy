@@ -160,7 +160,7 @@ class ClientProject(models.Model):
         default='PJ',
         verbose_name="Tipo de cliente"
     )
-    voltagem = models.IntegerField(
+    voltagem = models.CharField(
         verbose_name='voltagem',
         help_text='Voltagem da unidade geradora',
         default=220,
