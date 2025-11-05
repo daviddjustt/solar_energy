@@ -58,8 +58,8 @@ class Common(Configuration):
     # Email
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
-    EMAIL_HOST = os.getenv('smtp.gmail.com')
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailhog.railway.internal')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
