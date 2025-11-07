@@ -184,3 +184,25 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         logger.info(f"Usuário {instance.email} atualizado por {request.user.email if request else 'sistema'}")
         return instance
+
+# Teste de delete users : se for isAdmin, não precisa da senha, qualquer outro, precisa informar a senha
+from djoser.serializers import UserDeleteSerializer
+from rest_framework import serializers
+
+class CustomUserDeleteSerializer(UserDeleteSerializer):
+    # O campo current_password já é definido no UserDeleteSerializer base.
+    # Precisamos sobrescrevê-lo para modificar seu comportamento.
+    current_password = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.user.is_staff: # ou request.user.is_superuser, dependendo da sua definição de admin
+            # Se o usuário é admin, não exigimos a senha atual
+            # Removemos o campo para que a validação base não falhe por ele estar ausente
+            attrs.pop('current_password', None)
+            return attrs
+        else:
+            # Se não for admin, a validação padrão do Djoser para current_password será aplicada
+            # O UserDeleteSerializer base já faz a validação da senha
+            return super().validate(attrs)
+
