@@ -276,7 +276,7 @@ class Common(Configuration):
         },
         'EMAIL': {
             'activation': 'solar.users.email.ActivationEmail',
-            'confirmation': 'solar.users.email.ConfirmationEmail',
+             # 'confirmation': 'solar.users.email.ConfirmationEmail',
             'password_reset': 'solar.users.email.PasswordResetEmail',
             'password_changed_confirmation': 'solar.users.email.PasswordChangedConfirmationEmail',
             'username_changed_confirmation': 'solar.users.email.UsernameChangedConfirmationEmail',
