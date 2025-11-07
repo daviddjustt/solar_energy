@@ -265,6 +265,7 @@ class Common(Configuration):
             'user': 'solar.users.serializers.UserSerializer',
             'current_user': 'solar.users.serializers.UserSerializer',
             'user_update': 'solar.users.serializers.UserUpdateSerializer',
+            'user_delete': 'solar.users.serializers.CustomUserDeleteSerializer',
         },
         'PERMISSIONS': {
             'user': ['rest_framework.permissions.IsAuthenticated'],
