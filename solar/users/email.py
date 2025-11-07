@@ -15,7 +15,7 @@ class ActivationEmail(BaseActivationEmail):
         context = super().get_context_data()
         
         # Obter configurações do Django settings
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = getattr(settings, 'FRONTEND_URL')
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         # Construir URL de ativação personalizada
@@ -45,7 +45,7 @@ class PasswordResetEmail(BasePasswordResetEmail):
     def get_context_data(self):
         context = super().get_context_data()
         
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = getattr(settings, 'FRONTEND_URL')
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
 
         # --- ADICIONE ESTAS LINHAS ---
@@ -82,7 +82,7 @@ class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
     def get_context_data(self):
         context = super().get_context_data()
         
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = getattr(settings, 'FRONTEND_URL')
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         context.update({
@@ -101,7 +101,7 @@ class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
     def get_context_data(self):
         context = super().get_context_data()
         
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = getattr(settings, 'FRONTEND_URL')
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
         context.update({

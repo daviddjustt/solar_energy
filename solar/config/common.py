@@ -245,7 +245,7 @@ class Common(Configuration):
     # Site configurations
     SITE_NAME = os.getenv('SITE_NAME', 'SN Tech Solar')
     SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
-    FRONTEND_URL = 'http://localhost:3000'
+    FRONTEND_URL = 'https://sn-solar-tech.vercel.app/'
     DOMAIN = os.getenv('DOMAIN', 'localhost:8080')
     # Djoser Settings (mantido como estava)
     DJOSER = {
@@ -299,6 +299,7 @@ class Common(Configuration):
         "http://localhost:3000",
         "http://127.0.0.1:8080",
         "http://localhost:8080",
+        "https://sn-solar-tech.vercel.app/",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOWED_HEADERS = [
