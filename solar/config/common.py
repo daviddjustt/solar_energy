@@ -47,9 +47,20 @@ class Common(Configuration):
     # CSRF Trusted Origins
     CSRF_TRUSTED_ORIGINS = os.getenv(
         'CSRF_TRUSTED_ORIGINS',
-        'https://solarenergy-production.up.railway.app'
+        'https://sn-solar-tech.vercel.app', # Backend 
+        'https://solarenergy-production.up.railway.app', # Frontend
     ).split(',')
-    
+    # Proteger contra clickjacking
+    X_FRAME_OPTIONS = 'DENY'
+
+
+    # Proteger contra MIME type sniffing
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    # Proteger contra XSS
+    SECURE_BROWSER_XSS_FILTER = True
+
+    # Demais
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
@@ -332,6 +343,17 @@ class Common(Configuration):
         'DEFAULT_FILTER_BACKENDS': [
             'django_filters.rest_framework.DjangoFilterBackend',
         ],
+        'DEFAULT_THROTTLE_CLASSES': [
+            'rest_framework.throttling.AnonRateThrottle',
+            'rest_framework.throttling.UserRateThrottle'
+        ],
+        'DEFAULT_THROTTLE_RATES': {
+            'anon': '100/hour',           # Usuários não autenticados
+            'user': '1000/hour',          # Usuários autenticados
+            'login': '5/hour',            # Login (mais restritivo)
+            'activation': '10/hour',      # Ativação de conta
+        },
+        'EXCEPTION_HANDLER': 'solar.users.exceptions.custom_exception_handler',
         'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
         'PAGE_SIZE': 20,
     }

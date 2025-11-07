@@ -9,6 +9,7 @@ from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 
 import base64
 from django.contrib.auth.tokens import default_token_generator
@@ -17,12 +18,13 @@ from django.http import JsonResponse
 from django.views import View
 from django.db import transaction
 
+from .models import User, UserChangeLog
+
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer
+from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
+
 logger = logging.getLogger(__name__)
 User = get_user_model()
-
-# Local application imports
-from .models import User, UserChangeLog
-from .serializers import UserUpdateSerializer
 
 
 # Configure the logger
@@ -35,21 +37,53 @@ class CustomUserViewSet(UserViewSet):
     ViewSet personalizado que sobrescreve o UserViewSet do Djoser
     para limitar os campos que podem ser alterados e registrar histórico de alterações.
     """
+
+    # Throttles padrão para todas as ações
+    throttle_classes = [GeneralUserThrottle]
+    
+    # Permissões padrão
+    permission_classes = [IsAuthenticated]
+
     def get_serializer_class(self):
-        """
-        Retorna o serializador adequado com base na ação.
-        Para atualização (update) do próprio usuário ('me'), retorna nosso UserUpdateSerializer.
-        Para outras ações ou usuários (ex: admin atualizando outro usuário), usa o serializador padrão.
-        """
+        """Retorna o serializador apropriado baseado na ação"""
         if self.action == 'me':
             if self.request.method in ['PUT', 'PATCH']:
                 return UserUpdateSerializer
-        # Para ações de admin (list, retrieve, create, update, partial_update, destroy)
-        # ou para o endpoint 'me' com outros métodos, usa o serializador padrão do Djoser
-        # que geralmente é UserSerializer ou similar dependendo da configuração do Djoser.
-        # Se você precisa de um serializador diferente para admin, ajuste aqui.
+        elif self.action == 'destroy':
+            return CustomUserDeleteSerializer
+        
         return super().get_serializer_class()
 
+    def get_permissions(self):
+        """Define permissões por ação"""
+        if self.action == 'create':
+            permission_classes = []  # Qualquer um pode se registrar
+        elif self.action == 'destroy':
+            permission_classes = [CanDeleteUser]
+        elif self.action in ['update', 'partial_update']:
+            permission_classes = [IsOwnerOrAdmin]
+        elif self.action in ['list', 'retrieve']:
+            permission_classes = [IsAdminUser]
+        else:
+            permission_classes = [IsAuthenticated]
+        
+        return [permission() for permission in permission_classes]
+    
+    def get_throttles(self):
+        """Define throttles por ação"""
+        if self.action == 'create':
+            self.throttle_classes = [RegistrationThrottle]
+        elif self.action == 'activation':
+            self.throttle_classes = [ActivationThrottle]
+        elif self.action == 'destroy':
+            self.throttle_classes = [UserDeleteThrottle]
+        elif self.action == 'reset_password':
+            self.throttle_classes = [PasswordResetThrottle]
+        else:
+            self.throttle_classes = [GeneralUserThrottle]
+        
+        return super().get_throttles()
+    
     def get_serializer_context(self):
         """
         Adiciona o request ao contexto do serializador para acesso ao usuário atual.
@@ -58,6 +92,20 @@ class CustomUserViewSet(UserViewSet):
         context['request'] = self.request
         return context
 
+    def create(self, request, *args, **kwargs):
+        """Criar novo usuário com validação extra"""
+        try:
+            logger.info(f"Tentativa de registro: {request.data.get('email')}")
+            response = super().create(request, *args, **kwargs)
+            logger.info(f"Usuário registrado com sucesso: {request.data.get('email')}")
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao registrar usuário: {str(e)}")
+            return Response(
+                {'error': 'Erro ao registrar usuário'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
     def update(self, request, *args, **kwargs):
         """
         Sobrescreve o método update para garantir que apenas
@@ -115,6 +163,29 @@ class CustomUserViewSet(UserViewSet):
 
         return response
 
+    def destroy(self, request, *args, **kwargs):
+        """Deletar usuário com validações de segurança"""
+        instance = self.get_object()
+        
+        # Validar permissões
+        if not (request.user.is_admin or request.user == instance):
+            return Response(
+                {'error': 'Você não tem permissão para deletar este usuário'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            logger.warning(f"Deletando usuário: {instance.email}")
+            response = super().destroy(request, *args, **kwargs)
+            logger.warning(f"Usuário deletado: {instance.email}")
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao deletar usuário {instance.email}: {str(e)}")
+            return Response(
+                {'error': 'Erro ao deletar usuário'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
     @action(detail=False, methods=['get'])
     def history(self, request):
         """
@@ -152,7 +223,21 @@ class CustomUserViewSet(UserViewSet):
                  })
 
         return Response(history_data)
-
+        
+    @action(detail=False, methods=['post'], throttle_classes=[PasswordResetThrottle])
+    def reset_password(self, request):
+        """Reset de senha"""
+        try:
+            logger.info(f"Tentativa de reset de senha: {request.data.get('email')}")
+            response = super().reset_password(request)
+            logger.info(f"Email de reset enviado")
+            return response
+        except Exception as e:
+            logger.error(f"Erro no reset de senha: {str(e)}")
+            return Response(
+                {'error': 'Erro ao resetar senha'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class ActivateAccountView(View):
     
@@ -307,3 +392,27 @@ class ActivateAccountView(View):
             response_data['details'] = details
         
         return JsonResponse(response_data, status=status)
+
+    @action(detail=False, methods=['post'], throttle_classes=[ActivationThrottle])
+    def activation(self, request):
+        """Ativar conta de usuário"""
+        try:
+            uid = request.data.get('uid')
+            token = request.data.get('token')
+            
+            if not uid or not token:
+                return Response(
+                    {'error': 'UID e token são obrigatórios'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            logger.info(f"Tentativa de ativação com UID: {uid}")
+            response = super().activation(request)
+            logger.info(f"Conta ativada com sucesso")
+            return response
+        except Exception as e:
+            logger.error(f"Erro na ativação: {str(e)}")
+            return Response(
+                {'error': 'Erro ao ativar conta'},
+                status=status.HTTP_400_BAD_REQUEST
+            )

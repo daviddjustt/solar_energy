@@ -17,10 +17,19 @@ from solar.documents.views import (
     ConsumerUnitListView,
     ConsumerUnitDetailView,
 )
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .users.permissions import AuthenticationThrottle
+from rest_framework.decorators import throttle_classes
 
 router = DefaultRouter()
 router.register("users", CustomUserViewSet)
 router.register("projects", ProjectViewSet, basename="project") # Registra o ProjectViewSet
+
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = [AuthenticationThrottle]
+
+class ThrottledTokenRefreshView(TokenRefreshView):
+    throttle_classes = [AuthenticationThrottle]
 
 urlpatterns = [
     # Admin
@@ -56,6 +65,8 @@ urlpatterns = [
     # Endpoints para Unidades Consumidoras (aninhados sob o projeto)
     path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-unit-list-create'),
     path('api/v1/projects/<int:project_pk>/consumer_units/<int:pk>/', ConsumerUnitDetailView.as_view(), name='project-consumer-unit-detail-update-delete'),
+    path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento

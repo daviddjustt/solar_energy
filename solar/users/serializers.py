@@ -1,6 +1,6 @@
 import logging
 import re
-
+from django.utils.html import escape
 # Django CORE
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -84,10 +84,18 @@ class UserSerializer(DjoserUserSerializer):
             'name', 'cnpj', 'celular',
             'is_admin', 'is_active', 'cpf'
         )
-        # Campos que podem ser lidos mas não alterados via este serializer (embora Djoser controle isso)
-        read_only_fields = DjoserUserSerializer.Meta.read_only_fields + (
-             'is_admin','is_active'
-        )
+
+        def validate_name(self, value):
+            """Sanitizar input do nome"""
+            return escape(value)
+    
+        def validate_celular(self, value):
+            """Validar formato de celular"""
+            import re
+            
+            if not re.match(r'^\+?1?\d{9,15}$', value):
+                raise serializers.ValidationError("Formato de celular inválido")
+            return value
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     """
