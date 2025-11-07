@@ -600,11 +600,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         default=IN_ANALYSIS, # Documentos recém-enviados começam "Em Análise"
         verbose_name="Status do Documento"
     )
-    rejection_reason = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name="Motivo da rejeição"
-    )
     # `uploaded_at` é fornecido por BaseModel.created_at
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
     
@@ -633,11 +628,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
             except ValidationError as e:
                 raise ValidationError({'arquivo': e.message})
         
-        # Validar motivo da rejeição
-        if self.status == self.REJECTED and not self.rejection_reason:
-            raise ValidationError({
-                'rejection_reason': 'Motivo da rejeição é obrigatório quando o status é Rejeitado.'
-            })
     
     def save(self, *args, **kwargs):
         """
@@ -645,31 +635,9 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         """
         # Executar validações
         self.full_clean()
-        
-        # Lógica de aprovação/rejeição
-        if self.pk:  # Se o objeto já existe (atualização)
-            try:
-                original = ProjectDocument.objects.get(pk=self.pk)
-                
-                # Se status mudou para APROVADO
-                if original.status != self.status and self.status == self.APPROVED:
-                    self.approved_at = timezone.now()
-                    self.rejection_reason = None  # Limpar motivo de rejeição
-                
-                # Se status mudou de APROVADO para outro
-                elif original.status == self.APPROVED and self.status != self.APPROVED:
-                    self.approved_at = None
-            
-            except ProjectDocument.DoesNotExist:
-                pass  # Objeto sendo criado
-        
-        else:  # Novo objeto
-            if self.status == self.APPROVED:
+
+        if self.status == self.APPROVED:
                 self.approved_at = timezone.now()
-        
-        # Se status não é REJEITADO, limpar motivo
-        if self.status != self.REJECTED:
-            self.rejection_reason = None
         
         # Salvar o objeto
         super().save(*args, **kwargs)

@@ -16,7 +16,7 @@ class ConsumerUnitInline(admin.TabularInline):
 class ProjectDocumentInline(admin.TabularInline):
     model = ProjectDocument
     extra = 0 # Não exibir formulários extras por padrão, já que documentos são carregados
-    fields = ('document_type', 'arquivo', 'status', 'rejection_reason', 'approved_at',)
+    fields = ('document_type', 'arquivo', 'status', 'approved_at',)
     readonly_fields = ('approved_at', 'created_at', 'updated_at',)
     verbose_name = "Documento do Projeto"
     verbose_name_plural = "Documentos do Projeto"
@@ -148,7 +148,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
         'document_type',
         'project__codigoCliente',
         'project__nomeTitular',
-        'rejection_reason',
     )
     raw_id_fields = ('project',) # Usa um widget de pesquisa para ForeignKeys
     readonly_fields = ('created_at', 'updated_at', 'approved_at',)
@@ -163,7 +162,6 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
         ('Status e Aprovação', {
             'fields': (
                 'status',
-                'rejection_reason',
                 'approved_at',
             )
         }),

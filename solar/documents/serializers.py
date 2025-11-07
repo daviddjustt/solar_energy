@@ -17,7 +17,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
-            'is_approved', 'rejection_reason', 'project',
+            'is_approved', 'project',
         ]
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -340,8 +340,8 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
 class PaymentDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
-        fields = ['id', 'document_type', 'status', 'rejection_reason']
-        read_only_fields = ['status', 'rejection_reason']
+        fields = ['id', 'document_type', 'status']
+        read_only_fields = ['status']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

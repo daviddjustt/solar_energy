@@ -218,8 +218,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 # Novo ocmprovante será adicionado
             serializer.save(
                 project=project,
-                status='IN_ANALYSIS', # Define o status inicial para comprovantes
-                rejection_reason=None
+                status='IN_ANALYSIS' # Define o status inicial para comprovantes
             )
         
         serializer.save(project=project)
@@ -234,7 +233,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 existing_doc.file = file_obj
                 existing_doc.description = description
                 existing_doc.is_approved = False # Reseta aprovação ao enviar novo arquivo
-                existing_doc.rejection_reason = None
                 existing_doc.save()
                 serializer.instance = existing_doc # Define a instância para a resposta do serializer
             else: # Se não há novo arquivo, apenas atualiza a descrição se necessário
@@ -275,7 +273,6 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Se um novo arquivo for fornecido, reseta o status
         if 'file' in serializer.validated_data:
             serializer.validated_data['status'] = 'IN_ANALYSIS'
-            serializer.validated_data['rejection_reason'] = None
         
         serializer.save()
 
