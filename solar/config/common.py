@@ -46,7 +46,6 @@ class Common(Configuration):
 
     # CSRF Trusted Origins
     CSRF_TRUSTED_ORIGINS = os.getenv(
-        'CSRF_TRUSTED_ORIGINS',
         'https://sn-solar-tech.vercel.app', # Backend 
         'https://solarenergy-production.up.railway.app', # Frontend
     ).split(',')
