@@ -9,7 +9,7 @@ from django.utils import timezone
 from solar.users.models import User
 CELULAR_REGEX = r'^\d{11}$'
 from django.utils.text import slugify
-from .utils import VOLTAGEM_MAP
+from .utils import get_voltage_choices
 
 def get_document_upload_path(instance, filename):
     """
@@ -161,7 +161,7 @@ class ClientProject(models.Model):
         default='PJ',
         verbose_name="Tipo de cliente"
     )
-    VOLTAGEM_CHOICES = [(k, v) for k, v in VOLTAGEM_MAP.items()]
+    VOLTAGEM_CHOICES = get_voltage_choices()
 
     voltagem = models.CharField(
         max_length=100,
