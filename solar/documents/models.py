@@ -161,7 +161,14 @@ class ClientProject(models.Model):
         default='PJ',
         verbose_name="Tipo de cliente"
     )
-    VOLTAGEM_CHOICES = get_voltage_choices()
+    VOLTAGEM_CHOICES = [
+        ('Monofásico - 127V', 'Monofásico - 127V'),
+        ('Monofásico - 220V', 'Monofásico - 220V'),
+        ('Bifásico - 127/220V', 'Bifásico - 127/220V'),
+        ('Bifásico - 220/380V', 'Bifásico - 220/380V'),
+        ('Trifásico - 127/220V', 'Trifásico - 127/220V'),
+        ('Trifásico - 220/380V', 'Trifásico - 220/380V'),
+    ]
 
     voltagem = models.CharField(
         max_length=100,

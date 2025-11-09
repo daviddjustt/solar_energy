@@ -91,28 +91,26 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
                 'can_edit': self._can_edit_boleto()
             }
         return None
+    
     def validate_voltagem(self, value):
-            """
-            Converte o value em label completo
-            "220" → "Monofásico - 220V"
-            """
-            if not value:
-                return value
+        """
+        Converte value em label
+        "127" → "Monofásico - 127V"
+        """
+        value_str = str(value).strip()
 
-            value_str = str(value).strip()
+        # Se já é um label, retornar
+        if value_str in [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]:
+            return value_str
 
-            # Se já é um label completo, retornar como está
-            if value_str in VOLTAGEM_LABELS:
-                return value_str
+        # Se é um value, converter
+        if value_str in VOLTAGEM_MAP:
+            return VOLTAGEM_MAP[value_str]
 
-            # Se é um value numérico, converter em label
-            if value_str in VOLTAGEM_MAP:
-                return VOLTAGEM_MAP[value_str]
-
-            # Erro: valor inválido
-            valid_values = ', '.join(VOLTAGEM_LABELS)
-            raise serializers.ValidationError(
-                f"Voltagem inválida. Valores aceitos: {valid_values}"
+        # Erro
+        valid = ', '.join(VOLTAGEM_MAP.keys())
+        raise serializers.ValidationError(
+            f"Voltagem inválida. Aceitos: {valid}"
         )
 
     def get_voltagem_label(self, obj):
@@ -257,28 +255,24 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     
     def validate_voltagem(self, value):
         """
-        Converte o value em label completo
-        "220" → "Monofásico - 220V"
+        Converte value em label
+        "127" → "Monofásico - 127V"
         """
-        if not value:
-            return value
-
         value_str = str(value).strip()
 
-        # Se já é um label completo, retornar como está
-        if value_str in VOLTAGEM_LABELS:
+        # Se já é um label, retornar
+        if value_str in [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]:
             return value_str
 
-        # Se é um value numérico, converter em label
+        # Se é um value, converter
         if value_str in VOLTAGEM_MAP:
             return VOLTAGEM_MAP[value_str]
 
-        # Erro: valor inválido
-        valid_values = ', '.join(VOLTAGEM_LABELS)
+        # Erro
+        valid = ', '.join(VOLTAGEM_MAP.keys())
         raise serializers.ValidationError(
-            f"Voltagem inválida. Valores aceitos: {valid_values}"
+            f"Voltagem inválida. Aceitos: {valid}"
         )
-
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
         return obj.voltagem
@@ -306,6 +300,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
+    
 
     def validate_voltagem(self, value):
         """

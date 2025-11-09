@@ -8,7 +8,6 @@ VOLTAGEM_MAP = {
     '127/220T': 'Trifásico - 127/220V',
     '220/380T': 'Trifásico - 220/380V',
 }
-
 # Versão com os labels exatos
 VOLTAGEM_LABELS = [
     'Monofásico - 127V',
