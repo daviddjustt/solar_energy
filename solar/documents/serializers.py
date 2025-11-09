@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import ClientProject, ConsumerUnit, ProjectDocument
-from .utils import convert_voltage_value_to_label, VOLTAGEM_MAP
+from .utils import VOLTAGEM_LABELS, VOLTAGEM_MAP
+
 
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
@@ -91,24 +92,28 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             }
         return None
     def validate_voltagem(self, value):
-        """
-        Converte o value em label completo
-        "127" → "Monofásico - 127V"
-        """
-        if not value:
-            return value
+            """
+            Converte o value em label completo
+            "220" → "Monofásico - 220V"
+            """
+            if not value:
+                return value
 
-        value_str = str(value).strip()
+            value_str = str(value).strip()
 
-        # Verificar se o value existe no mapa
-        if value_str not in VOLTAGEM_MAP:
-            valid_values = ', '.join(VOLTAGEM_MAP.keys())
+            # Se já é um label completo, retornar como está
+            if value_str in VOLTAGEM_LABELS:
+                return value_str
+
+            # Se é um value numérico, converter em label
+            if value_str in VOLTAGEM_MAP:
+                return VOLTAGEM_MAP[value_str]
+
+            # Erro: valor inválido
+            valid_values = ', '.join(VOLTAGEM_LABELS)
             raise serializers.ValidationError(
                 f"Voltagem inválida. Valores aceitos: {valid_values}"
-            )
-
-        # Retornar o label completo
-        return convert_voltage_value_to_label(value_str)
+        )
 
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
@@ -253,22 +258,26 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     def validate_voltagem(self, value):
         """
         Converte o value em label completo
-        "127" → "Monofásico - 127V"
+        "220" → "Monofásico - 220V"
         """
         if not value:
             return value
 
         value_str = str(value).strip()
 
-        # Verificar se o value existe no mapa
-        if value_str not in VOLTAGEM_MAP:
-            valid_values = ', '.join(VOLTAGEM_MAP.keys())
-            raise serializers.ValidationError(
-                f"Voltagem inválida. Valores aceitos: {valid_values}"
-            )
+        # Se já é um label completo, retornar como está
+        if value_str in VOLTAGEM_LABELS:
+            return value_str
 
-        # Retornar o label completo
-        return convert_voltage_value_to_label(value_str)
+        # Se é um value numérico, converter em label
+        if value_str in VOLTAGEM_MAP:
+            return VOLTAGEM_MAP[value_str]
+
+        # Erro: valor inválido
+        valid_values = ', '.join(VOLTAGEM_LABELS)
+        raise serializers.ValidationError(
+            f"Voltagem inválida. Valores aceitos: {valid_values}"
+        )
 
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
@@ -297,26 +306,30 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
-    
+
     def validate_voltagem(self, value):
         """
         Converte o value em label completo
-        "127" → "Monofásico - 127V"
+        "220" → "Monofásico - 220V"
         """
         if not value:
             return value
 
         value_str = str(value).strip()
 
-        # Verificar se o value existe no mapa
-        if value_str not in VOLTAGEM_MAP:
-            valid_values = ', '.join(VOLTAGEM_MAP.keys())
-            raise serializers.ValidationError(
-                f"Voltagem inválida. Valores aceitos: {valid_values}"
-            )
+        # Se já é um label completo, retornar como está
+        if value_str in VOLTAGEM_LABELS:
+            return value_str
 
-        # Retornar o label completo
-        return convert_voltage_value_to_label(value_str)
+        # Se é um value numérico, converter em label
+        if value_str in VOLTAGEM_MAP:
+            return VOLTAGEM_MAP[value_str]
+
+        # Erro: valor inválido
+        valid_values = ', '.join(VOLTAGEM_LABELS)
+        raise serializers.ValidationError(
+            f"Voltagem inválida. Valores aceitos: {valid_values}"
+        )
 
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
@@ -414,22 +427,26 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     def validate_voltagem(self, value):
         """
         Converte o value em label completo
-        "127" → "Monofásico - 127V"
+        "220" → "Monofásico - 220V"
         """
         if not value:
             return value
 
         value_str = str(value).strip()
 
-        # Verificar se o value existe no mapa
-        if value_str not in VOLTAGEM_MAP:
-            valid_values = ', '.join(VOLTAGEM_MAP.keys())
-            raise serializers.ValidationError(
-                f"Voltagem inválida. Valores aceitos: {valid_values}"
-            )
+        # Se já é um label completo, retornar como está
+        if value_str in VOLTAGEM_LABELS:
+            return value_str
 
-        # Retornar o label completo
-        return convert_voltage_value_to_label(value_str)
+        # Se é um value numérico, converter em label
+        if value_str in VOLTAGEM_MAP:
+            return VOLTAGEM_MAP[value_str]
+
+        # Erro: valor inválido
+        valid_values = ', '.join(VOLTAGEM_LABELS)
+        raise serializers.ValidationError(
+            f"Voltagem inválida. Valores aceitos: {valid_values}"
+        )
 
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
