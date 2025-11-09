@@ -2,6 +2,49 @@ from rest_framework import serializers
 from .models import ClientProject, ConsumerUnit, ProjectDocument
 from .utils import VOLTAGEM_LABELS, VOLTAGEM_MAP
 
+class VoltageField(serializers.CharField):
+    """
+    Campo customizado que converte o 'value' do frontend (ex: "127")
+    para o 'label' completo (ex: "Monofásico - 127V") antes da validação do modelo.
+    """
+
+    def to_internal_value(self, data):
+        """
+        Este método é chamado pelo DRF para converter o dado de entrada (frontend)
+        para o formato interno (para o modelo).
+        """
+        if not data:
+            raise serializers.ValidationError("Voltagem é obrigatória")
+
+        value_str = str(data).strip()
+
+        # 1. Tenta converter o 'value' curto (ex: "127") para o 'label' completo
+        converted_label = VOLTAGEM_MAP.get(value_str)
+
+        if converted_label:
+            return converted_label # Retorna o label completo
+
+        # 2. Se não foi um 'value' curto, verifica se já é um 'label' completo (para updates ou dados diretos)
+        # Isso é importante para que o campo aceite o valor já salvo no banco
+        valid_model_choices = [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]
+        if value_str in valid_model_choices:
+            return value_str
+
+        # 3. Se não encontrou, é um valor inválido
+        valid_short_values = ', '.join(VOLTAGEM_MAP.keys())
+        valid_full_labels = ', '.join(valid_model_choices)
+        raise serializers.ValidationError(
+            f"Voltagem inválida. Valores aceitos (curtos): {valid_short_values}. "
+            f"Valores aceitos (completos): {valid_full_labels}. "
+            f"Você enviou: '{value_str}'"
+        )
+
+    def to_representation(self, value):
+        """
+        Este método é chamado pelo DRF para converter o dado interno (modelo)
+        para o formato de saída (frontend). Retorna o label completo.
+        """
+        return str(value)
 
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
@@ -61,6 +104,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     valor_total = serializers.ReadOnlyField()
     resumo_financeiro = serializers.ReadOnlyField()
+    voltagem = VoltageField()
 
     # Campos para documentos de pagamento
     boleto = serializers.SerializerMethodField()
@@ -79,33 +123,6 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             if field_name in self.fields:
                 self.fields[field_name].read_only = True
 
-    def validate_voltagem(self, value):
-        """
-        Valida e converte o value em label
-
-        Recebe: "127"
-        Retorna: "Monofásico - 127V"
-        """
-        if not value:
-            raise serializers.ValidationError("Voltagem é obrigatória")
-
-        value_str = str(value).strip()
-
-        # Se já é um label completo (vindo do banco), retornar como está
-        if value_str in [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]:
-            return value_str
-
-        # Se é um value (vindo do frontend), converter em label
-        if value_str in VOLTAGEM_MAP:
-            converted_value = VOLTAGEM_MAP[value_str]
-            return converted_value
-
-        # Se não encontrou, retornar erro
-        valid_values = ', '.join(VOLTAGEM_MAP.keys())
-        raise serializers.ValidationError(
-            f"Voltagem inválida. Valores aceitos: {valid_values}"
-        )
-    
     def get_boleto(self, obj):
         """Retorna informações do boleto"""
         boleto = obj.documents.filter(document_type='boleto').first()
@@ -274,37 +291,12 @@ class ProjectListSerializer(serializers.ModelSerializer):
     tipoDocumento = serializers.SerializerMethodField()
     documents_count = serializers.SerializerMethodField()
     consumer_units_count = serializers.SerializerMethodField()
+    voltagem = VoltageField()
 
     class Meta:
         model = ClientProject
         fields = "__all__"
     
-    def validate_voltagem(self, value):
-        """
-        Valida e converte o value em label
-
-        Recebe: "127"
-        Retorna: "Monofásico - 127V"
-        """
-        if not value:
-            raise serializers.ValidationError("Voltagem é obrigatória")
-
-        value_str = str(value).strip()
-
-        # Se já é um label completo (vindo do banco), retornar como está
-        if value_str in [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]:
-            return value_str
-
-        # Se é um value (vindo do frontend), converter em label
-        if value_str in VOLTAGEM_MAP:
-            converted_value = VOLTAGEM_MAP[value_str]
-            return converted_value
-
-        # Se não encontrou, retornar erro
-        valid_values = ', '.join(VOLTAGEM_MAP.keys())
-        raise serializers.ValidationError(
-            f"Voltagem inválida. Valores aceitos: {valid_values}"
-        )
 
     def get_tipoDocumento(self, obj):
         return 'cpf' if obj.tipoDocumento == 'PF' else 'PJ'
@@ -336,6 +328,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     tipo_financeiro = serializers.CharField(read_only=True)
     valor_financeiro = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     parcelas = serializers.IntegerField(read_only=True)
+    voltagem = VoltageField()
     
     class Meta:
         model = ClientProject
@@ -409,32 +402,6 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         
         return data
     
-    def validate_voltagem(self, value):
-        """
-        Valida e converte o value em label
-
-        Recebe: "127"
-        Retorna: "Monofásico - 127V"
-        """
-        if not value:
-            raise serializers.ValidationError("Voltagem é obrigatória")
-
-        value_str = str(value).strip()
-
-        # Se já é um label completo (vindo do banco), retornar como está
-        if value_str in [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]:
-            return value_str
-
-        # Se é um value (vindo do frontend), converter em label
-        if value_str in VOLTAGEM_MAP:
-            converted_value = VOLTAGEM_MAP[value_str]
-            return converted_value
-
-        # Se não encontrou, retornar erro
-        valid_values = ', '.join(VOLTAGEM_MAP.keys())
-        raise serializers.ValidationError(
-            f"Voltagem inválida. Valores aceitos: {valid_values}"
-        )
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
         return obj.voltagem
