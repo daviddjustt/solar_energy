@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import ClientProject, ConsumerUnit, ProjectDocument
+from .utils import convert_voltage_value_to_label, VOLTAGEM_MAP
 
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
@@ -63,6 +64,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     # Campos para documentos de pagamento
     boleto = serializers.SerializerMethodField()
     comprovante_pagamento = serializers.SerializerMethodField()
+    voltagem_label = serializers.SerializerMethodField()
     
     class Meta:
         model = ClientProject
@@ -88,7 +90,30 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
                 'can_edit': self._can_edit_boleto()
             }
         return None
+    def validate_voltagem(self, value):
+        """
+        Converte o value em label completo
+        "127" → "Monofásico - 127V"
+        """
+        if not value:
+            return value
 
+        value_str = str(value).strip()
+
+        # Verificar se o value existe no mapa
+        if value_str not in VOLTAGEM_MAP:
+            valid_values = ', '.join(VOLTAGEM_MAP.keys())
+            raise serializers.ValidationError(
+                f"Voltagem inválida. Valores aceitos: {valid_values}"
+            )
+
+        # Retornar o label completo
+        return convert_voltage_value_to_label(value_str)
+
+    def get_voltagem_label(self, obj):
+        """Retorna o label formatado para exibição"""
+        return obj.voltagem
+    
     def get_comprovante_pagamento(self, obj):
         """Retorna informações do comprovante"""
         comprovante = obj.documents.filter(document_type='comprovante_de_pagamento').first()
@@ -224,6 +249,31 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+    
+    def validate_voltagem(self, value):
+        """
+        Converte o value em label completo
+        "127" → "Monofásico - 127V"
+        """
+        if not value:
+            return value
+
+        value_str = str(value).strip()
+
+        # Verificar se o value existe no mapa
+        if value_str not in VOLTAGEM_MAP:
+            valid_values = ', '.join(VOLTAGEM_MAP.keys())
+            raise serializers.ValidationError(
+                f"Voltagem inválida. Valores aceitos: {valid_values}"
+            )
+
+        # Retornar o label completo
+        return convert_voltage_value_to_label(value_str)
+
+    def get_voltagem_label(self, obj):
+        """Retorna o label formatado para exibição"""
+        return obj.voltagem
+    
 
 # Serializer para Listagem de Projetos
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -247,6 +297,31 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
+    
+    def validate_voltagem(self, value):
+        """
+        Converte o value em label completo
+        "127" → "Monofásico - 127V"
+        """
+        if not value:
+            return value
+
+        value_str = str(value).strip()
+
+        # Verificar se o value existe no mapa
+        if value_str not in VOLTAGEM_MAP:
+            valid_values = ', '.join(VOLTAGEM_MAP.keys())
+            raise serializers.ValidationError(
+                f"Voltagem inválida. Valores aceitos: {valid_values}"
+            )
+
+        # Retornar o label completo
+        return convert_voltage_value_to_label(value_str)
+
+    def get_voltagem_label(self, obj):
+        """Retorna o label formatado para exibição"""
+        return obj.voltagem
+    
 
 class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     """Serializer para técnicos e clientes - campos financeiros são read-only"""
@@ -335,6 +410,30 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
                     })
         
         return data
+    
+    def validate_voltagem(self, value):
+        """
+        Converte o value em label completo
+        "127" → "Monofásico - 127V"
+        """
+        if not value:
+            return value
+
+        value_str = str(value).strip()
+
+        # Verificar se o value existe no mapa
+        if value_str not in VOLTAGEM_MAP:
+            valid_values = ', '.join(VOLTAGEM_MAP.keys())
+            raise serializers.ValidationError(
+                f"Voltagem inválida. Valores aceitos: {valid_values}"
+            )
+
+        # Retornar o label completo
+        return convert_voltage_value_to_label(value_str)
+
+    def get_voltagem_label(self, obj):
+        """Retorna o label formatado para exibição"""
+        return obj.voltagem
     
 # Serializer específico para documentos de pagamento
 class PaymentDocumentSerializer(serializers.ModelSerializer):

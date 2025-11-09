@@ -9,6 +9,7 @@ from django.utils import timezone
 from solar.users.models import User
 CELULAR_REGEX = r'^\d{11}$'
 from django.utils.text import slugify
+from .utils import VOLTAGEM_MAP
 
 def get_document_upload_path(instance, filename):
     """
@@ -160,10 +161,12 @@ class ClientProject(models.Model):
         default='PJ',
         verbose_name="Tipo de cliente"
     )
+    VOLTAGEM_CHOICES = [(k, v) for k, v in VOLTAGEM_MAP.items()]
+
     voltagem = models.CharField(
-        verbose_name='voltagem',
-        help_text='Voltagem da unidade geradora',
-        default=220,
+        max_length=100,
+        choices=VOLTAGEM_CHOICES,
+        help_text="Voltagem do consumidor"
     )
     email = models.EmailField(
         max_length=255,
@@ -258,6 +261,9 @@ class ClientProject(models.Model):
     # Metadados
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.voltagem}"
     
     @property
     def cnpj_do_cliente(self):
