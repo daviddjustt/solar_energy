@@ -39,7 +39,6 @@ def validate_image_size(image):
     """Valida o tamanho máximo da imagem."""
     if image.file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024:
         raise ValidationError(f"O tamanho máximo de arquivo é {MAX_IMAGE_SIZE_MB}MB")
-
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
@@ -108,22 +107,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     
     cnpj = models.CharField(
-        max_length=18,
+        max_length=18, # # 18 dígitos + 4 caracteres de formatação (XX.XXX.XXX/XXXX-XX)
         unique=True,
-        verbose_name='cnpj'
+        verbose_name='cnpj',
+        null=True,
+        blank=True,
     )
     cpf = models.CharField(
         max_length=14, # 11 dígitos + 3 caracteres de formatação (XXX.XXX.XXX-XX)
         unique=True,
-        verbose_name='CPF'
-    )
-    celular_validator = RegexValidator(
-        regex=CELULAR_REGEX,
-        message='Celular inválido'
+        verbose_name='CPF',
+        null=True,
+        blank=True,
     )
     celular = models.CharField(
         max_length=11,
-        validators=[celular_validator],
         verbose_name='Celular'
     )
     
@@ -138,12 +136,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         auto_now_add=True,
         verbose_name='Criado em'
     )
-    
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name='Atualizado em'
     )
-    
+    is_pessoa_juridica = models.BooleanField(default=False, verbose_name="É Pessoa Jurídica")
     objects = UserManager()
     
     USERNAME_FIELD = 'email'
@@ -238,7 +235,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.groups.add(cliente_group)
         else:
             self.groups.remove(cliente_group)
-    
+
 class Tecnico(User):
     """
     Perfil de usuário Técnico. Pode ver todos os projetos, mas não edita campos financeiros.
@@ -254,9 +251,22 @@ class Tecnico(User):
     
     def save(self, *args, **kwargs):
         # Garante que o Técnico seja staff (pode acessar o admin)
-        if not self.is_staff:
-            self.is_staff = True
-        super().save(*args, **kwargs)
+        if (self==True):
+            self.is_staff = False
+            self.is_admin = False
+            self.is_tecnico = True
+            self.is_cliente = False
+            super().save(update_fields=['is_staff'])
+            super().save(update_fields=['is_admin'])
+            super().save(update_fields=['is_tecnico'])
+            super().save(update_fields=['cliente'])
+        
+        # Gaante que a Empresa é uma pessoa jurídica
+        if self.is_pessoa_juridica is True:
+            self.is_pessoa_juridica = False
+            super().save(update_fields=['is_pessoa_juridica'])
+            self.cnpj = None
+            super().save(update_fields=['cnpj'])
         
         # Adicionar ao grupo 'Tecnicos'
         tecnico_group, created = Group.objects.get_or_create(name='Tecnicos')
@@ -266,6 +276,7 @@ class Tecnico(User):
         cliente_group = Group.objects.filter(name='Clientes').first()
         if cliente_group and self.groups.filter(name='Clientes').exists():
             self.groups.remove(cliente_group)
+            
 
     def __str__(self):
         return f"Técnico: {self.get_full_name() or self.username}"
@@ -297,13 +308,63 @@ class Cliente(Tecnico):
         self.groups.add(cliente_group)
         
         # Garante que o Cliente NÃO seja staff
-        if self.is_staff:
+        if (self==True):
             self.is_staff = False
-            # Salva novamente para persistir a mudança de is_staff
-            super().save(update_fields=['is_staff']) 
+            self.is_admin = False
+            self.is_tecnico = False
+            self.is_cliente = True
+            super().save(update_fields=['is_staff'])
+            super().save(update_fields=['is_admin'])
+            super().save(update_fields=['is_tecnico'])
+            super().save(update_fields=['cliente'])
+        
+        # Gaante que o Cliente é uma pessoa física
+        if self.is_pessoa_juridica is True:
+            self.is_pessoa_juridica = False
+            super().save(update_fields=['is_pessoa_juridica'])
+            self.cnpj = None
+            super().save(update_fields=['cnpj'])
 
     def __str__(self):
         return f"Cliente: {self.get_full_name() or self.username}"
+
+class Empresa(Cliente):
+    """
+    Perfil de usuário Empresa. Herdado de Cliente.
+    Pode acessar apenas seus próprios projetos e não edita campos financeiros.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = 'Empresa'
+        verbose_name_plural = 'Empresas'
+        permissions = [
+            ('can_view_own_projects', 'Pode visualizar apenas seus próprios projetos'),
+            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'), # Redundante, mas explícito
+        ]
+
+    def save(self, *args, **kwargs):
+        # Primeiro, chama o save de Cliente (super()), que adiciona ao grupo 'Clientes' e define is_staff=False
+        super().save(*args, **kwargs) 
+        
+        if (self==True):
+            self.is_staff = False
+            self.is_admin = False
+            self.is_tecnico = False
+            self.is_cliente = True
+            super().save(update_fields=['is_staff'])
+            super().save(update_fields=['is_admin'])
+            super().save(update_fields=['is_tecnico'])
+            super().save(update_fields=['cliente'])
+        
+        # Gaante que a Empresa é uma pessoa jurídica
+        if self.is_pessoa_juridica is False:
+            self.is_pessoa_juridica = True
+            super().save(update_fields=['is_pessoa_juridica'])
+            self.cpf = None
+            super().save(update_fields=['cpf'])
+
+    def __str__(self):
+        return f"Empresa: {self.get_full_name() or self.username}"
 
 class EmailLog(models.Model):
     """Registra todos os e-mails enviados pelo sistema."""

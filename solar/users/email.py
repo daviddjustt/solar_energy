@@ -38,7 +38,6 @@ class ActivationEmail(BaseActivationEmail):
         logger.info(f"Email de ativação preparado para usuário: {user.email if user else 'N/A'}")
         return context
 
-
 class PasswordResetEmail(BasePasswordResetEmail):
     template_name = 'email/password_reset.html'
     
@@ -75,7 +74,6 @@ class PasswordResetEmail(BasePasswordResetEmail):
         logger.info(f"DEBUG: URL da logo gerada para o e-mail: {generated_logo_url}")
         return context
 
-
 class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
     template_name = 'email/password_changed_confirmation.html'
     
@@ -93,7 +91,6 @@ class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
         
         logger.info("Email de confirmação de mudança de senha preparado")
         return context
-
 
 class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
     template_name = 'email/username_changed_confirmation.html'

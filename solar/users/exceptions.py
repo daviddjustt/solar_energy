@@ -6,7 +6,6 @@ from rest_framework.exceptions import Throttled, ValidationError
 
 logger = logging.getLogger(__name__)
 
-
 def custom_exception_handler(exc, context):
     """
     Handler customizado para exceções do DRF

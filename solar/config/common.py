@@ -246,12 +246,6 @@ class Common(Configuration):
 
     # Custom user app
     AUTH_USER_MODEL = 'users.User'
-
-    # Authentication backends
-    AUTHENTICATION_BACKENDS = [
-        'solar.users.backends.EmailOrCPFBackend',
-        'django.contrib.auth.backends.ModelBackend',
-    ]
     # Site configurations
     SITE_NAME = os.getenv('SITE_NAME', 'SN Tech Solar')
     SITE_URL = os.getenv('SITE_URL', 'http://localhost:8080')
