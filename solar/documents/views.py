@@ -314,10 +314,15 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
     """
     serializer_class = ConsumerUnitSerializer
-    permission_classes = [IsAuthenticated and IsAdminUser]
+    permission_classes = [IsAuthenticated]
     pagination_class = None
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [IsAdminUser and IsAuthenticated]
+
+        return [permission() for permission in permission_classes]
     def get_queryset(self):
         # Garante que estamos operando em unidades consumidoras do projeto correto
         project_pk = self.kwargs['project_pk']
