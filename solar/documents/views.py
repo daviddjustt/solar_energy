@@ -314,7 +314,6 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
     """
     serializer_class = ConsumerUnitSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class = None
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
@@ -324,7 +323,7 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
-            
+
         return [permission() for permission in permission_classes]
     def get_queryset(self):
         # Garante que estamos operando em unidades consumidoras do projeto correto
