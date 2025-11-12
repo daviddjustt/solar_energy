@@ -279,8 +279,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
 
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
-        return obj.voltagem
-    
+        return obj.voltagem    
 
 # Serializer para Listagem de Projetos
 class ProjectListSerializer(serializers.ModelSerializer):

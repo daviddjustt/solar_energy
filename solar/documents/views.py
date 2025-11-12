@@ -9,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from .models import ClientProject, ProjectDocument
+from users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -173,8 +174,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         output_serializer = ProjectListSerializer(queryset, many=True)
         return Response(output_serializer.data, status=status.HTTP_200_OK)
 
-
-
 # 2. Views para Documentos do Projeto (Aninhadas)
 class ProjectDocumentListView(generics.ListCreateAPIView):
     """
@@ -290,7 +289,6 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         instance.delete()
 
-
 # 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
 class ConsumerUnitListView(generics.ListCreateAPIView):
     """
@@ -316,7 +314,7 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
     """
     serializer_class = ConsumerUnitSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated and IsAdminUser]
     pagination_class = None
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
