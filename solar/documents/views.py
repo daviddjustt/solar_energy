@@ -319,9 +319,12 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
     def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
+        if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
             permission_classes = [IsAdminUser and IsAuthenticated]
-
+        else:
+            # Permissões para operações de leitura (GET)
+            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+            
         return [permission() for permission in permission_classes]
     def get_queryset(self):
         # Garante que estamos operando em unidades consumidoras do projeto correto
