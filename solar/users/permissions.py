@@ -17,8 +17,14 @@ class IsAdminUser(BasePermission):
     Permite acesso apenas para admins
     """
     def has_permission(self, request, view):
-        return bool(request.user and (request.user.is_admin or request.user.is_superuser))
+        # Primeiro, verifica se o usuário está autenticado.
+        # AnonymousUser.is_authenticated é False.
+        if not request.user.is_authenticated:
+            return False
 
+        # Se autenticado, verifica se é admin ou superuser.
+        return request.user.is_admin or request.user.is_superuser
+    
 class IsOwnerOrAdmin(BasePermission):
     """
     Permite que o usuário acesse seus próprios dados ou admins acessem qualquer um

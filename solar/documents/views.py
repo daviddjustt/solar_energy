@@ -328,7 +328,7 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser and IsAuthenticated]
+            permission_classes = [IsAdminUser, IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.permissions import IsAuthenticated
 from .models import ClientProject, ConsumerUnit, ProjectDocument
 from .utils import VOLTAGEM_LABELS, VOLTAGEM_MAP
 
