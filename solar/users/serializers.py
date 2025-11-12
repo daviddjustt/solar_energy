@@ -1,8 +1,7 @@
 import logging
 import re
 from django.utils.html import escape
-# Django CORE
-from django.conf import settings
+# Django CORE imports
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.translation import gettext_lazy as _
 
@@ -11,12 +10,10 @@ from djoser.serializers import UserCreateSerializer as DjoserUserCreateSerialize
 from djoser.serializers import UserSerializer as DjoserUserSerializer
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from djoser.serializers import UserDeleteSerializer
 
 # Local application imports
 from .models import User
-from djoser.serializers import TokenCreateSerializer
-from django.contrib.auth import authenticate
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +22,14 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
 
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
-        fields = tuple(set(DjoserUserCreateSerializer.Meta.fields + (
-            'name', 'cnpj','cpf', 'celular',
-        )))
+        fields = tuple(set(DjoserUserCreateSerializer.Meta.fields + ('name', 'cnpj', 'cpf', 'celular', 'is_pessoa_juridica')))
         extra_kwargs = {
-            'cnpj': {'required': True},
-            'cpf': {'required': True},
-            'celular': {'required': True},
             'name': {'required': True},
-            # 'password' já é required por padrão no DjoserUserCreateSerializer
+            'is_pessoa_juridica': {'required': True},
+            'celular': {'required': True},
+            'cnpj': {'required': False}, # Max 18 para CNPJ formatado
+            'cpf': {'required': False},  # Max 14 para CPF formatado
+            # 'password' já é required por padrão no DjoserUserCreateSerializer, email também
         }
 
     def validate(self, attrs):
@@ -41,8 +37,6 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
         attrs = super().validate(attrs)
         # Normalização de campos
         attrs['name'] = attrs.get('name', '').strip().upper()
-        attrs['cnpj'] = re.sub(r'\D', '', attrs.get('cnpj', '')) # Remove não dígitos
-        attrs['cpf'] = re.sub(r'\D', '', attrs.get('cpf', '')) # Remove não dígitos
         attrs['celular'] = re.sub(r'\D', '', attrs.get('celular', '')) # Remove não dígitos
 
         # Validação de cnpj (exemplo básico, considere uma validação mais robusta)
@@ -82,7 +76,7 @@ class UserSerializer(DjoserUserSerializer):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
             'name', 'cnpj', 'celular',
-            'is_admin', 'is_active', 'cpf'
+            'is_admin', 'is_active', 'cpf', 'is_pessoa_juridica', 'cnpj'
         )
 
         def validate_name(self, value):
@@ -193,10 +187,6 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         logger.info(f"Usuário {instance.email} atualizado por {request.user.email if request else 'sistema'}")
         return instance
 
-# Teste de delete users : se for isAdmin, não precisa da senha, qualquer outro, precisa informar a senha
-from djoser.serializers import UserDeleteSerializer
-from rest_framework import serializers
-
 class CustomUserDeleteSerializer(UserDeleteSerializer):
     # O campo current_password já é definido no UserDeleteSerializer base.
     # Precisamos sobrescrevê-lo para modificar seu comportamento.
@@ -213,4 +203,3 @@ class CustomUserDeleteSerializer(UserDeleteSerializer):
             # Se não for admin, a validação padrão do Djoser para current_password será aplicada
             # O UserDeleteSerializer base já faz a validação da senha
             return super().validate(attrs)
-
