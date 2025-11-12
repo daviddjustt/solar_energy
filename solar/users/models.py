@@ -144,7 +144,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'cnpj', 'celular', 'cpf']
+    REQUIRED_FIELDS = ['name', 'cnpj', 'celular', 'cpf', 'is_pessoa_juridica']
     
     class Meta:
         verbose_name = 'Usuário'
