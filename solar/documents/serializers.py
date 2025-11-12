@@ -311,7 +311,6 @@ class ProjectListSerializer(serializers.ModelSerializer):
         """Retorna o label formatado para exibição"""
         return obj.voltagem
     
-
 class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     """Serializer para técnicos e clientes - campos financeiros são read-only"""
     

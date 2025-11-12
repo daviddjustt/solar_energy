@@ -9,7 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from .models import ClientProject, ProjectDocument
-from users.permissions import IsAdminUser
+from solar.users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
