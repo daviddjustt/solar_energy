@@ -298,6 +298,15 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = None
 
+    def get_permissions(self):
+        if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            permission_classes = [IsAdminUser and IsAuthenticated]
+        else:
+            # Permissões para operações de leitura (GET)
+            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         # Garante que estamos listando unidades consumidoras apenas para o projeto especificado
         project_pk = self.kwargs['project_pk']
