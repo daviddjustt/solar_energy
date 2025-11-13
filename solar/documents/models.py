@@ -1,89 +1,16 @@
-# solar/documents/models.py
 from django.db import models
-from django.conf import settings
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
-import os, uuid
+import os
 from django.utils import timezone
-from solar.users.models import User
-CELULAR_REGEX = r'^\d{11}$'
-from django.utils.text import slugify
-from .utils import get_voltage_choices
 
-def get_document_upload_path(instance, filename):
-    """
-    Gera o caminho de upload organizado e seguro para documentos.
-    
-    Estrutura: projects/{codigoCliente}/documents/{document_type}/{YYYY}/{MM}/{DD}/{uuid}_{filename}
-    
-    Exemplo:
-    projects/CLI-001/documents/boleto/2025/10/29/a1b2c3d4-e5f6-7890-abcd-ef1234567890_fatura.pdf
-    """
-    # 1. Extrair extensão do arquivo
-    ext = os.path.splitext(filename)[1].lower()  # .pdf, .jpg, etc
-    
-    # 2. Slugify do nome do arquivo (remove caracteres especiais)
-    basename = os.path.splitext(filename)[0]
-    slugified_name = slugify(basename)
-    
-    # 3. Limitar tamanho do nome (máximo 50 caracteres)
-    if len(slugified_name) > 50:
-        slugified_name = slugified_name[:50]
-    
-    # 4. Gerar UUID único para evitar conflitos
-    unique_id = uuid.uuid4().hex[:8]  # 8 primeiros caracteres do UUID
-    
-    # 5. Criar nome final do arquivo
-    final_filename = f"{unique_id}_{slugified_name}{ext}"
-    
-    # 6. Obter data atual para organização por data
-    now = timezone.now()
-    year = now.strftime('%Y')
-    month = now.strftime('%m')
-    day = now.strftime('%d')
-    
-    # 7. Construir caminho completo
-    path = os.path.join(
-        'projects',
-        instance.project.codigoCliente,
-        'documents',
-        instance.document_type,
-        year,
-        month,
-        day,
-        final_filename
-    )
-    
-    return path
-
-def validate_file_size(file):
-    """
-    Valida o tamanho do arquivo (máximo 10 MB para LGPD e performance).
-    """
-    max_size_mb = 10
-    if file.size > max_size_mb * 1024 * 1024:
-        raise ValidationError(
-            f'O arquivo não pode ter mais de {max_size_mb} MB. '
-            f'Tamanho atual: {file.size / (1024 * 1024):.2f} MB'
-        )
-
-def validate_file_extension(file):
-    """
-    Valida a extensão do arquivo (apenas tipos permitidos).
-    """
-    allowed_extensions = [
-        '.pdf', '.jpg', '.jpeg', '.png', 
-        '.doc', '.docx', '.xls', '.xlsx'
-    ]
-    
-    ext = os.path.splitext(file.name)[1].lower()
-    
-    if ext not in allowed_extensions:
-        raise ValidationError(
-            f'Tipo de arquivo não permitido: {ext}. '
-            f'Formatos aceitos: {", ".join(allowed_extensions)}'
-        )
+from .utils import ( 
+    get_document_upload_path, 
+    validate_file_size, 
+    validate_file_extension, 
+    CELULAR_REGEX
+)
 
 class ArquivoMixin(models.Model):
     """
@@ -107,7 +34,6 @@ class ArquivoMixin(models.Model):
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
-    # Pagamento do ART e TRT se encaixa aqui ?
     PAGAMENTOS = 'Pagamento da TRT/ART e pagamento do projeto'
     ANALISE_TECNICA = 'Projeto em análise técnica'
     APROVADO = 'Projeto aprovado'
@@ -170,7 +96,6 @@ class ClientProject(models.Model):
         ('Trifásico - 127/220V', 'Trifásico - 127/220V'),
         ('Trifásico - 220/380V', 'Trifásico - 220/380V'),
     ]
-
     voltagem = models.CharField(
         max_length=100,
         choices=VOLTAGEM_CHOICES,
@@ -274,21 +199,23 @@ class ClientProject(models.Model):
         return f"{self.name} - {self.voltagem}"
     
     @property
-    def cnpj_do_cliente(self):
+    def cnpj_or_cpf_do_cliente(self):
         """
         Retorna o valor do campo CNPJ do usuário associado a este projeto.
         """
         if self.user:
-            return self.user.cnpj
+            return self.user.cnpj or self.user.cpf
         
     @property
     def documento_tipo(self):
         """Retorna o tipo do documento baseado no tipoDocumento"""
         return 'CPF' if self.tipoDocumento == 'PF' else 'PJ'
+    
     @property
     def documento_label(self):
         """Retorna o label apropriado para exibição"""
         return f"{self.documento_tipo}: {self.documento}" if self.documento else self.documento_tipo
+    
     @property
     def decimal_latitude(self):
         """Converte latitude de GMS para decimal"""
@@ -296,6 +223,7 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.latGraus < 0 else 1
         return Decimal(sign * (abs(self.latGraus) + (self.latMin / 60) + (self.latSeg / 3600))).quantize(Decimal('0.00000001'))
+    
     @property
     def decimal_longitude(self):
         """Converte longitude de GMS para decimal"""
@@ -303,6 +231,7 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.longGraus < 0 else 1
         return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
+    
     @property
     def approved_documents_count(self):
         """Retorna o número de documentos aprovados para o projeto."""
