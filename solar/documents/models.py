@@ -626,7 +626,6 @@ class BaseModel(models.Model):
     )
     class Meta:
         abstract = True
-
 class ProjectDocument(BaseModel, ArquivoMixin):
     # Opções de status para o documento
     STATUS_CHOICES = [
