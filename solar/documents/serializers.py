@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
-from .models import ClientProject, ConsumerUnit, ProjectDocument
+from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais
 from .utils import VOLTAGEM_LABELS, VOLTAGEM_MAP
 
 class VoltageField(serializers.CharField):
@@ -53,6 +53,12 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
     # project = serializers.PrimaryKeyRelatedField(queryset=ClientProject.objects.all(), read_only=True)
     class Meta:
         model = ConsumerUnit
+        fields = "__all__"
+        read_only_fields = ['project']
+        
+class ListaDeMateriais(serializers.ModelSerializer):
+    class Meta:
+        model = ListaDeMateriais
         fields = "__all__"
         read_only_fields = ['project']
 

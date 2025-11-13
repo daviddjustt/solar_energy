@@ -128,6 +128,7 @@ class ClientProject(models.Model):
     # Choices simples do documento 
     DOCUMENT_TYPE_CHOICES = [
         ('PJ', 'Pessoa Jurídica'),
+        ('PF', 'Pessoa Física'),
     ]
     FINANCEIRO_CHOICES = [
         ('valor_unico', 'Valor Único'),
@@ -496,6 +497,11 @@ class ConsumerUnit(models.Model):
         null=True,
         blank=True,
     )
+    priodidade_is_porcentagem = models.BooleanField(
+        default= True,
+        verbose_name="Prioridade baseada em porcentagem",
+        help_text="Se marcado, a prioridade será determinada pela porcentagem em vez do nível de prioridade."
+    )
     class Meta:
         verbose_name = "Unidade Consumidora"
         verbose_name_plural = "Unidades Consumidoras"
@@ -529,9 +535,81 @@ class ConsumerUnit(models.Model):
                     'priority_level': f"O nível de prioridade deve ser entre 1 e {max_allowed_priority} para este projeto."
                 })
 
+    def validate(self):
+        super().validate()
+        # Garantir unicidade do nível de prioridade dentro do mesmo projeto
+        if self.priodidade_is_porcentagem == True:
+            self.priority_level = None
+        else:
+            self.porcentagem = None
+                
     def __str__(self):
         return f"UC {self.codigoCliente} - Projeto: {self.project.codigoCliente} (Prioridade: {self.priority_level})"
 
+class ListaDeMateriais(models.Model):
+    project = models.ForeignKey(
+        ClientProject,
+        on_delete=models.CASCADE,
+        related_name='material_lists'
+    )
+    
+    # Campos relacionados aos módulos fotovoltáicos 
+    quantd_mod_fotovoltaico = models.PositiveIntegerField(
+        verbose_name="Quantidade de Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
+    )
+    marca_mod_fotovoltaico = models.CharField(
+        verbose_name="Marca dos Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
+    )
+    potencia_mod_fotovoltaico = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        verbose_name="Potência de cada Módulo Fotovoltaico (W)",
+        blank=True,
+        null=True,
+    )
+    modelo_mod_fotovoltaico = models.CharField(
+        max_length=100,
+        verbose_name="Modelo dos Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
+    )
+    
+    # Inversores
+    quantd_inversores = models.PositiveIntegerField(
+        verbose_name="Quantidade de Inversores",
+        blank=True,
+        null=True,
+    )
+    marca_inversores = models.CharField(
+        verbose_name="Marca dos Inversores",
+        blank=True,
+        null=True,
+    )
+    potencia_nominal_inversores = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        verbose_name="Potência nominal dos inversores (kW)",
+        blank=True,
+        null=True,
+    )
+    modelo_inversores = models.CharField(
+        max_length=100,
+        verbose_name="Modelo dos Inversores",
+        blank=True,
+        null=True,
+    )   
+    
+    @property
+    def valor_total(self):
+        """Calcula o valor total do material"""
+        return self.quantidade * self.valor_unitario
+    
+    def __str__(self):
+        return f"{self.descricao} - {self.quantidade} x R$ {self.valor_unitario:,.2f} = R$ {self.valor_total:,.2f}"
 class BaseModel(models.Model):
     """
     Modelo base que fornece campos de auditoria para todos os modelos do sistema.

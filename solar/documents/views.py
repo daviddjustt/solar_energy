@@ -17,6 +17,7 @@ from .serializers import (
     ConsumerUnitSerializer,
     TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
+    ListaDeMateriais
 )
 
 
@@ -300,7 +301,7 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser and IsAuthenticated]
+            permission_classes = [IsAdminUser, IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
@@ -323,6 +324,57 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
     Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
     """
     serializer_class = ConsumerUnitSerializer
+    pagination_class = None
+    lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
+
+    def get_permissions(self):
+        if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            permission_classes = [IsAdminUser, IsAuthenticated]
+        else:
+            # Permissões para operações de leitura (GET)
+            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+
+        return [permission() for permission in permission_classes]
+    def get_queryset(self):
+        # Garante que estamos operando em unidades consumidoras do projeto correto
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        return project.consumer_units.all()
+    
+# 5 Lista de materiais
+class ListaDeMateriasListView(generics.ListCreateAPIView):
+    """
+    Listagem e criação de listas de materiais para um projeto específico.
+    """
+    serializer_class = ListaDeMateriais
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            permission_classes = [IsAdminUser, IsAuthenticated]
+        else:
+            # Permissões para operações de leitura (GET)
+            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        # Garante que estamos listando unidades consumidoras apenas para o projeto especificado
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        return project.consumer_units.all()
+
+    def perform_create(self, serializer):
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        serializer.save(project=project)
+
+class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
+    """
+    serializer_class = ListaDeMateriais
     pagination_class = None
     lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
 
