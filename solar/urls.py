@@ -71,6 +71,7 @@ urlpatterns = [
     path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
     path('api/v1/projects/<int:project_pk>/lista_materiais/<int:pk>/', ListaDeMateriasDetailView.as_view(), name='project-material_list-detail-update-delete'),
     
+    path('api/v1/pagamentos/', include('solar.documents.urls')),
     
     path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
