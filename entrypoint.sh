@@ -32,6 +32,7 @@ echo ""
 # 3. APLICAR MIGRAÇÕES
 # ==========================================
 echo "🔄 Aplicando migrações..."
+python manage.py makemigrations --noinput
 python manage.py migrate --noinput
 
 echo ""
