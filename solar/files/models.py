@@ -101,9 +101,10 @@ class Document(BaseModel, ArquivoMixin):
         # Executar validações
         self.full_clean()
 
-        if self.status == self.APPROVED:
-                self.approved_at = timezone.now()
-        
+        if self.status == self.__class__.APPROVED:
+            self.approved_at = timezone.now()
+        else:
+            self.approved_at = None
         # Salvar o objeto
         super().save(*args, **kwargs)
         
