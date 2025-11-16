@@ -14,8 +14,6 @@ from solar.files.utils import (
     validate_file_size,
     DOCUMENT_TYPE_CHOICES, 
     STATUS_CHOICES, 
-    IN_ANALYSIS,
-    APPROVED
 )
 
 class ArquivoMixin(models.Model):
@@ -55,6 +53,10 @@ class BaseModel(models.Model):
         abstract = True
         
 class Document(BaseModel, ArquivoMixin):
+    IN_ANALYSIS = 'IN_ANALYSIS'
+    APPROVED = 'APPROVED'
+    REJECTED = 'REJECTED'
+
     document_type = models.CharField(
         max_length=80,
         choices=DOCUMENT_TYPE_CHOICES,
@@ -158,8 +160,13 @@ class Document(BaseModel, ArquivoMixin):
         """Verifica se o documento foi enviado recentemente (menos de 7 dias)"""
         return self.days_since_upload <= 7
 
+IN_ANALYSIS = 'IN_ANALYSIS'
+APPROVED = 'APPROVED'
+REJECTED = 'REJECTED'
+
 from django.conf import settings
 class DocumentUser(Document):
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
