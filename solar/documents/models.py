@@ -6,13 +6,11 @@ import os
 from django.utils import timezone
 from solar.files.models import BaseModel, ArquivoMixin
 
-from solar.files.utils import ( 
+from .utils import (
+    CELULAR_REGEX,
     get_document_upload_path, 
     validate_file_size, 
     validate_file_extension, 
-)
-from .utils import (
-    CELULAR_REGEX
 )
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
