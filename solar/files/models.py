@@ -1,8 +1,6 @@
 import os
 from django.db import models
 from django.utils import timezone
-from solar.documents.utils import get_document_upload_path, validate_file_size
-from solar.documents.models import ClientProject
 from django.core.exceptions import ValidationError
 from django.core.exceptions import ValidationError
 import os
@@ -11,7 +9,9 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from solar.files.utils import (
+    get_document_upload_path,
     validate_file_extension,
+    validate_file_size,
     DOCUMENT_TYPE_CHOICES, 
     STATUS_CHOICES, 
     IN_ANALYSIS,

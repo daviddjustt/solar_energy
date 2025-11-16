@@ -12,6 +12,7 @@ from .utils import (
     validate_file_size, 
     validate_file_extension, 
 )
+
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
