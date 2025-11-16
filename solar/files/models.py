@@ -172,7 +172,7 @@ class DocumentUser(Document):
         verbose_name_plural = "Documentos dos Usuários"
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['user', 'document_type']),
             models.Index(fields=['status']),
         ]
     @property
