@@ -166,7 +166,7 @@ class DocumentUser(Document):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='email_logs'
+        related_name='documents_user'
     )
 
     class Meta:
