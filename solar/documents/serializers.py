@@ -64,7 +64,7 @@ class ListaDeMateriais(serializers.ModelSerializer):
 
 # Serializer para Upload de Documentos
 
-    class DocumentUploadSerializer(serializers.ModelSerializer):
+class DocumentUploadSerializer(serializers.ModelSerializer):
 
         class Meta:
             model = ProjectDocument

@@ -4,7 +4,12 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 import os
 from django.utils import timezone
-from solar.files.models import BaseModel, ArquivoMixin
+
+
+from solar.files.models import ( 
+    BaseModel,
+    ArquivoMixin,
+)
 
 from .utils import (
     CELULAR_REGEX,
