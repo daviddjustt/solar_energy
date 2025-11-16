@@ -63,48 +63,49 @@ class ListaDeMateriais(serializers.ModelSerializer):
         read_only_fields = ['project']
 
 # Serializer para Upload de Documentos
-class DocumentUploadSerializer(serializers.ModelSerializer):
 
-    class Meta:
-        model = ProjectDocument
-        fields = "__all__"
-        read_only_fields = [
-            'is_approved', 'project',
-        ]
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            user = request.user
-            
-            # Controle de permissões por tipo de documento
-            if hasattr(self, 'initial_data') and self.initial_data:
-                document_type = self.initial_data.get('document_type')
+    class DocumentUploadSerializer(serializers.ModelSerializer):
+
+        class Meta:
+            model = ProjectDocument
+            fields = "__all__"
+            read_only_fields = [
+                'is_approved', 'project',
+            ]
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            request = self.context.get('request')
+            if request and hasattr(request, 'user'):
+                user = request.user
                 
-                # Cliente não pode criar/editar boleto
-                if user.is_cliente and document_type == 'boleto':
-                    raise serializers.ValidationError({
-                        'document_type': 'Clientes não podem criar ou editar boletos.'
-                    })
+                # Controle de permissões por tipo de documento
+                if hasattr(self, 'initial_data') and self.initial_data:
+                    document_type = self.initial_data.get('document_type')
+                    
+                    # Cliente não pode criar/editar boleto
+                    if user.is_cliente and document_type == 'boleto':
+                        raise serializers.ValidationError({
+                            'document_type': 'Clientes não podem criar ou editar boletos.'
+                        })
 
-    def validate(self, data):
-        request = self.context.get('request')
-        user = request.user if request else None
-        document_type = data.get('document_type')
-        
-        # Validações de permissão
-        if user and user.is_cliente and document_type == 'boleto':
-            raise serializers.ValidationError({
-                'document_type': 'Clientes não podem criar ou editar boletos.'
-            })
-        
-        # Admin e técnico podem criar boleto
-        if document_type == 'boleto' and not (user.is_admin or user.is_tecnico or user.is_superuser):
-            raise serializers.ValidationError({
-                'document_type': 'Apenas administradores e técnicos podem criar boletos.'
-            })
-        
-        return data
+        def validate(self, data):
+            request = self.context.get('request')
+            user = request.user if request else None
+            document_type = data.get('document_type')
+            
+            # Validações de permissão
+            if user and user.is_cliente and document_type == 'boleto':
+                raise serializers.ValidationError({
+                    'document_type': 'Clientes não podem criar ou editar boletos.'
+                })
+            
+            # Admin e técnico podem criar boleto
+            if document_type == 'boleto' and not (user.is_admin or user.is_tecnico or user.is_superuser):
+                raise serializers.ValidationError({
+                    'document_type': 'Apenas administradores e técnicos podem criar boletos.'
+                })
+            
+            return data
 
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):

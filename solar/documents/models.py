@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal
 import os
 from django.utils import timezone
+from solar.files.models import BaseModel, ArquivoMixin
 
 from solar.files.utils import ( 
     get_document_upload_path, 
@@ -521,3 +522,196 @@ class ListaDeMateriais(models.Model):
     
     def __str__(self):
         return f"{self.descricao} - {self.quantidade} x R$ {self.valor_unitario:,.2f} = R$ {self.valor_total:,.2f}"
+
+class ProjectDocument(BaseModel, ArquivoMixin):
+    # Opções de status para o documento
+    STATUS_CHOICES = [
+        ('IN_ANALYSIS', 'Em Análise'),
+        ('APPROVED', 'Aprovado'),
+        ('REJECTED', 'Rejeitado'),
+    ]
+    # Constantes para fácil acesso aos status
+    IN_ANALYSIS = 'IN_ANALYSIS'
+    APPROVED = 'APPROVED'
+    REJECTED = 'REJECTED'
+
+    DOCUMENT_TYPE_CHOICES = [
+        # Documentos obrigatórios para PF e PJ
+        ('documento_cliente', 'Documento do Cliente'),
+        ('unidade_geradora_fatura', 'Unidade Geradora (Fatura)'),
+        ('unidades_consumidoras_fatura', 'Unidades Consumidoras (Fatura)'),
+        ('lista_material', 'Lista de Material'),
+        ('procuracao_assinada', 'Procuração Assinada'),
+        ('pagamento_art', 'Documento que comprove o pagamento da ART'),
+        ('pagamento_trt', 'Documento que comprove o pagamento da TRT'), # Adicionado vírgula aqui
+        ('inscricao_municipal', 'Documento que comprove o pagamento da inscrição municipal'), # Corrigido "incrição" e adicionado vírgula
+        ('inscricao_estadual', 'Documento que comprove o pagamento da inscrição estadual'), # Corrigido "incrição" e adicionado vírgula
+        # Documentos adicionais para PJ
+        ('cartao_cnpj', 'Cartão CNPJ'),
+        ('contrato_social', 'Contrato Social'),
+        #Pagamentos
+        ('boleto', 'Boleto'),
+        ('comprovante_de_pagamento', 'Comprovante de Pagamento'),
+        # Outros documentos
+        ('outros', 'Outros Documentos'),
+    ]
+
+    FILE_TYPE_CHOICES = [
+        ('photo', 'Foto'),
+        ('pdf', 'PDF'),
+        ('other', 'Outro'),
+    ]
+    project = models.ForeignKey(
+        ClientProject,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    document_type = models.CharField(
+        max_length=80,
+        choices=DOCUMENT_TYPE_CHOICES,
+        verbose_name="Tipo do documento"
+    )
+    # NOVO CAMPO para ligação
+    related_payment_document = models.ForeignKey(
+        'self', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='payment_proofs',
+        help_text="Documento relacionado (boleto para comprovante ou vice-versa)"
+    )
+    # NOVO CAMPO: Status do documento
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=IN_ANALYSIS, # Documentos recém-enviados começam "Em Análise"
+        verbose_name="Status do Documento"
+    )
+    # `uploaded_at` é fornecido por BaseModel.created_at
+    approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
+    
+    class Meta:
+        verbose_name = "Documento do Projeto"
+        verbose_name_plural = "Documentos do Projeto"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
+    
+    def clean(self):
+        """
+        Validação customizada do modelo.
+        """
+        super().clean()
+        
+        # Validar tamanho do arquivo
+        if self.arquivo:
+            try:
+                validate_file_size(self.arquivo)
+            except ValidationError as e:
+                raise ValidationError({'arquivo': e.message})
+        
+    
+    def save(self, *args, **kwargs):
+        """
+        Override do save com lógica de negócio.
+        """
+        # Executar validações
+        self.full_clean()
+
+        if self.status == self.APPROVED:
+                self.approved_at = timezone.now()
+        
+        # Salvar o objeto
+        super().save(*args, **kwargs)
+        
+        # Atualizar documentação completa do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            # Log do erro mas não impede o salvamento
+            print(f"Erro ao verificar documentação completa: {e}")
+    
+    def delete(self, *args, **kwargs):
+        """
+        Override do delete para remover arquivo físico (LGPD).
+        """
+        # Guardar referência ao arquivo antes de deletar
+        arquivo_path = self.arquivo.path if self.arquivo else None
+        arquivo_storage = self.arquivo.storage if self.arquivo else None
+        
+        # Deletar o registro do banco
+        super().delete(*args, **kwargs)
+        
+        # Tentar remover o arquivo físico
+        if arquivo_path:
+            try:
+                # Se estiver usando Railway volume ou filesystem local
+                if os.path.isfile(arquivo_path):
+                    os.remove(arquivo_path)
+                    print(f"✅ Arquivo removido: {arquivo_path}")
+                
+                # Se estiver usando S3/R2 ou outro storage
+                elif arquivo_storage:
+                    arquivo_storage.delete(arquivo_path)
+                    print(f"✅ Arquivo removido do storage: {arquivo_path}")
+            
+            except Exception as e:
+                # Log do erro mas não impede a deleção do registro
+                print(f"⚠️ Erro ao deletar arquivo físico: {e}")
+        
+        # Revalidar documentação do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            print(f"⚠️ Erro ao verificar documentação completa após deleção: {e}")
+    
+    # ==========================================
+    # PROPERTIES E MÉTODOS AUXILIARES
+    # ==========================================
+    
+    @property
+    def is_payment_document(self):
+        """Verifica se o documento é relacionado a pagamento"""
+        return self.document_type in ['boleto', 'comprovante_de_pagamento']
+    
+    @property
+    def is_payment_complete(self):
+        """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
+        if self.document_type == 'boleto':
+            return self.payment_proofs.filter(status=self.APPROVED).exists()
+        elif self.document_type == 'comprovante_de_pagamento':
+            return (
+                self.status == self.APPROVED and 
+                self.related_payment_document is not None
+            )
+        return False
+    
+    @property
+    def payment_status(self):
+        """Status do pagamento para boletos"""
+        if self.document_type == 'boleto':
+            if self.payment_proofs.filter(status=self.APPROVED).exists():
+                return 'PAGO'
+            elif self.payment_proofs.exists():
+                return 'COMPROVANTE_EM_ANALISE'
+            else:
+                return 'PENDENTE'
+        return None
+    
+    @property
+    def days_since_upload(self):
+        """Retorna quantos dias se passaram desde o upload"""
+        if self.created_at:
+            delta = timezone.now() - self.created_at
+            return delta.days
+        return 0
+    
+    @property
+    def is_recent(self):
+        """Verifica se o documento foi enviado recentemente (menos de 7 dias)"""
+        return self.days_since_upload <= 7
