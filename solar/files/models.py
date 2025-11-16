@@ -55,6 +55,11 @@ class BaseModel(models.Model):
         abstract = True
         
 class Document(BaseModel, ArquivoMixin):
+    STATUS_CHOICES = [
+        ('IN_ANALYSIS', 'Em Análise'),
+        ('APPROVED', 'Aprovado'),
+        ('REJECTED', 'Rejeitado'),
+    ]
     document_type = models.CharField(
         max_length=80,
         choices=DOCUMENT_TYPE_CHOICES,
