@@ -6,50 +6,38 @@ from django.utils.text import slugify
 
 
 def get_document_upload_path(instance, filename):
-    """
-    Gera o caminho de upload organizado e seguro para documentos.
-    
-    Estrutura: projects/{codigoCliente}/documents/{document_type}/{YYYY}/{MM}/{DD}/{uuid}_{filename}
-    
-    Exemplo:
-    projects/CLI-001/documents/boleto/2025/10/29/a1b2c3d4-e5f6-7890-abcd-ef1234567890_fatura.pdf
-    """
-    # 1. Extrair extensão do arquivo
-    ext = os.path.splitext(filename)[1].lower()  # .pdf, .jpg, etc
-    
-    # 2. Slugify do nome do arquivo (remove caracteres especiais)
-    basename = os.path.splitext(filename)[0]
-    slugified_name = slugify(basename)
-    
-    # 3. Limitar tamanho do nome (máximo 50 caracteres)
-    if len(slugified_name) > 50:
-        slugified_name = slugified_name[:50]
-    
-    # 4. Gerar UUID único para evitar conflitos
-    unique_id = uuid.uuid4().hex[:8]  # 8 primeiros caracteres do UUID
-    
-    # 5. Criar nome final do arquivo
-    final_filename = f"{unique_id}_{slugified_name}{ext}"
-    
-    # 6. Obter data atual para organização por data
-    now = timezone.now()
-    year = now.strftime('%Y')
-    month = now.strftime('%m')
-    day = now.strftime('%d')
-    
-    # 7. Construir caminho completo
-    path = os.path.join(
-        'projects',
-        instance.project.codigoCliente,
-        'documents',
-        instance.document_type,
-        year,
-        month,
-        day,
-        final_filename
-    )
-    
-    return path
+    # Determine o diretório base com base no tipo da instância do documento.
+    # 'instance' será o objeto do modelo (DocumentUser, ProjectDocument, etc.)
+
+    base_path_parts = ['documents'] # Diretório raiz para todos os uploads
+
+    # Verifica se a instância é um DocumentUser (tem um campo 'user')
+    if hasattr(instance, 'user') and instance.user:
+        base_path_parts.append('users')
+        # Usamos o PK do usuário para criar um diretório específico para ele
+        base_path_parts.append(str(instance.user.pk))
+    # Verifica se a instância é um ProjectDocument (tem um campo 'project')
+    # Assumimos que ProjectDocument é outro modelo concreto que herda de Document
+    # e tem um ForeignKey para ClientProject.
+    elif hasattr(instance, 'project') and instance.project:
+        base_path_parts.append('projects')
+        # Usamos o codigoCliente do projeto para criar um diretório específico
+        base_path_parts.append(instance.project.codigoCliente)
+    else:
+        # Fallback para outros tipos de documentos ou se o relacionamento ainda não foi definido
+        # (embora para DocumentUser e ProjectDocument, user/project deveriam ser obrigatórios)
+        base_path_parts.append('unassigned')
+
+    # Adiciona o tipo de documento ao caminho
+    document_type_slug = slugify(instance.document_type)
+    base_path_parts.append(document_type_slug)
+
+    # Gera um nome de arquivo único para evitar colisões
+    name, ext = os.path.splitext(filename)
+    unique_filename = f"{slugify(name)}-{uuid.uuid4().hex[:8]}{ext}"
+
+    # Combina todas as partes para formar o caminho final
+    return os.path.join(*base_path_parts, unique_filename)
 
 def validate_file_size(file):
     """

@@ -105,10 +105,6 @@ class Document(BaseModel, ArquivoMixin):
             self.approved_at = None # Limpa a data de aprovação se o status não for APROVADO
 
         super().save(*args, **kwargs)
-        try:
-            self.project.check_documetacaoCompleta()
-        except Exception as e:
-            print(f"Erro ao verificar documentação completa: {e}")
     
     def delete(self, *args, **kwargs):
         """
