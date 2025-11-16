@@ -77,7 +77,7 @@ class Document(BaseModel, ArquivoMixin):
         verbose_name_plural = "Documentos"
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['user', 'document_type']),
             models.Index(fields=['status']),
         ]
 
