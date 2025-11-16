@@ -10,7 +10,8 @@ import uuid
 from django.utils import timezone
 from django.utils.text import slugify
 
-from solar.files.utils import ( 
+from solar.files.utils import (
+    validate_file_extension,
     DOCUMENT_TYPE_CHOICES, 
     STATUS_CHOICES, 
     IN_ANALYSIS,
