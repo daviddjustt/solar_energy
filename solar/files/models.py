@@ -160,12 +160,15 @@ class Document(BaseModel, ArquivoMixin):
     def is_recent(self):
         """Verifica se o documento foi enviado recentemente (menos de 7 dias)"""
         return self.days_since_upload <= 7
-    
+
+from django.conf import settings
 class DocumentUser(Document):
-    user = models.ForeignKey("users.User", 
-        verbose_name= ("Relação com usuário"), 
-        on_delete=models.CASCADE)
-    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_logs'
+    )
+
     class Meta:
         abstract = False
         verbose_name = "Documento do Usuário"
