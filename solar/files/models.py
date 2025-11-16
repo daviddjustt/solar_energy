@@ -15,6 +15,7 @@ from solar.files.utils import (
     DOCUMENT_TYPE_CHOICES, 
     STATUS_CHOICES, 
     IN_ANALYSIS,
+    APPROVED
 )
 
 class ArquivoMixin(models.Model):
