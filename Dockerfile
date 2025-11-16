@@ -36,6 +36,9 @@ RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
 COPY --chown=nonroot:nonroot entrypoint.sh /code/
 RUN chmod +x /code/entrypoint.sh
 
+# Makemigrations
+# RUN python manage.py makemigrations
+
 # ⚠️ NÃO mudar para usuário nonroot ainda
 # Deixar como root para o entrypoint configurar permissões
 # USER nonroot
