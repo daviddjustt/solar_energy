@@ -10,33 +10,28 @@ from solar.users.models import User
 from .serializers import DocumentUser, DocumentUserSerializer
 
 class DocumentUserListCreateView(generics.ListCreateAPIView):
-    """
-    API endpoint para listar e criar documentos de usuário.
-    - GET: Lista todos os documentos de um usuário específico.
-    - POST: Cria um novo documento para o usuário especificado na URL.
-    """
     serializer_class = DocumentUserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Filtra documentos pelo PK do usuário (UUID) na URL
+        # Filtra documentos para o usuário especificado na URL
         user_pk = self.kwargs['user_pk']
         user = get_object_or_404(User, pk=user_pk)
-
-        # Permissões: Apenas o próprio usuário ou admins/superusers podem ver seus documentos
-        if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff or self.request.user.is_superuser):
-            return DocumentUser.objects.filter(user=user).order_by('-created_at')
+        # Garante que apenas o próprio usuário ou um admin/técnico pode ver seus documentos
+        if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff):
+            return DocumentUser.objects.filter(user=user)
         raise PermissionDenied("Você não tem permissão para acessar estes documentos.")
 
     def perform_create(self, serializer):
-        # Obtém o usuário do PK na URL
+        # Esta é a parte crucial para injetar o usuário
         user_pk = self.kwargs['user_pk']
         user = get_object_or_404(User, pk=user_pk)
 
-        # Permissões: Apenas o próprio usuário ou admins/superusers podem criar documentos para este usuário
-        if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff or self.request.user.is_superuser):
-            # Passa o objeto User para o serializer
-            serializer.save(user=user)
+        # Opcional: Validação de permissão para criar documentos para este usuário
+        if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff):
+            # Injeta o objeto User no contexto do serializer
+            serializer.context['user'] = user
+            serializer.save() # Chama o método create do serializer
         else:
             raise PermissionDenied("Você não tem permissão para criar documentos para este usuário.")
 

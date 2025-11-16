@@ -35,10 +35,11 @@ class DocumentUserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Sobrescreve o método create para injetar o usuário do contexto da view.
+        Sobrescreve o método create para usar o usuário fornecido no contexto da view.
         """
         user = self.context.get('user')
         if not user:
+            # Esta validação é uma "rede de segurança" caso a view não injete o usuário
             raise serializers.ValidationError("O usuário deve ser fornecido para a criação de DocumentUser.")
         validated_data['user'] = user
         return super().create(validated_data)
