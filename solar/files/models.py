@@ -80,9 +80,6 @@ class Document(BaseModel, ArquivoMixin):
             models.Index(fields=['user', 'document_type']),
             models.Index(fields=['status']),
         ]
-
-    def __str__(self):
-        return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
     
     def clean(self):
         """
@@ -140,12 +137,7 @@ class Document(BaseModel, ArquivoMixin):
             except Exception as e:
                 # Log do erro mas não impede a deleção do registro
                 print(f"⚠️ Erro ao deletar arquivo físico: {e}")
-        
-        # Revalidar documentação do projeto
-        try:
-            self.project.check_documetacaoCompleta()
-        except Exception as e:
-            print(f"⚠️ Erro ao verificar documentação completa após deleção: {e}")
+
     
     @property
     def days_since_upload(self):
