@@ -28,12 +28,7 @@ class DocumentUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DocumentUser
-        fields = [
-            'id', 'user', 'document_type', 'status', 'arquivo',
-            'created_at', 'updated_at', 'approved_at',
-            'days_since_upload', 'is_recent', 'is_payment_document',
-            'is_payment_complete', 'payment_status',
-        ]
+        fields = '__all__'
         # 'status' e 'approved_at' são geralmente gerenciados pela lógica de negócio
         # e não diretamente pelo usuário na criação/atualização.
         read_only_fields = ['status', 'approved_at']

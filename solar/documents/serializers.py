@@ -416,7 +416,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
 class PaymentDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
-        fields = ['id', 'document_type', 'status']
+        fields = '__all__'
         read_only_fields = ['status']
 
     def __init__(self, *args, **kwargs):
