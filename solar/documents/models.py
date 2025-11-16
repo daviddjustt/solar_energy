@@ -5,13 +5,14 @@ from decimal import Decimal
 import os
 from django.utils import timezone
 
-from .utils import ( 
+from solar.files.utils import ( 
     get_document_upload_path, 
     validate_file_size, 
     validate_file_extension, 
+)
+from .utils import (
     CELULAR_REGEX
 )
-
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
