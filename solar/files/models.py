@@ -96,24 +96,19 @@ class Document(BaseModel, ArquivoMixin):
                 raise ValidationError({'arquivo': e.message})
         
     def save(self, *args, **kwargs):
-        """
-        Override do save com lógica de negócio.
-        """
-        # Executar validações
         self.full_clean()
-
-        if self.status == self.__class__.APPROVED:
+        if self.status == self.__class__.APPROVED: # <--- CORREÇÃO AQUI
             self.approved_at = timezone.now()
+        elif self.status == self.__class__.REJECTED: # Se você tiver lógica para REJECTED, use também
+            # Lógica para rejeição, se houver
+            pass
         else:
-            self.approved_at = None
-        # Salvar o objeto
+            self.approved_at = None # Limpa a data de aprovação se o status não for APROVADO
+
         super().save(*args, **kwargs)
-        
-        # Atualizar documentação completa do projeto
         try:
             self.project.check_documetacaoCompleta()
         except Exception as e:
-            # Log do erro mas não impede o salvamento
             print(f"Erro ao verificar documentação completa: {e}")
     
     def delete(self, *args, **kwargs):
