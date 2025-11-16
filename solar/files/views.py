@@ -3,14 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
 #
-from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.response import Response
+from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404
-from .models import DocumentUser
-from .serializers import DocumentUserSerializer
-from users.models import User
+from solar.users.models import User
 #
 from .serializers import DocumentUser, DocumentUserSerializer
 
