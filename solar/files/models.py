@@ -55,11 +55,6 @@ class BaseModel(models.Model):
         abstract = True
         
 class Document(BaseModel, ArquivoMixin):
-    STATUS_CHOICES = [
-        ('IN_ANALYSIS', 'Em Análise'),
-        ('APPROVED', 'Aprovado'),
-        ('REJECTED', 'Rejeitado'),
-    ]
     document_type = models.CharField(
         max_length=80,
         choices=DOCUMENT_TYPE_CHOICES,
@@ -184,24 +179,27 @@ class DocumentUser(Document):
     def is_payment_document(self):
         """Verifica se o documento é relacionado a pagamento"""
         return self.document_type in ['boleto', 'comprovante_de_pagamento']
-    
+
     @property
     def is_payment_complete(self):
         """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
         if self.document_type == 'boleto':
-            return self.payment_proofs.filter(status=self.APPROVED).exists()
+            # CORREÇÃO AQUI: Usando a constante APPROVED importada
+            return self.payment_proofs.filter(status=APPROVED).exists()
         elif self.document_type == 'comprovante_de_pagamento':
             return (
-                self.status == self.APPROVED and 
+                # CORREÇÃO AQUI: Usando a constante APPROVED importada
+                self.status == APPROVED and
                 self.related_payment_document is not None
             )
         return False
-    
+
     @property
     def payment_status(self):
         """Status do pagamento para boletos"""
         if self.document_type == 'boleto':
-            if self.payment_proofs.filter(status=self.APPROVED).exists():
+            # CORREÇÃO AQUI: Usando a constante APPROVED importada
+            if self.payment_proofs.filter(status=APPROVED).exists():
                 return 'PAGO'
             elif self.payment_proofs.exists():
                 return 'COMPROVANTE_EM_ANALISE'
