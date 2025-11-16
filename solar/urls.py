@@ -20,6 +20,10 @@ from solar.documents.views import (
     ListaDeMateriasDetailView,
     PaymentDocumentView,
 )
+from solar.files.views import (
+    DocumentUserListCreateView,
+    DocumentUserRetrieveUpdateDestroyView
+)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .users.permissions import AuthenticationThrottle
 from rest_framework.decorators import throttle_classes
@@ -74,7 +78,16 @@ urlpatterns = [
     
     path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
-    path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(),name='payment-document-detail'
+    path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(),name='payment-document-detail'),
+     path(
+        'users/<uuid:user_pk>/documents/',
+        DocumentUserListCreateView.as_view(),
+        name='documentuser-list-create'
+    ),
+    path(
+        'users/<uuid:user_pk>/documents/<int:document_pk>/',
+        DocumentUserRetrieveUpdateDestroyView.as_view(),
+        name='documentuser-detail'
     ),
 ]
 
