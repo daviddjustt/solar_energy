@@ -167,7 +167,7 @@ class DocumentUser(Document):
         on_delete=models.CASCADE)
     
     class Meta:
-        abstract = True
+        abstract = False
         verbose_name = "Documento do Usuário"
         verbose_name_plural = "Documentos dos Usuários"
         ordering = ['-created_at']
