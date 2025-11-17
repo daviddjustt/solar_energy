@@ -44,26 +44,6 @@ class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
     def create_user(self, email, name, cnpj, cpf, celular=None, password=None, **extra_fields):
-            try:
-                validate_cnpj(cnpj)
-            except ValidationError as e:
-                raise ValueError(f"Erro de validação de cnpj: {e.message}") # Ou apenas raise e
-            
-            if cnpj:
-                    try:
-                        validate_cnpj(cnpj)
-                    except ValidationError as e:
-                        raise ValueError(f"Erro de validação de CNPJ: {e.message}")
-            
-            try:
-                validate_cpf(cpf)
-            except ValidationError as e:
-                raise ValueError(f"Erro de validação de CPF: {e.message}") # Ou apenas raise e
-            if cpf:
-                    try:
-                        validate_cpf(cpf)
-                    except ValidationError as e:
-                        raise ValueError(f"Erro de validação de CPF: {e.message}")
 
             user = self.model(
                 email=email,
