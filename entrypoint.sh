@@ -33,7 +33,9 @@ echo ""
 # ==========================================
 echo "🔄 Aplicando migrações..."
 python manage.py makemigrations --noinput
+docker-compose exec web python manage.py makemigrations
 python manage.py migrate --noinput
+docker-compose exec web python manage.py migrate
 
 echo ""
 
