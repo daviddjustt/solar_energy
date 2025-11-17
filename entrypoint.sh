@@ -36,7 +36,7 @@ echo "Executando python manage.py makemigrations --noinput..."
 python manage.py makemigrations --noinput
 echo "Executando python manage.py migrate --noinput..."
 python manage.py migrate --noinput
-
+python manage.py showmigrations documents
 
 echo ""
 
