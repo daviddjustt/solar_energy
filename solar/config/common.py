@@ -29,6 +29,7 @@ class Common(Configuration):
         # Your apps
         'solar.users',
         'solar.documents',
+        'solar.files'
     )
 
     MIDDLEWARE = (

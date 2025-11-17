@@ -1,22 +1,26 @@
-# solar/documents/models.py
 from django.db import models
-from django.conf import settings
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 import os
 from django.utils import timezone
-from solar.users.models import User
-CELULAR_REGEX = r'^\d{11}$'
 
-def get_document_upload_path(instance, filename):
-    """Gera o caminho de upload baseado no projeto e tipo de documento"""
-    return f'projects/{instance.project.codigoCliente}/documents/{instance.document_type}/{filename}'
+
+from solar.files.models import ( 
+    BaseModel,
+    ArquivoMixin,
+)
+
+from .utils import (
+    CELULAR_REGEX,
+    get_document_upload_path, 
+    validate_file_size, 
+    validate_file_extension, 
+)
 
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
-    # Pagamento do ART e TRT se encaixa aqui ?
     PAGAMENTOS = 'Pagamento da TRT/ART e pagamento do projeto'
     ANALISE_TECNICA = 'Projeto em análise técnica'
     APROVADO = 'Projeto aprovado'
@@ -32,12 +36,12 @@ class AndamentoDoProjeto(models.TextChoices):
                    return status.value
            return None
        
-
 class ClientProject(models.Model):
     
     # Choices simples do documento 
     DOCUMENT_TYPE_CHOICES = [
         ('PJ', 'Pessoa Jurídica'),
+        ('PF', 'Pessoa Física'),
     ]
     FINANCEIRO_CHOICES = [
         ('valor_unico', 'Valor Único'),
@@ -71,10 +75,18 @@ class ClientProject(models.Model):
         default='PJ',
         verbose_name="Tipo de cliente"
     )
-    voltagem = models.IntegerField(
-        verbose_name='voltagem',
-        help_text='Voltagem da unidade geradora',
-        default=220,
+    VOLTAGEM_CHOICES = [
+        ('Monofásico - 127V', 'Monofásico - 127V'),
+        ('Monofásico - 220V', 'Monofásico - 220V'),
+        ('Bifásico - 127/220V', 'Bifásico - 127/220V'),
+        ('Bifásico - 220/380V', 'Bifásico - 220/380V'),
+        ('Trifásico - 127/220V', 'Trifásico - 127/220V'),
+        ('Trifásico - 220/380V', 'Trifásico - 220/380V'),
+    ]
+    voltagem = models.CharField(
+        max_length=100,
+        choices=VOLTAGEM_CHOICES,
+        help_text="Voltagem do consumidor"
     )
     email = models.EmailField(
         max_length=255,
@@ -170,22 +182,27 @@ class ClientProject(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    def __str__(self):
+        return f"{self.name} - {self.voltagem}"
+    
     @property
-    def cnpj_do_cliente(self):
+    def cnpj_or_cpf_do_cliente(self):
         """
         Retorna o valor do campo CNPJ do usuário associado a este projeto.
         """
         if self.user:
-            return self.user.cnpj
+            return self.user.cnpj or self.user.cpf
         
     @property
     def documento_tipo(self):
         """Retorna o tipo do documento baseado no tipoDocumento"""
         return 'CPF' if self.tipoDocumento == 'PF' else 'PJ'
+    
     @property
     def documento_label(self):
         """Retorna o label apropriado para exibição"""
         return f"{self.documento_tipo}: {self.documento}" if self.documento else self.documento_tipo
+    
     @property
     def decimal_latitude(self):
         """Converte latitude de GMS para decimal"""
@@ -193,6 +210,7 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.latGraus < 0 else 1
         return Decimal(sign * (abs(self.latGraus) + (self.latMin / 60) + (self.latSeg / 3600))).quantize(Decimal('0.00000001'))
+    
     @property
     def decimal_longitude(self):
         """Converte longitude de GMS para decimal"""
@@ -200,6 +218,7 @@ class ClientProject(models.Model):
             return None
         sign = -1 if self.longGraus < 0 else 1
         return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
+    
     @property
     def approved_documents_count(self):
         """Retorna o número de documentos aprovados para o projeto."""
@@ -394,6 +413,11 @@ class ConsumerUnit(models.Model):
         null=True,
         blank=True,
     )
+    priodidade_is_porcentagem = models.BooleanField(
+        default= True,
+        verbose_name="Prioridade baseada em porcentagem",
+        help_text="Se marcado, a prioridade será determinada pela porcentagem em vez do nível de prioridade."
+    )
     class Meta:
         verbose_name = "Unidade Consumidora"
         verbose_name_plural = "Unidades Consumidoras"
@@ -427,40 +451,81 @@ class ConsumerUnit(models.Model):
                     'priority_level': f"O nível de prioridade deve ser entre 1 e {max_allowed_priority} para este projeto."
                 })
 
+    def validate(self):
+        super().validate()
+        # Garantir unicidade do nível de prioridade dentro do mesmo projeto
+        if self.priodidade_is_porcentagem == True:
+            self.priority_level = None
+        else:
+            self.porcentagem = None
+                
     def __str__(self):
         return f"UC {self.codigoCliente} - Projeto: {self.project.codigoCliente} (Prioridade: {self.priority_level})"
 
-class BaseModel(models.Model):
-    """
-    Modelo base que fornece campos de auditoria para todos os modelos do sistema.
-    Todos os modelos devem herdar desta classe para ter consistência na
-    rastreabilidade de criação e atualização.
-    """
-    created_at = models.DateTimeField(
-        verbose_name=("Data de Criação"),
-        auto_now_add=True
+class ListaDeMateriais(models.Model):
+    project = models.ForeignKey(
+        ClientProject,
+        on_delete=models.CASCADE,
+        related_name='material_lists'
     )
-    updated_at = models.DateTimeField(
-        verbose_name=("Data de Atualização"),
-        auto_now=True
+    
+    # Campos relacionados aos módulos fotovoltáicos 
+    quantd_mod_fotovoltaico = models.PositiveIntegerField(
+        verbose_name="Quantidade de Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
     )
-    class Meta:
-        abstract = True
-
-class ArquivoMixin(models.Model):
-    """
-    Mixin para campos comuns de arquivos.
-    Fornece estrutura base para modelos que lidam com upload de arquivos,
-    incluindo campos comuns e métodos de validação.
-    """
-    # Alterado upload_to para usar a função customizada
-    arquivo = models.FileField(
-        verbose_name=("Arquivo"),
-        upload_to=get_document_upload_path, # Usando a função customizada aqui
-        help_text=("Arquivo relacionado ao ponto de fiscalização"),
+    marca_mod_fotovoltaico = models.CharField(
+        verbose_name="Marca dos Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
     )
-    class Meta:
-        abstract = True
+    potencia_mod_fotovoltaico = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        verbose_name="Potência de cada Módulo Fotovoltaico (W)",
+        blank=True,
+        null=True,
+    )
+    modelo_mod_fotovoltaico = models.CharField(
+        max_length=100,
+        verbose_name="Modelo dos Módulos Fotovoltaicos",
+        blank=True,
+        null=True,
+    )
+    
+    # Inversores
+    quantd_inversores = models.PositiveIntegerField(
+        verbose_name="Quantidade de Inversores",
+        blank=True,
+        null=True,
+    )
+    marca_inversores = models.CharField(
+        verbose_name="Marca dos Inversores",
+        blank=True,
+        null=True,
+    )
+    potencia_nominal_inversores = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        verbose_name="Potência nominal dos inversores (kW)",
+        blank=True,
+        null=True,
+    )
+    modelo_inversores = models.CharField(
+        max_length=100,
+        verbose_name="Modelo dos Inversores",
+        blank=True,
+        null=True,
+    )   
+    
+    @property
+    def valor_total(self):
+        """Calcula o valor total do material"""
+        return self.quantidade * self.valor_unitario
+    
+    def __str__(self):
+        return f"{self.descricao} - {self.quantidade} x R$ {self.valor_unitario:,.2f} = R$ {self.valor_total:,.2f}"
 
 class ProjectDocument(BaseModel, ArquivoMixin):
     # Opções de status para o documento
@@ -526,48 +591,132 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         default=IN_ANALYSIS, # Documentos recém-enviados começam "Em Análise"
         verbose_name="Status do Documento"
     )
-    rejection_reason = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name="Motivo da rejeição"
-    )
+    # rejection_reason = models.TextField(blank=True,null=True,verbose_name="Motivo da rejeição")
     # `uploaded_at` é fornecido por BaseModel.created_at
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
+    
     class Meta:
         verbose_name = "Documento do Projeto"
         verbose_name_plural = "Documentos do Projeto"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['status']),
+        ]
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
-
-    def save(self, *args, **kwargs):
-        # Se o status mudou para APROVADO, registra a data e o usuário
-        if self.pk: # Se o objeto já existe (é uma atualização)
-            original = ProjectDocument.objects.get(pk=self.pk)
-            if original.status != self.status and self.status == self.APPROVED:
-                self.approved_at = timezone.now()
-                # Assumindo que você tem acesso ao usuário atual no contexto da requisição
-                # ou que o serializer irá passar o usuário.
-                # precisará de um mecanismo para passar o usuário para o model (ex: thread-local storage ou signals).
-                # Para uma API REST, é mais comum definir isso no serializer ou view.
-            elif original.status != self.status and self.status != self.APPROVED:
-                # Se o status mudou de APROVADO para outro (rejeitado ou em análise), limpa a data/usuário de aprovação
-                self.approved_at = None
-        elif self.status == self.APPROVED: # Se é um novo documento e já está sendo criado como APROVADO
-            self.approved_at = timezone.now()
-        # Se o status não é REJEITADO, limpa o motivo da rejeição
-        if self.status != self.REJECTED:
-            self.rejection_reason = None
-        super().save(*args, **kwargs)
-        # Verifica se a documentação do projeto está completa após salvar o documento
-        # Isso é importante para atualizar o campo documetacaoCompleta no ClientProject
-        self.project.check_documetacaoCompleta()
-
-    def delete(self, *args, **kwargs):
-        # Remove o arquivo físico
+    
+    def clean(self):
+        """
+        Validação customizada do modelo.
+        """
+        super().clean()
+        
+        # Validar tamanho do arquivo
         if self.arquivo:
-            if os.path.isfile(self.arquivo.path):
-                os.remove(self.arquivo.path)
+            try:
+                validate_file_size(self.arquivo)
+            except ValidationError as e:
+                raise ValidationError({'arquivo': e.message})
+        
+    
+    def save(self, *args, **kwargs):
+        """
+        Override do save com lógica de negócio.
+        """
+        # Executar validações
+        self.full_clean()
+
+        if self.status == self.APPROVED:
+                self.approved_at = timezone.now()
+        
+        # Salvar o objeto
+        super().save(*args, **kwargs)
+        
+        # Atualizar documentação completa do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            # Log do erro mas não impede o salvamento
+            print(f"Erro ao verificar documentação completa: {e}")
+    
+    def delete(self, *args, **kwargs):
+        """
+        Override do delete para remover arquivo físico (LGPD).
+        """
+        # Guardar referência ao arquivo antes de deletar
+        arquivo_path = self.arquivo.path if self.arquivo else None
+        arquivo_storage = self.arquivo.storage if self.arquivo else None
+        
+        # Deletar o registro do banco
         super().delete(*args, **kwargs)
-        # Revalida a documentação do projeto após a exclusão
-        self.project.check_documetacaoCompleta()
+        
+        # Tentar remover o arquivo físico
+        if arquivo_path:
+            try:
+                # Se estiver usando Railway volume ou filesystem local
+                if os.path.isfile(arquivo_path):
+                    os.remove(arquivo_path)
+                    print(f"✅ Arquivo removido: {arquivo_path}")
+                
+                # Se estiver usando S3/R2 ou outro storage
+                elif arquivo_storage:
+                    arquivo_storage.delete(arquivo_path)
+                    print(f"✅ Arquivo removido do storage: {arquivo_path}")
+            
+            except Exception as e:
+                # Log do erro mas não impede a deleção do registro
+                print(f"⚠️ Erro ao deletar arquivo físico: {e}")
+        
+        # Revalidar documentação do projeto
+        try:
+            self.project.check_documetacaoCompleta()
+        except Exception as e:
+            print(f"⚠️ Erro ao verificar documentação completa após deleção: {e}")
+    
+    # ==========================================
+    # PROPERTIES E MÉTODOS AUXILIARES
+    # ==========================================
+    
+    @property
+    def is_payment_document(self):
+        """Verifica se o documento é relacionado a pagamento"""
+        return self.document_type in ['boleto', 'comprovante_de_pagamento']
+    
+    @property
+    def is_payment_complete(self):
+        """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
+        if self.document_type == 'boleto':
+            return self.payment_proofs.filter(status=self.APPROVED).exists()
+        elif self.document_type == 'comprovante_de_pagamento':
+            return (
+                self.status == self.APPROVED and 
+                self.related_payment_document is not None
+            )
+        return False
+    
+    @property
+    def payment_status(self):
+        """Status do pagamento para boletos"""
+        if self.document_type == 'boleto':
+            if self.payment_proofs.filter(status=self.APPROVED).exists():
+                return 'PAGO'
+            elif self.payment_proofs.exists():
+                return 'COMPROVANTE_EM_ANALISE'
+            else:
+                return 'PENDENTE'
+        return None
+    
+    @property
+    def days_since_upload(self):
+        """Retorna quantos dias se passaram desde o upload"""
+        if self.created_at:
+            delta = timezone.now() - self.created_at
+            return delta.days
+        return 0
+    
+    @property
+    def is_recent(self):
+        """Verifica se o documento foi enviado recentemente (menos de 7 dias)"""
+        return self.days_since_upload <= 7
