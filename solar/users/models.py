@@ -39,6 +39,7 @@ def validate_image_size(image):
     """Valida o tamanho máximo da imagem."""
     if image.file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024:
         raise ValidationError(f"O tamanho máximo de arquivo é {MAX_IMAGE_SIZE_MB}MB")
+
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
