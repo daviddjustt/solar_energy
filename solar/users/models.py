@@ -168,20 +168,6 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.celular = ''.join(filter(str.isdigit, self.celular))
     
     def clean(self):
-        if not self.cpf:
-            raise ValidationError({'cpf': 'É obrigatório informar CPF'})
-        try:
-            validate_cpf(self.cpf)
-        except ValidationError as e:
-            raise ValidationError({'cpf': e})
-        
-        if not self.cnpj:
-            raise ValidationError({'cnpj': 'O cnpj é obrigatório.'})
-        try:
-            validate_cnpj(self.cnpj)
-        except ValidationError as e:
-            raise ValidationError({'cnpj': e})
-        
         if not self.celular:
             raise ValidationError({'celular': 'O celular é obrigatório.'})
     
