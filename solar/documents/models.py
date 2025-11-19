@@ -472,11 +472,13 @@ class ListaDeMateriais(models.Model):
     # Campos relacionados aos módulos fotovoltáicos 
     nome = models.CharField(
         verbose_name="Quantidade de Módulos Fotovoltaicos",
+        max_length=50,
         blank=True,
         null=True,
     )
     marca = models.CharField(
         verbose_name="Marca dos Módulos Fotovoltaicos",
+        max_length=100,
         blank=True,
         null=True,
     )

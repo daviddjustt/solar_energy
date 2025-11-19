@@ -74,8 +74,8 @@ class Migration(migrations.Migration):
             name='ListaDeMateriais',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('nome', models.CharField(blank=True, null=True, verbose_name='Quantidade de Módulos Fotovoltaicos')),
-                ('marca', models.CharField(blank=True, null=True, verbose_name='Marca dos Módulos Fotovoltaicos')),
+                ('nome', models.CharField(blank=True, max_length=50, null=True, verbose_name='Quantidade de Módulos Fotovoltaicos')),
+                ('marca', models.CharField(blank=True, max_length=100, null=True, verbose_name='Marca dos Módulos Fotovoltaicos')),
                 ('quantidade', models.PositiveIntegerField(blank=True, null=True, verbose_name='Número de módulos')),
                 ('modelo', models.CharField(blank=True, max_length=100, null=True, verbose_name='Modelo dos módulos')),
                 ('potencia', models.DecimalField(blank=True, decimal_places=2, max_digits=7, null=True, verbose_name='Potência nominal em kW')),
