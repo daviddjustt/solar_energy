@@ -66,7 +66,7 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
         porcentagem = data.get('porcentagem')
 
         # Se prioridade_is_porcentagem for True, então porcentagem é obrigatório
-        if prioridade_is_porcentagem is True:
+        if prioridade_is_porcentagem is False:
             if priority_level is None or priority_level == '':
                 raise serializers.ValidationError({
                     'priority_level': 'O campo "priority_level" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é True.'
@@ -76,7 +76,7 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
                     'porcentagem': 'O campo "porcentagem" deve ser nulo ou vazio quando "prioridade_is_porcentagem" é True.'
                 })
             
-        elif prioridade_is_porcentagem is False:
+        elif prioridade_is_porcentagem is True:
             if porcentagem is None or porcentagem == '':
                 raise serializers.ValidationError({
                     'porcentagem': 'O campo "porcentagem" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é False.'
