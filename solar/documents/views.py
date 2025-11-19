@@ -395,7 +395,7 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Recupera, atualiza ou exclui uma unidade consumidora específica de um projeto.
     """
-    serializer_class = ListaDeMateriais
+    serializer_class = ListaDeMateriaisSerializer
     pagination_class = None
     lookup_url_kwarg = 'pk'
 
