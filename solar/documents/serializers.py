@@ -49,12 +49,36 @@ class VoltageField(serializers.CharField):
 
 # Serializer para Unidades Consumidoras
 class ConsumerUnitSerializer(serializers.ModelSerializer):
-    # codigoCliente = serializers.CharField(source='codigoCliente')
-    # project = serializers.PrimaryKeyRelatedField(queryset=ClientProject.objects.all(), read_only=True)
+    prioridade_is_porcentagem = serializers.BooleanField()
+    
     class Meta:
         model = ConsumerUnit
         fields = "__all__"
         read_only_fields = ['project']
+    
+    def validate(self, data):
+        """
+        Valida que se 'prioridade_is_porcentagem' for True,
+        'porcentagem' não pode ser nulo, vazio ou branco.
+        """
+        priority_level = data.get('priority_level')
+        prioridade_is_porcentagem = data.get('prioridade_is_porcentagem')
+        porcentagem = data.get('porcentagem')
+
+        # Se prioridade_is_porcentagem for True, então porcentagem é obrigatório
+        if prioridade_is_porcentagem == True:
+            if porcentagem is None or (isinstance(porcentagem, str) and not porcentagem.strip()):
+                raise serializers.ValidationError({
+                    'porcentagem': 'O campo "porcentagem" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é True.'
+                })
+            
+        elif prioridade_is_porcentagem == False:
+            if priority_level is None or (isinstance(priority_level, int) and not priority_level.strip()):
+                raise serializers.ValidationError({
+                    'porcentagem': 'O campo "priority_level" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é True.'
+                })
+        return data
+
         
 class ListaDeMateriaisSerializer(serializers.ModelSerializer):
     class Meta:
