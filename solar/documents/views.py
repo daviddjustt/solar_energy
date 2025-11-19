@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
-from .models import ClientProject, ProjectDocument, ListaDeMateriais
+from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit
 from solar.users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,

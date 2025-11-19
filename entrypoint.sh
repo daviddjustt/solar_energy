@@ -27,33 +27,11 @@ echo "📦 Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput --clear
 
 echo ""
-# Define o nome da migração problemática e o app
-PROBLEM_MIGRATION="documents.0002_alter_clientproject_id_alter_consumerunit_id_and_more..."
-APP_LABEL="documents"
-PREVIOUS_MIGRATION="0001_initial" # A migração que deveria vir antes da problemática
 
-# Verifica se a migração problemática está registrada como aplicada no DB
-# E se o arquivo correspondente NÃO existe localmente no container.
-# Isso é um hack para lidar com migrações "fantasmas" em ambientes remotos.
-if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X]"; then
-    if [ ! -f "/code/solar/$APP_LABEL/migrations/$PROBLEM_MIGRATION.py" ]; then
-        echo "⚠️ Detectada migração problemática '$PROBLEM_MIGRATION' no DB do Railway, mas o arquivo não existe localmente."
-        echo "   Marcando a migração '$PROBLEM_MIGRATION' como 'não aplicada' no histórico do DB para resolver a inconsistência."
-        # Este comando marca a migração problemática (e quaisquer outras após ela para este app)
-        # como não aplicadas no banco de dados, ao "fingir" que a migração anterior é a última aplicada.
-        python manage.py migrate --fake "$APP_LABEL" "$PREVIOUS_MIGRATION"
-        echo "✅ Migração '$PROBLEM_MIGRATION' marcada como não aplicada no DB."
-    fi
-fi
 
-# Agora, execute makemigrations e migrate normalmente
-echo "Executando python manage.py makemigrations --noinput..."
-python manage.py makemigrations --noinput
-echo ""
-
-echo "Executando python manage.py migrate --noinput..."
-python manage.py migrate --noinput
-echo ""
+#echo "Executando python manage.py migrate --noinput..."
+#python manage.py migrate --noinput
+#echo ""
 
 # ==========================================
 # 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
