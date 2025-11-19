@@ -481,8 +481,6 @@ class ListaDeMateriais(models.Model):
         null=True,
     )
     quantidade = models.PositiveIntegerField(
-        max_digits=7,
-        decimal_places=2,
         verbose_name="Número de módulos",
         blank=True,
         null=True,
