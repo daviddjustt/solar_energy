@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
-from .models import ClientProject, ProjectDocument
+from .models import ClientProject, ProjectDocument, ListaDeMateriais
 from solar.users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,
@@ -17,7 +17,7 @@ from .serializers import (
     ConsumerUnitSerializer,
     TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
-    ListaDeMateriais
+    ListaDeMateriaisSerializer
 )
 
 
@@ -346,7 +346,7 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
     """
     Listagem e criação de listas de materiais para um projeto específico.
     """
-    serializer_class = ListaDeMateriais
+    serializer_class = ListaDeMateriaisSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
 

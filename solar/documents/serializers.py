@@ -56,7 +56,7 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['project']
         
-class ListaDeMateriais(serializers.ModelSerializer):
+class ListaDeMateriaisSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListaDeMateriais
         fields = "__all__"
