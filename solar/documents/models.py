@@ -470,62 +470,38 @@ class ListaDeMateriais(models.Model):
     )
     
     # Campos relacionados aos módulos fotovoltáicos 
-    quantd_mod_fotovoltaico = models.PositiveIntegerField(
+    nome = models.CharField(
         verbose_name="Quantidade de Módulos Fotovoltaicos",
         blank=True,
         null=True,
     )
-    marca_mod_fotovoltaico = models.CharField(
+    marca = models.CharField(
         verbose_name="Marca dos Módulos Fotovoltaicos",
         blank=True,
         null=True,
     )
-    potencia_mod_fotovoltaico = models.DecimalField(
+    quantidade = models.PositiveIntegerField(
         max_digits=7,
         decimal_places=2,
-        verbose_name="Potência de cada Módulo Fotovoltaico (W)",
+        verbose_name="Número de módulos",
         blank=True,
         null=True,
     )
-    modelo_mod_fotovoltaico = models.CharField(
+    modelo = models.CharField(
         max_length=100,
-        verbose_name="Modelo dos Módulos Fotovoltaicos",
+        verbose_name="Modelo dos módulos",
         blank=True,
         null=True,
     )
     
-    # Inversores
-    quantd_inversores = models.PositiveIntegerField(
-        verbose_name="Quantidade de Inversores",
-        blank=True,
-        null=True,
-    )
-    marca_inversores = models.CharField(
-        verbose_name="Marca dos Inversores",
-        blank=True,
-        null=True,
-    )
-    potencia_nominal_inversores = models.DecimalField(
+    potencia = models.DecimalField(
         max_digits=7,
         decimal_places=2,
-        verbose_name="Potência nominal dos inversores (kW)",
+        verbose_name="Potência nominal em kW",
         blank=True,
         null=True,
     )
-    modelo_inversores = models.CharField(
-        max_length=100,
-        verbose_name="Modelo dos Inversores",
-        blank=True,
-        null=True,
-    )   
-    
-    @property
-    def valor_total(self):
-        """Calcula o valor total do material"""
-        return self.quantidade * self.valor_unitario
-    
-    def __str__(self):
-        return f"{self.descricao} - {self.quantidade} x R$ {self.valor_unitario:,.2f} = R$ {self.valor_total:,.2f}"
+
 
 class ProjectDocument(BaseModel, ArquivoMixin):
     # Opções de status para o documento
