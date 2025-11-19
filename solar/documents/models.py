@@ -413,7 +413,7 @@ class ConsumerUnit(models.Model):
         null=True,
         blank=True,
     )
-    priodidade_is_porcentagem = models.BooleanField(
+    prioridade_is_porcentagem = models.BooleanField(
         default= True,
         verbose_name="Prioridade baseada em porcentagem",
         help_text="Se marcado, a prioridade será determinada pela porcentagem em vez do nível de prioridade."

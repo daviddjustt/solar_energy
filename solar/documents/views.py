@@ -360,15 +360,36 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
-        # Garante que estamos listando unidades consumidoras apenas para o projeto especificado
         project_pk = self.kwargs['project_pk']
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        return project.consumer_units.all()
+        return ListaDeMateriais.objects.filter(project__pk=project_pk)
+    
+    def create(self, request, *args, **kwargs):
+        project_pk = self.kwargs['project_pk']
+        try:
+            project = ClientProject.objects.get(pk=project_pk)
+        except ClientProject.DoesNotExist:
+            raise ValidationError({"detail": "Projeto não encontrado para o ID fornecido."})
+        
+        is_many = isinstance(request.data, list) # Permite o envio de vários objetos
+        serializer = self.get_serializer(data=request.data, many=is_many) # Se for uma lista, passamos many=True.
+        serializer.is_valid(raise_exception=True)
+
+        # Se many=True, o serializer.save() itera sobre a lista e cria cada um.
+        # Precisamos injetar o objeto 'project' em cada item antes de salvar.
+        if is_many:
+            # Para cada item validado, adiciona a referência ao projeto
+            for item_data in serializer.validated_data:
+                item_data['project'] = project
+            self.perform_create(serializer)
+        else:
+            serializer.save(project=project)
+
+        # Retorna a resposta com os dados criados e status 201 (Created)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        project_pk = self.kwargs['project_pk']
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        serializer.save(project=project)
+        serializer.save()
 
 class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -376,7 +397,7 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     serializer_class = ListaDeMateriais
     pagination_class = None
-    lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK da unidade consumidora
+    lookup_url_kwarg = 'pk'
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
@@ -387,10 +408,9 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         return [permission() for permission in permission_classes]
     def get_queryset(self):
-        # Garante que estamos operando em unidades consumidoras do projeto correto
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-        return project.consumer_units.all()
+        return ListaDeMateriais.objects.filter(project__pk=project_pk)
 
 # Nova view específica para documentos de pagamento
 class PaymentDocumentView(generics.RetrieveUpdateAPIView):
