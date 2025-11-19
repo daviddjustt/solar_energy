@@ -47,9 +47,9 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
 fi
 
 # Agora, execute makemigrations e migrate normalmente
-#echo "Executando python manage.py makemigrations --noinput..."
-#python manage.py makemigrations --noinput
-#echo ""
+echo "Executando python manage.py makemigrations --noinput..."
+python manage.py makemigrations --noinput
+echo ""
 
 echo "Executando python manage.py migrate --noinput..."
 python manage.py migrate --noinput
