@@ -77,6 +77,12 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'porcentagem': 'O campo "priority_level" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é True.'
                 })
+            
+        elif (priority_level and porcentagem) is not None : 
+            raise serializers.ValidationError({
+                    'porcentagem': 'Ambos os campos estão preenchidos.'
+                })
+            
         return data
 
         
