@@ -84,11 +84,8 @@ class Common(Configuration):
     # Postgres
     DATABASES = {
         'default': dj_database_url.config(
-        # Remova o argumento 'default' ou defina-o para um valor que não seja usado em produção.
-        # Por exemplo, para desenvolvimento local, você pode ter:
-        # default=os.getenv('DATABASE_URL_LOCAL', 'sqlite:///db.sqlite3'),
-        # Mas para produção, queremos que ele *sempre* use a variável de ambiente.
-        conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
+            default='postgres://postgres:@postgres:5432/postgres',
+            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
         )
     }
 
