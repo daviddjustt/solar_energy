@@ -88,7 +88,7 @@ class Common(Configuration):
             conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
         )
     }
-
+#
     # General
     APPEND_SLASH = False
     TIME_ZONE = 'America/Sao_Paulo'
