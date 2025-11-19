@@ -28,7 +28,7 @@ python manage.py collectstatic --noinput --clear
 
 echo ""
 # Define o nome da migração problemática e o app
-PROBLEM_MIGRATION="documents.0002_alter_clientproject_id_alter!_consumerunit_id_and_more..."
+PROBLEM_MIGRATION="none"
 APP_LABEL="documents"
 PREVIOUS_MIGRATION="0001_initial" # A migração que deveria vir antes da problemática
 
@@ -47,9 +47,9 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
 fi
 
 # Agora, execute makemigrations e migrate normalmente
-echo "Executando python manage.py makemigrations --noinput..."
-python manage.py makemigrations --noinput
-echo ""
+#echo "Executando python manage.py makemigrations --noinput..."
+#python manage.py makemigrations --noinput
+#echo ""
 
 echo "Executando python manage.py migrate --noinput..."
 python manage.py migrate --noinput
