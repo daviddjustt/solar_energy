@@ -21,7 +21,7 @@ from django.db import transaction
 from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
-
+from django.db.models import Q
 from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
