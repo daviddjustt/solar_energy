@@ -157,6 +157,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         super().save(*args, **kwargs)
         self._update_groups()
 
+    @property
+    def is_staff(self):
+        """
+        Verifica se o usuário é staff (pode acessar o admin).
+        Baseado no campo is_admin.
+        """
+        return self.is_admin
+    
+    # OPCIONAL: Setter para is_staff (para compatibilidade)
+    @is_staff.setter
+    def is_staff(self, value):
+        """
+        Permite definir is_staff, que na verdade altera is_admin.
+        """
+        self.is_admin = value
+
 
     def get_full_name(self):
             """Retorna o nome completo do usuário."""
@@ -189,7 +205,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         
     @property
     def is_admin(self):
-        return self.is_staff or self.is_superuser
+        return self.is_superuser
 
     @property
     def is_tecnico(self):
