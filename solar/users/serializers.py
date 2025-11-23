@@ -225,11 +225,5 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = (
-            'uuid', 'email', 'name', 'cnpj', 'cpf', 'celular',
-            'is_pessoa_juridica', 'is_active', 'is_staff', 'is_superuser',
-            'is_email_verified', 'last_login', 'date_joined',
-            'is_admin', 'is_tecnico', 'is_cliente', # Propriedades
-            'groups', # Campo relacionado
-        )
+        fields = '__all__'
         read_only_fields = fields
