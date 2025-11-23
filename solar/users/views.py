@@ -34,20 +34,14 @@ from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordRes
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-
-# Configure the logger
-logger = logging.getLogger(__name__)
-
-User = get_user_model()
-
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated]
-
+    model = User
     def get(self, request, user_type, *args, **kwargs):
         # Começa com todos os usuários ativos
         queryset = User.objects.filter(is_active=True)
 
-        if user_type == 'admin':
+        if User.is_admin == True:
             # Filtra por is_staff OU is_superuser para definir 'admin'
             queryset = queryset.filter(Q(is_staff=True) | Q(is_superuser=True))
         elif user_type == 'cliente':
