@@ -18,9 +18,15 @@ from django.http import JsonResponse
 from django.views import View
 from django.db import transaction
 
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
+
+
 from .models import User, UserChangeLog
 
-from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
 logger = logging.getLogger(__name__)
@@ -31,6 +37,27 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+class FilterPerRole(UserViewSet):
+
+    queryset = User.objects.all().order_by('-created_at')
+    serializer = UserSerializer(queryset.order_by('username'), many=True)
+
+    def get(self, request, user_type, *args, **kwargs):
+        queryset = User.objects.all()
+
+        if user_type == 'admin':
+            queryset = queryset.filter(is_admin=True)
+        elif user_type == 'cliente':
+            queryset = queryset.filter(is_cliente=True)
+        elif user_type == 'tecnico':
+            queryset = queryset.filter(is_tecnico=True)
+        else:
+            return Response(
+                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class CustomUserViewSet(UserViewSet):
     """
