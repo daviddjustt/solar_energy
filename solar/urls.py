@@ -90,7 +90,7 @@ urlpatterns = [
         name='documentuser-detail'
     ),
     path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
-    path('filter/clients/', ClientUserListView.as_view(), name='filtered-user-list'),
+    path('filter/clients/', ClientUserListView.as_view(), name='filtered-user-client-list'),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento

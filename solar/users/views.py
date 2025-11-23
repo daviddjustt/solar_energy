@@ -27,6 +27,7 @@ from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordRes
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
 class ClientUserListView(APIView):
     """
     Endpoint para listar todos os usuários que são clientes.
@@ -56,8 +57,7 @@ class ClientUserListView(APIView):
         # Serializa e retorna a lista de clientes
         serializer = UserDetailSerializer(queryset.order_by('name'), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-        
+    
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
