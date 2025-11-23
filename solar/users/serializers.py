@@ -85,15 +85,9 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = (
-            'uuid', 'email', 'name', 'cnpj', 'cpf', 'celular',
-            'is_pessoa_juridica', 'is_email_verified', 'is_active',
-            'is_staff', 'is_superuser', 'date_joined', 'last_login',
-            'is_admin', 'is_tecnico', 'is_cliente', # Inclua as propriedades
-            # 'groups' # Descomente se quiser incluir os grupos
-        )
+        fields = '__all__'
         read_only_fields = fields # Todos os campos são somente leitura para este serializer de detalhe/listagem
-        
+
 class UserSerializer(DjoserUserSerializer):
     """Serializer para exibição de usuários, estendendo o do Djoser."""
     # Adiciona campos customizados para exibição
