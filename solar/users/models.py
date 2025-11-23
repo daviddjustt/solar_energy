@@ -202,6 +202,20 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.groups.add(cliente_group)
         else:
             self.groups.remove(cliente_group)
+        
+    @property
+    def is_admin(self):
+        return self.is_staff or self.is_superuser
+
+    @property
+    def is_tecnico(self):
+        # Assumindo que 'Tecnicos' é um grupo
+        return self.groups.filter(name='Tecnicos').exists()
+
+    @property
+    def is_cliente(self):
+        # Assumindo que 'Clientes' é um grupo
+        return self.groups.filter(name='Clientes').exists()
 
 class Tecnico(User):
     """

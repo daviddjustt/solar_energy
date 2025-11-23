@@ -68,6 +68,27 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
             logger.error(f"Erro inesperado ao criar usuário: {e}", exc_info=True)
             raise DRFValidationError({"detail": str(e)})
 
+class UserDetailSerializer(serializers.ModelSerializer):
+    # Adicione campos de grupo para ver a quais grupos o usuário pertence
+    groups = serializers.StringRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = User
+        # Liste os campos que você quer expor.
+        # É uma boa prática não expor todos os campos, especialmente senhas ou hashes.
+        fields = (
+            'uuid', 'email', 'name', 'username', 'cnpj', 'cpf', 'celular',
+            'is_active', 'is_staff', 'is_superuser', 'is_admin', 'is_tecnico',
+            'is_cliente', 'is_pessoa_juridica', 'is_email_verified',
+            'date_joined', 'last_login', 'groups'
+        )
+        read_only_fields = (
+            'uuid', 'email', 'name', 'username', 'cnpj', 'cpf', 'celular',
+            'is_active', 'is_staff', 'is_superuser', 'is_admin', 'is_tecnico',
+            'is_cliente', 'is_pessoa_juridica', 'is_email_verified',
+            'date_joined', 'last_login', 'groups'
+        )
+
 class UserSerializer(DjoserUserSerializer):
     """Serializer para exibição de usuários, estendendo o do Djoser."""
     # Adiciona campos customizados para exibição

@@ -23,11 +23,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
-
+from django.db.models import Q
+from django.contrib.auth.models import Group
 
 from .models import User, UserChangeLog
 
-from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserSerializer
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
 logger = logging.getLogger(__name__)
@@ -39,44 +40,59 @@ logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
-class FilterAllClients(APIView): # Alterado para herdar de APIView
-    permission_classes = [IsAuthenticated] # Ajuste as permissões conforme sua necessidade
+class FilteredUserListView(APIView):
+    # Permissão: Apenas usuários autenticados e administradores podem acessar
+    # Você pode ajustar isso conforme sua política de segurança.
+    # Por exemplo, um técnico pode ver outros técnicos, mas não clientes.
+    permission_classes = [IsAuthenticated, IsAdminUser] # Mantendo IsAdminUser por enquanto
 
-    def get(self, request, *args, **kwargs): # Removido 'user_type' dos argumentos do método get, pois não está na URL para este endpoint
+    def get(self, request, user_type, *args, **kwargs):
         # Começa com todos os usuários ativos
         queryset = User.objects.filter(is_active=True)
 
-        # Filtra por is_cliente do seu modelo customizado
-        queryset = queryset.filter(is_cliente=True)
-
-        # Você pode adicionar mais filtros ou ordenação aqui, se necessário
-        # Exemplo: queryset = queryset.order_by('username')
-
-        serializer = UserSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-# Se você ainda tiver a FilteredUserListView que usa user_type na URL, ela pode continuar assim:
-class FilteredUserListView(APIView): # Mantendo como APIView
-    permission_classes = [IsAuthenticated] # Exemplo de permissão, ajuste conforme necessário
-
-    def get(self, request, user_type, *args, **kwargs):
-        queryset = User.objects.filter(is_active=True)
-
         if user_type == 'admin':
-            queryset = queryset.filter(is_staff=True) # Assumindo que 'is_staff' indica admin
-        elif user_type == 'cliente':
-            queryset = queryset.filter(is_cliente=True)
+            # Um usuário é 'admin' se for is_staff OU is_superuser
+            queryset = queryset.filter(Q(is_staff=True) | Q(is_superuser=True))
         elif user_type == 'tecnico':
-            queryset = queryset.filter(is_tecnico=True)
+            # Um usuário é 'tecnico' se for is_tecnico (propriedade que verifica grupo)
+            # Para filtrar por grupo, precisamos fazer um join com a tabela de grupos.
+            # Assumindo que 'is_tecnico' verifica a existência em um grupo 'Tecnicos'.
+            # Se você tem um campo booleano direto no modelo, use-o.
+            # Se 'is_tecnico' é uma propriedade baseada em grupo, o filtro direto não funciona.
+            # Vamos filtrar pelo grupo 'Tecnicos' diretamente.
+            try:
+                tecnico_group = Group.objects.get(name='Tecnicos')
+                queryset = queryset.filter(groups=tecnico_group)
+            except Group.DoesNotExist:
+                # Se o grupo 'Tecnicos' não existe, não há técnicos para listar.
+                queryset = User.objects.none() # Retorna um queryset vazio
+        elif user_type == 'cliente':
+            # Um usuário é 'cliente' se for is_cliente (propriedade que verifica grupo)
+            # Similar ao técnico, filtramos pelo grupo 'Clientes'.
+            try:
+                cliente_group = Group.objects.get(name='Clientes')
+                queryset = queryset.filter(groups=cliente_group)
+            except Group.DoesNotExist:
+                # Se o grupo 'Clientes' não existe, não há clientes para listar.
+                queryset = User.objects.none() # Retorna um queryset vazio
         else:
+            # Retorna um erro se o tipo de usuário for inválido
             return Response(
                 {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        serializer = UserSerializer(queryset.order_by('username'), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        # Se nenhum usuário for encontrado para o tipo especificado, retorna 404 Not Found
+        if not queryset.exists():
+            return Response(
+                {"detail": f"Nenhum usuário do tipo '{user_type}' encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Serializa o queryset e retorna a resposta
+        # Ordena por username para uma lista consistente
+        serializer = UserDetailSerializer(queryset.order_by('username'), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CustomUserViewSet(UserViewSet):
     """
