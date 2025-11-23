@@ -40,24 +40,39 @@ User = get_user_model()
 
 class FilterPerRole(UserViewSet):
 
-    queryset = User.objects.all().order_by('-created_at')
-    serializer = UserSerializer(queryset.order_by('username'), many=True)
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, user_type, *args, **kwargs):
-        queryset = User.objects.all()
+            # Começa com todos os usuários ativos
+            queryset = User.objects.filter(is_active=True)
 
-        if user_type == 'admin':
-            queryset = queryset.filter(is_admin=True)
-        elif user_type == 'cliente':
-            queryset = queryset.filter(is_cliente=True)
-        elif user_type == 'tecnico':
-            queryset = queryset.filter(is_tecnico=True)
-        else:
-            return Response(
-                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if user_type == 'admin':
+                # Filtra por is_admin do seu modelo customizado
+                queryset = queryset.filter(is_admin=True)
+            elif user_type == 'cliente':
+                # Filtra por is_cliente do seu modelo customizado
+                queryset = queryset.filter(is_cliente=True)
+            elif user_type == 'tecnico':
+                # Filtra por is_tecnico do seu modelo customizado
+                queryset = queryset.filter(is_tecnico=True)
+            else:
+                # Retorna um erro se o tipo de usuário for inválido
+                return Response(
+                    {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+            # Se nenhum usuário for encontrado para o tipo especificado, retorna 404 Not Found
+            if not queryset.exists():
+                return Response(
+                    {"detail": f"Nenhum usuário do tipo '{user_type}' encontrado."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Serializa o queryset e retorna a resposta
+            # Ordena por username para uma lista consistente
+            serializer = UserSerializer(queryset.order_by('username'), many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CustomUserViewSet(UserViewSet):
     """
