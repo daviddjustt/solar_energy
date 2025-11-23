@@ -68,26 +68,6 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
             logger.error(f"Erro inesperado ao criar usuário: {e}", exc_info=True)
             raise DRFValidationError({"detail": str(e)})
 
-class UserDetailSerializer(serializers.ModelSerializer):
-    """
-    Serializer detalhado para o modelo User, incluindo campos de modelo e propriedades.
-    Usado para exibir informações completas do usuário em listagens e detalhes.
-    """
-    # Campos de propriedade (ReadOnlyField para que não sejam editáveis via serializer)
-    is_admin = serializers.ReadOnlyField()
-    is_tecnico = serializers.ReadOnlyField()
-    is_cliente = serializers.ReadOnlyField()
-
-    # Se você quiser incluir os grupos aos quais o usuário pertence
-    # groups = serializers.StringRelatedField(many=True, read_only=True)
-    # Ou se quiser IDs dos grupos:
-    # groups = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-
-    class Meta:
-        model = User
-        fields = '__all__'
-        read_only_fields = fields # Todos os campos são somente leitura para este serializer de detalhe/listagem
-
 class UserSerializer(DjoserUserSerializer):
     """Serializer para exibição de usuários, estendendo o do Djoser."""
     # Adiciona campos customizados para exibição
