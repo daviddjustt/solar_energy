@@ -156,23 +156,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         self._normalize_text_fields()
         super().save(*args, **kwargs)
         self._update_groups()
-    
-    # CORREÇÃO PRINCIPAL: is_staff como property
-    @property
-    def is_staff(self):
-        """
-        Verifica se o usuário é staff (pode acessar o admin).
-        Baseado no campo is_admin.
-        """
-        return self.is_admin
-    
-    # OPCIONAL: Setter para is_staff (para compatibilidade)
-    @is_staff.setter
-    def is_staff(self, value):
-        """
-        Permite definir is_staff, que na verdade altera is_admin.
-        """
-        self.is_admin = value
+
 
     def get_full_name(self):
             """Retorna o nome completo do usuário."""

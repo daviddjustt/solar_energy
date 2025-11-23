@@ -44,7 +44,7 @@ class FilteredUserListView(APIView):
 
         if user_type == 'admin':
             # Filtra por is_staff OU is_superuser para definir 'admin'
-            queryset = queryset.filter(groups__name='Admin')
+            queryset = queryset.filter(groups__name='Administradores')
         elif user_type == 'cliente':
             # Filtra por associação ao grupo 'Clientes'
             queryset = queryset.filter(groups__name='Clientes')
