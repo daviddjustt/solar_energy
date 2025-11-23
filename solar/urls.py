@@ -8,7 +8,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from rest_framework.routers import DefaultRouter
-from solar.users.views import CustomUserViewSet, ActivateAccountView, FilteredUserListView
+from solar.users.views import CustomUserViewSet, ActivateAccountView, FilteredUserListView, FilterAllClients
 from django.views.static import serve
 from solar.documents.views import (
     ProjectViewSet,
@@ -90,6 +90,7 @@ urlpatterns = [
         name='documentuser-detail'
     ),
     path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
+    path('filter/client/', FilterAllClients.as_view(), name='filtered-user-list'),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
