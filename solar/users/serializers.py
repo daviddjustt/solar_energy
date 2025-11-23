@@ -204,3 +204,32 @@ class CustomUserDeleteSerializer(UserDeleteSerializer):
             # Se não for admin, a validação padrão do Djoser para current_password será aplicada
             # O UserDeleteSerializer base já faz a validação da senha
             return super().validate(attrs)
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer para exibir detalhes de usuários, incluindo propriedades customizadas
+    e campos relacionados.
+    """
+    # Campos de propriedade (ReadOnlyField para que não sejam editáveis via API)
+    is_admin = serializers.ReadOnlyField()
+    is_tecnico = serializers.ReadOnlyField()
+    is_cliente = serializers.ReadOnlyField()
+
+    # Para campos relacionados como 'groups', é melhor usar SlugRelatedField
+    # para exibir os nomes dos grupos em vez dos IDs.
+    groups = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='name' # Exibe o nome do grupo
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            'uuid', 'email', 'name', 'cnpj', 'cpf', 'celular',
+            'is_pessoa_juridica', 'is_active', 'is_staff', 'is_superuser',
+            'is_email_verified', 'last_login', 'date_joined',
+            'is_admin', 'is_tecnico', 'is_cliente', # Propriedades
+            'groups', # Campo relacionado
+        )
+        read_only_fields = fields
