@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 
 # Third-party imports
 from djoser.views import UserViewSet
+from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -38,41 +39,44 @@ logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
-class FilterPerRole(UserViewSet):
+class FilterAllClients(APIView): # Alterado para herdar de APIView
+    permission_classes = [IsAuthenticated] # Ajuste as permissões conforme sua necessidade
 
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    def get(self, request, *args, **kwargs): # Removido 'user_type' dos argumentos do método get, pois não está na URL para este endpoint
+        # Começa com todos os usuários ativos
+        queryset = User.objects.filter(is_active=True)
+
+        # Filtra por is_cliente do seu modelo customizado
+        queryset = queryset.filter(is_cliente=True)
+
+        # Você pode adicionar mais filtros ou ordenação aqui, se necessário
+        # Exemplo: queryset = queryset.order_by('username')
+
+        serializer = UserSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+# Se você ainda tiver a FilteredUserListView que usa user_type na URL, ela pode continuar assim:
+class FilteredUserListView(APIView): # Mantendo como APIView
+    permission_classes = [IsAuthenticated] # Exemplo de permissão, ajuste conforme necessário
 
     def get(self, request, user_type, *args, **kwargs):
-            # Começa com todos os usuários ativos
-            queryset = User.objects.filter(is_active=True)
+        queryset = User.objects.filter(is_active=True)
 
-            if user_type == 'admin':
-                # Filtra por is_admin do seu modelo customizado
-                queryset = queryset.filter(is_admin=True)
-            elif user_type == 'cliente':
-                # Filtra por is_cliente do seu modelo customizado
-                queryset = queryset.filter(is_cliente=True)
-            elif user_type == 'tecnico':
-                # Filtra por is_tecnico do seu modelo customizado
-                queryset = queryset.filter(is_tecnico=True)
-            else:
-                # Retorna um erro se o tipo de usuário for inválido
-                return Response(
-                    {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        if user_type == 'admin':
+            queryset = queryset.filter(is_staff=True) # Assumindo que 'is_staff' indica admin
+        elif user_type == 'cliente':
+            queryset = queryset.filter(is_cliente=True)
+        elif user_type == 'tecnico':
+            queryset = queryset.filter(is_tecnico=True)
+        else:
+            return Response(
+                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            # Se nenhum usuário for encontrado para o tipo especificado, retorna 404 Not Found
-            if not queryset.exists():
-                return Response(
-                    {"detail": f"Nenhum usuário do tipo '{user_type}' encontrado."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+        serializer = UserSerializer(queryset.order_by('username'), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-            # Serializa o queryset e retorna a resposta
-            # Ordena por username para uma lista consistente
-            serializer = UserSerializer(queryset.order_by('username'), many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CustomUserViewSet(UserViewSet):
     """
