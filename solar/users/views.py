@@ -3,7 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth import get_user_model
-
+from django.shortcuts import get_object_or_404
 # Third-party imports
 from djoser.views import UserViewSet
 from rest_framework.views import APIView
@@ -18,13 +18,7 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views import View
 from django.db import transaction
-
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
-from django.db.models import Q
-from django.contrib.auth.models import Group
+from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
 
@@ -35,7 +29,44 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+class FilteredUserListView(APIView):
+    permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
+    def get(self, request, user_type, *args, **kwargs):
+        # Apenas administradores podem acessar este endpoint
+        if not request.user.is_staff and not request.user.is_superuser:
+            return Response(
+                {"detail": "Você não tem permissão para acessar este recurso."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        queryset = User.objects.filter(is_active=True)
+
+        if user_type == 'admin':
+            # Filtra por is_staff OU is_superuser para definir 'admin'
+            queryset = queryset.filter(Q(is_staff=True) | Q(is_superuser=True))
+        elif user_type == 'cliente':
+            # Filtra por associação ao grupo 'Clientes'
+            queryset = queryset.filter(groups__name='Clientes')
+        elif user_type == 'tecnico':
+            # Filtra por associação ao grupo 'Tecnicos'
+            queryset = queryset.filter(groups__name='Tecnicos')
+        else:
+            return Response(
+                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not queryset.exists():
+            return Response(
+                {"detail": f"Nenhum usuário do tipo '{user_type}' encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Use o UserDetailSerializer aqui
+        serializer = UserDetailSerializer(queryset.order_by('name'), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
 class CustomUserViewSet(UserViewSet):
     """
     ViewSet personalizado que sobrescreve o UserViewSet do Djoser
