@@ -41,16 +41,14 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 class FilteredUserListView(APIView):
-    """
-    Endpoint para listar usuários filtrados por tipo (admin, cliente, tecnico).
-    """
-    permission_classes = [IsAuthenticated] # Ajuste as permissões conforme necessário
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, user_type, *args, **kwargs):
+        # Começa com todos os usuários ativos
         queryset = User.objects.filter(is_active=True)
 
         if user_type == 'admin':
-            # Filtra por is_staff ou is_superuser, que são os campos reais no modelo
+            # Filtra por is_staff OU is_superuser para definir 'admin'
             queryset = queryset.filter(Q(is_staff=True) | Q(is_superuser=True))
         elif user_type == 'cliente':
             # Filtra por associação ao grupo 'Clientes'
@@ -71,9 +69,8 @@ class FilteredUserListView(APIView):
             )
 
         # Use o UserDetailSerializer aqui
-        serializer = UserDetailSerializer(queryset.order_by('name'), many=True) # Ordena por nome para consistência
+        serializer = UserDetailSerializer(queryset.order_by('name'), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
 
 class CustomUserViewSet(UserViewSet):
     """

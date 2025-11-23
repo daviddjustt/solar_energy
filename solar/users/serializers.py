@@ -69,26 +69,31 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
             raise DRFValidationError({"detail": str(e)})
 
 class UserDetailSerializer(serializers.ModelSerializer):
-    # Adicione campos de grupo para ver a quais grupos o usuário pertence
-    groups = serializers.StringRelatedField(many=True, read_only=True)
+    """
+    Serializer detalhado para o modelo User, incluindo campos de modelo e propriedades.
+    Usado para exibir informações completas do usuário em listagens e detalhes.
+    """
+    # Campos de propriedade (ReadOnlyField para que não sejam editáveis via serializer)
+    is_admin = serializers.ReadOnlyField()
+    is_tecnico = serializers.ReadOnlyField()
+    is_cliente = serializers.ReadOnlyField()
+
+    # Se você quiser incluir os grupos aos quais o usuário pertence
+    # groups = serializers.StringRelatedField(many=True, read_only=True)
+    # Ou se quiser IDs dos grupos:
+    # groups = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = User
-        # Liste os campos que você quer expor.
-        # É uma boa prática não expor todos os campos, especialmente senhas ou hashes.
         fields = (
-            'uuid', 'email', 'name', 'username', 'cnpj', 'cpf', 'celular',
-            'is_active', 'is_staff', 'is_superuser', 'is_admin', 'is_tecnico',
-            'is_cliente', 'is_pessoa_juridica', 'is_email_verified',
-            'date_joined', 'last_login', 'groups'
+            'uuid', 'email', 'name', 'cnpj', 'cpf', 'celular',
+            'is_pessoa_juridica', 'is_email_verified', 'is_active',
+            'is_staff', 'is_superuser', 'date_joined', 'last_login',
+            'is_admin', 'is_tecnico', 'is_cliente', # Inclua as propriedades
+            # 'groups' # Descomente se quiser incluir os grupos
         )
-        read_only_fields = (
-            'uuid', 'email', 'name', 'username', 'cnpj', 'cpf', 'celular',
-            'is_active', 'is_staff', 'is_superuser', 'is_admin', 'is_tecnico',
-            'is_cliente', 'is_pessoa_juridica', 'is_email_verified',
-            'date_joined', 'last_login', 'groups'
-        )
-
+        read_only_fields = fields # Todos os campos são somente leitura para este serializer de detalhe/listagem
+        
 class UserSerializer(DjoserUserSerializer):
     """Serializer para exibição de usuários, estendendo o do Djoser."""
     # Adiciona campos customizados para exibição
