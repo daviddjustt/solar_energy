@@ -28,7 +28,37 @@ from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordRes
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+class OnlyClientes(APIView):
+    def get(self, request, user_type, *args, **kwargs):
+        # Apenas administradores podem acessar este endpoint
+        if not request.user.is_staff and not request.user.is_superuser:
+            return Response(
+                {"detail": "Você não tem permissão para acessar este recurso."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
+        queryset = User.objects.filter(is_active=True)
+        user_type == 'cliente'
+        
+        if user_type == 'cliente':
+            # Filtra por associação ao grupo 'Clientes'
+            queryset = queryset.filter(groups__name='Clientes')
+        else:
+            return Response(
+                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not queryset.exists():
+            return Response(
+                {"detail": f"Nenhum usuário do tipo '{user_type}' encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Use o UserDetailSerializer aqui
+        serializer = UserDetailSerializer(queryset.order_by('name'), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
