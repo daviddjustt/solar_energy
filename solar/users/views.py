@@ -22,7 +22,7 @@ from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
 from django.db.models import Q
-from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, UserDetailSerializer2
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class ClientUserListView(APIView):
             )
 
         # Serializa e retorna a lista de clientes
-        serializer = UserDetailSerializer(queryset.order_by('name'), many=True)
+        serializer = UserDetailSerializer2(queryset.order_by('name'), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 class FilteredUserListView(APIView):
