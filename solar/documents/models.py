@@ -516,7 +516,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         default=IN_ANALYSIS, # Documentos recém-enviados começam "Em Análise"
         verbose_name="Status do Documento"
     )
-    # rejection_reason = models.TextField(blank=True,null=True,verbose_name="Motivo da rejeição")
+    rejection_reason = models.TextField(blank=True,null=True,verbose_name="Motivo da rejeição")
     # `uploaded_at` é fornecido por BaseModel.created_at
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
     
