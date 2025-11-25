@@ -145,11 +145,14 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
     valor_total = serializers.ReadOnlyField()
     resumo_financeiro = serializers.ReadOnlyField()
     voltagem = VoltageField()
-
-    # Campos para documentos de pagamento
-    boleto = serializers.SerializerMethodField()
-    comprovante_pagamento = serializers.SerializerMethodField()
     voltagem_label = serializers.SerializerMethodField()
+
+    boleto_info = serializers.SerializerMethodField()
+    comprovante_pagamento_info = serializers.SerializerMethodField()
+    payment_status_summary = serializers.ReadOnlyField()
+    payment_status_label = serializers.ReadOnlyField()
+    is_payment_complete = serializers.ReadOnlyField()
+
     
     class Meta:
         model = ClientProject
@@ -163,32 +166,35 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             if field_name in self.fields:
                 self.fields[field_name].read_only = True
 
-    def get_boleto(self, obj):
-        """Retorna informações do boleto"""
-        boleto = obj.documents.filter(document_type='boleto').first()
-        if boleto:
-            return {
-                'id': boleto.id,
-                'file_url': boleto.arquivo.url if boleto.arquivo else None,
-                'status': boleto.status,
-                'created_at': boleto.created_at,
-                'can_edit': self._can_edit_boleto()
-            }
-        return None
-
     def get_voltagem_label(self, obj):
         """Retorna o label formatado para exibição"""
         return obj.voltagem
     
-    def get_comprovante_pagamento(self, obj):
-        """Retorna informações do comprovante"""
-        comprovante = obj.documents.filter(document_type='comprovante_de_pagamento').first()
-        if comprovante:
+    def get_boleto_info(self, obj):
+        """Retorna informações do boleto do projeto"""
+        if obj.boleto:
             return {
-                'id': comprovante.id,
-                'file_url': comprovante.arquivo.url if comprovante.arquivo else None,
-                'status': comprovante.status,
-                'can_edit': self._can_edit_comprovante(obj)
+                'file_url': obj.boleto.url,
+                'status': obj.boleto_status,
+                'status_display': obj.get_boleto_status_display(),
+                'uploaded_at': obj.boleto_uploaded_at,
+                'approved_at': obj.boleto_approved_at,
+                'can_edit': self._can_edit_boleto(),
+                'days_since_upload': obj.days_since_boleto_upload
+            }
+        return None
+
+    def get_comprovante_pagamento_info(self, obj):
+        """Retorna informações do comprovante de pagamento"""
+        if obj.comprovante_pagamento:
+            return {
+                'file_url': obj.comprovante_pagamento.url,
+                'status': obj.comprovante_pagamento_status,
+                'status_display': obj.get_comprovante_pagamento_status_display(),
+                'uploaded_at': obj.comprovante_pagamento_uploaded_at,
+                'approved_at': obj.comprovante_pagamento_approved_at,
+                'can_edit': self._can_edit_comprovante(obj),
+                'days_since_upload': obj.days_since_comprovante_upload
             }
         return None
 
@@ -209,11 +215,10 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         # Cliente pode editar se for o dono do projeto, admin/técnico sempre podem
         return (user.is_cliente and project.created_by == user) or user.is_admin or user.is_tecnico or user.is_superuser
 
-    def validate_money(self, data):
-        """Validação customizada no serializer"""
+    def validate(self, data):
+        """Validação customizada"""
         tipo_financeiro = data.get('tipo_financeiro')
         parcelas = data.get('parcelas')
-        valor_financeiro = data.get('valor_financeiro')
 
         # Validar parcelas para mensalidade
         if tipo_financeiro == 'mensalidade':
@@ -225,31 +230,16 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
             # Se não for mensalidade, remove parcelas
             data['parcelas'] = None
 
+        # Validação de comprovante sem boleto
+        if data.get('comprovante_pagamento') and not data.get('boleto'):
+            # Se está criando, verifica se já existe boleto na instância
+            if self.instance and not self.instance.boleto:
+                raise serializers.ValidationError({
+                    'comprovante_pagamento': 'Não é possível enviar um comprovante de pagamento sem um boleto associado.'
+                })
+
         return data
     
-
-    def to_representation_money(self, instance):
-        """Customiza a representação para incluir informações financeiras"""
-        data = super().to_representation_money(instance)
-        
-        # Informações do usuário criador
-        if instance.created_by:
-            data['created_by_info'] = {
-                'uuid': str(instance.created_by.uuid),
-                'name': instance.created_by.name,
-                'email': instance.created_by.email
-            }
-        
-        # Informações financeiras formatadas
-        data['financeiro_info'] = {
-            'tipo': instance.get_tipo_financeiro_display(),
-            'valor_formatado': f"R$ {instance.valor_financeiro:,.2f}",
-            'parcelas': instance.parcelas if instance.tipo_financeiro == 'mensalidade' else None,
-            'valor_total_formatado': f"R$ {instance.valor_total:,.2f}",
-            'resumo': instance.resumo_financeiro
-        }
-        
-        return data
 
     def to_representation_user(self, instance):
         """Customiza a representação para incluir informações do usuário"""
@@ -331,6 +321,13 @@ class ProjectListSerializer(serializers.ModelSerializer):
     documents_count = serializers.SerializerMethodField()
     consumer_units_count = serializers.SerializerMethodField()
     voltagem = VoltageField()
+
+    # Status de pagamento
+    has_boleto = serializers.ReadOnlyField()
+    has_comprovante = serializers.ReadOnlyField()
+    payment_status_summary = serializers.ReadOnlyField()
+    payment_status_label = serializers.ReadOnlyField()
+    is_payment_complete = serializers.ReadOnlyField()
 
     class Meta:
         model = ClientProject
