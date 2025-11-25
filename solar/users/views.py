@@ -28,42 +28,54 @@ from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordRes
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-# solar/users/views.py
-class FilteredUserListView(APIView):
+class ClientUserListView(APIView):
     """
-    GET /filter/{user_type}/
-    Retorna lista de usuários filtrados por tipo
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_type, *args, **kwargs):
-        # Apenas admin pode acessar
+        """
+        Lista usuários do tipo especificado.
+        Não recebe body request - apenas query parameters opcionais.
+        """
+        # Apenas administradores e superusuários podem acessar
         if not (request.user.is_admin or request.user.is_superuser):
             return Response(
-                {"detail": "Você não tem permissão para acessar este recurso."},
+                {
+                    "error": "Permissão negada",
+                    "detail": "Você não tem permissão para acessar este recurso."
+                },
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Filtrar usuários ativos
+        # Filtra usuários ativos
         queryset = User.objects.filter(is_active=True)
 
-        # Filtrar por tipo usando CAMPOS BOOLEANOS
+        # Filtrar por tipo usando os campos booleanos
         if user_type == 'admin':
             queryset = queryset.filter(is_admin=True)
         elif user_type == 'cliente':
-            queryset = queryset.filter(is_cliente=True)  # ✅ Usa is_cliente direto
+            queryset = queryset.filter(is_cliente=True)
         elif user_type == 'tecnico':
             queryset = queryset.filter(is_tecnico=True)
         else:
             return Response(
-                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                {
+                    "error": "Tipo inválido",
+                    "detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Ordenar por nome
         queryset = queryset.distinct().order_by('name')
 
         # Serializar e retornar
-        serializer = UserDetailSerializer(queryset, many=True, context={'request': request})
+        serializer = UserDetailSerializer(
+            queryset, 
+            many=True, 
+            context={'request': request}
+        )
 
         return Response(
             {
@@ -73,7 +85,7 @@ class FilteredUserListView(APIView):
             },
             status=status.HTTP_200_OK
         )
-
+    
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
