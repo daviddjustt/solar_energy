@@ -28,37 +28,52 @@ from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordRes
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-class ClientUserListView(APIView):
+# solar/users/views.py
+class FilteredUserListView(APIView):
     """
-    Endpoint para listar todos os usuários que são clientes.
-    Não recebe parâmetros, apenas retorna a lista de clientes ativos.
+    GET /filter/{user_type}/
+    Retorna lista de usuários filtrados por tipo
     """
-    permission_classes = [IsAuthenticated] # Apenas usuários autenticados podem acessar
-    def get(self, request, *args, **kwargs):
-        user_type = 'cliente'
-        # Verifica se o usuário que faz a requisição é admin
-        # (Opcional: remova esta verificação se qualquer usuário autenticado puder ver a lista de clientes)
-        if not request.user.is_admin:
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_type, *args, **kwargs):
+        # Apenas admin pode acessar
+        if not (request.user.is_admin or request.user.is_superuser):
             return Response(
                 {"detail": "Você não tem permissão para acessar este recurso."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        if user_type == 'cliente':
-            # Filtra por associação ao grupo 'Clientes'
-            queryset = queryset.filter(groups__name='Clientes')
+        # Filtrar usuários ativos
+        queryset = User.objects.filter(is_active=True)
 
-        # Verifica se existem clientes
-        if not queryset.exists():
+        # Filtrar por tipo usando CAMPOS BOOLEANOS
+        if user_type == 'admin':
+            queryset = queryset.filter(is_admin=True)
+        elif user_type == 'cliente':
+            queryset = queryset.filter(is_cliente=True)  # ✅ Usa is_cliente direto
+        elif user_type == 'tecnico':
+            queryset = queryset.filter(is_tecnico=True)
+        else:
             return Response(
-                {"detail": "Nenhum usuário cliente encontrado."},
-                status=status.HTTP_404_NOT_FOUND
+                {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Serializa e retorna a lista de clientes
-        serializer = UserDetailSerializer2(queryset.order_by('name'), many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
+        queryset = queryset.distinct().order_by('name')
+
+        # Serializar e retornar
+        serializer = UserDetailSerializer(queryset, many=True, context={'request': request})
+
+        return Response(
+            {
+                "count": queryset.count(),
+                "user_type": user_type,
+                "results": serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 

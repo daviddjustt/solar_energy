@@ -227,7 +227,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         model = User
         fields = '__all__'
 
-class UserDetailSerializer2(serializers.ModelSerializer):
+class UserDetailSerializer(serializers.ModelSerializer):
     """
     Serializer para exibir detalhes de usuários, incluindo propriedades customizadas
     e campos relacionados.
