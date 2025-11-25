@@ -470,8 +470,8 @@ class ListaDeMateriais(models.Model):
     )
     
     # Campos relacionados aos módulos fotovoltáicos 
-    nome = models.CharField(
-        verbose_name="Quantidade de Módulos Fotovoltaicos",
+    tipo = models.CharField(
+        verbose_name="Tipo do Inversor ou Módulo",
         max_length=50,
         blank=True,
         null=True,
