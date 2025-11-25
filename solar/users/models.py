@@ -51,7 +51,7 @@ class UserManager(BaseUserManager):
                 cnpj=cnpj,
                 cpf=cpf,
                 celular=celular,
-                is_cliente=False,
+                is_cliente=True,
                 **extra_fields
             )
             user.set_password(password)
@@ -177,8 +177,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         self.is_admin = value
     
-
-
     def get_full_name(self):
             """Retorna o nome completo do usuário."""
             return self.name.strip()
