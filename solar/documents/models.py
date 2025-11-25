@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, FileExtensionValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 import os
@@ -46,6 +46,12 @@ class ClientProject(models.Model):
     FINANCEIRO_CHOICES = [
         ('valor_unico', 'Valor Único'),
         ('mensalidade', 'Mensalidade'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        ('IN_ANALYSIS', 'Em Análise'),
+        ('APPROVED', 'Aprovado'),
+        ('REJECTED', 'Rejeitado'),
     ]
 
     # Informações básicas do projeto
@@ -178,6 +184,85 @@ class ClientProject(models.Model):
         help_text='Obrigatório apenas para mensalidade'
     )
 
+    boleto = models.ImageField(
+        upload_to='projects/boletos/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name="Boleto",
+        help_text="Upload do boleto de pagamento (imagem ou PDF convertido)",
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=['jpg', 'jpeg', 'png', 'pdf'],
+                message='Apenas arquivos JPG, JPEG, PNG ou PDF são permitidos.'
+            )
+        ]
+    )
+
+    boleto_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default='IN_ANALYSIS',
+        verbose_name="Status do Boleto",
+        help_text="Status da análise do boleto"
+    )
+
+    boleto_uploaded_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Data de Upload do Boleto",
+        help_text="Data/hora em que o boleto foi enviado"
+    )
+
+    boleto_approved_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Data de Aprovação do Boleto"
+    )
+
+    # COMPROVANTE DE PAGAMENTO
+    comprovante_pagamento = models.ImageField(
+        upload_to='projects/comprovantes/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name="Comprovante de Pagamento",
+        help_text="Upload do comprovante de pagamento relacionado ao boleto",
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=['jpg', 'jpeg', 'png', 'pdf'],
+                message='Apenas arquivos JPG, JPEG, PNG ou PDF são permitidos.'
+            )
+        ]
+    )
+
+    comprovante_pagamento_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default='IN_ANALYSIS',
+        verbose_name="Status do Comprovante",
+        help_text="Status da análise do comprovante de pagamento"
+    )
+
+    comprovante_pagamento_uploaded_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Data de Upload do Comprovante",
+        help_text="Data/hora em que o comprovante foi enviado"
+    )
+
+    comprovante_pagamento_approved_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Data de Aprovação do Comprovante"
+    )
+
+    # Campo para observações/motivo de rejeição
+    payment_rejection_reason = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Motivo da Rejeição",
+        help_text="Motivo da rejeição do boleto ou comprovante (se aplicável)"
+    )
+
     # Metadados
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -295,11 +380,69 @@ class ClientProject(models.Model):
                 'longSeg': 'Segundos da Longitude devem estar entre 0 e 59.'
             })
 
+        # Validação: Comprovante só pode ser enviado se houver boleto
+        if self.comprovante_pagamento and not self.boleto:
+            raise ValidationError({
+                'comprovante_pagamento': 'Não é possível enviar um comprovante de pagamento sem um boleto associado.'
+            })
+
+        # Validação: Se comprovante foi aprovado, boleto também deve estar aprovado ou em análise
+        if self.comprovante_pagamento_status == 'APPROVED' and self.boleto_status == 'REJECTED':
+            raise ValidationError({
+                'comprovante_pagamento_status': 'O comprovante não pode ser aprovado se o boleto foi rejeitado.'
+            })
 
     def save(self, *args, **kwargs):
-        """Override do save"""
+        """Override do save com lógica de negócio"""
+
+        # Registrar data de upload do boleto
+        if self.boleto and not self.boleto_uploaded_at:
+            self.boleto_uploaded_at = timezone.now()
+
+        # Registrar data de upload do comprovante
+        if self.comprovante_pagamento and not self.comprovante_pagamento_uploaded_at:
+            self.comprovante_pagamento_uploaded_at = timezone.now()
+
+        # Registrar data de aprovação do boleto
+        if self.boleto_status == 'APPROVED' and not self.boleto_approved_at:
+            self.boleto_approved_at = timezone.now()
+
+        # Registrar data de aprovação do comprovante
+        if self.comprovante_pagamento_status == 'APPROVED' and not self.comprovante_pagamento_approved_at:
+            self.comprovante_pagamento_approved_at = timezone.now()
+
+        # Executar validações
         self.full_clean()
+
+        # Salvar
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Override do delete para remover arquivos físicos (LGPD)"""
+
+        # Guardar referências aos arquivos
+        boleto_path = self.boleto.path if self.boleto else None
+        comprovante_path = self.comprovante_pagamento.path if self.comprovante_pagamento else None
+
+        # Deletar o registro do banco
+        super().delete(*args, **kwargs)
+
+        # Remover arquivo do boleto
+        if boleto_path and os.path.isfile(boleto_path):
+            try:
+                os.remove(boleto_path)
+                print(f"✅ Boleto removido: {boleto_path}")
+            except Exception as e:
+                print(f"⚠️ Erro ao deletar boleto: {e}")
+
+        # Remover arquivo do comprovante
+        if comprovante_path and os.path.isfile(comprovante_path):
+            try:
+                os.remove(comprovante_path)
+                print(f"✅ Comprovante removido: {comprovante_path}")
+            except Exception as e:
+                print(f"⚠️ Erro ao deletar comprovante: {e}")
+
 
     class Meta:
         ordering = ['-created_at']
@@ -362,6 +505,80 @@ class ClientProject(models.Model):
         )
         self.documetacaoCompleta = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
         self.save(update_fields=['documetacaoCompleta']) # Salva apenas o campo atualizado
+
+    @property
+    def has_boleto(self):
+        """Verifica se há um boleto anexado"""
+        return bool(self.boleto)
+
+    @property
+    def has_comprovante(self):
+        """Verifica se há um comprovante de pagamento anexado"""
+        return bool(self.comprovante_pagamento)
+
+    @property
+    def is_payment_complete(self):
+        """
+        Verifica se o pagamento está completo.
+        Requer: boleto E comprovante ambos aprovados
+        """
+        return (
+            self.has_boleto and 
+            self.has_comprovante and
+            self.boleto_status == 'APPROVED' and
+            self.comprovante_pagamento_status == 'APPROVED'
+        )
+
+    @property
+    def payment_status_summary(self):
+        """
+        Retorna um resumo do status do pagamento
+        """
+        if not self.has_boleto:
+            return 'BOLETO_PENDENTE'
+
+        if not self.has_comprovante:
+            return 'COMPROVANTE_PENDENTE'
+
+        if self.boleto_status == 'REJECTED' or self.comprovante_pagamento_status == 'REJECTED':
+            return 'PAGAMENTO_REJEITADO'
+
+        if self.boleto_status == 'APPROVED' and self.comprovante_pagamento_status == 'APPROVED':
+            return 'PAGAMENTO_COMPLETO'
+
+        if self.boleto_status == 'IN_ANALYSIS' or self.comprovante_pagamento_status == 'IN_ANALYSIS':
+            return 'EM_ANALISE'
+
+        return 'PENDENTE'
+
+    @property
+    def payment_status_label(self):
+        """Retorna um label legível do status do pagamento"""
+        status_labels = {
+            'BOLETO_PENDENTE': 'Aguardando envio do boleto',
+            'COMPROVANTE_PENDENTE': 'Aguardando envio do comprovante de pagamento',
+            'PAGAMENTO_REJEITADO': 'Pagamento rejeitado - Verificar motivo',
+            'PAGAMENTO_COMPLETO': 'Pagamento aprovado e completo',
+            'EM_ANALISE': 'Pagamento em análise',
+            'PENDENTE': 'Pagamento pendente'
+        }
+        return status_labels.get(self.payment_status_summary, 'Status desconhecido')
+
+    @property
+    def days_since_boleto_upload(self):
+        """Retorna quantos dias se passaram desde o upload do boleto"""
+        if self.boleto_uploaded_at:
+            delta = timezone.now() - self.boleto_uploaded_at
+            return delta.days
+        return None
+
+    @property
+    def days_since_comprovante_upload(self):
+        """Retorna quantos dias se passaram desde o upload do comprovante"""
+        if self.comprovante_pagamento_uploaded_at:
+            delta = timezone.now() - self.comprovante_pagamento_uploaded_at
+            return delta.days
+        return None
  
     def __str__(self):
         return f"{self.codigoCliente} - {self.nomeTitular} (Criado por: {self.created_by_name})"
@@ -388,6 +605,7 @@ class ClientProject(models.Model):
         """Override do save para executar validações"""
         self.full_clean()
         super().save(*args, **kwargs)
+
 
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
@@ -450,6 +668,7 @@ class ConsumerUnit(models.Model):
                 raise ValidationError({
                     'priority_level': f"O nível de prioridade deve ser entre 1 e {max_allowed_priority} para este projeto."
                 })
+            
 
     def validate(self):
         super().validate()

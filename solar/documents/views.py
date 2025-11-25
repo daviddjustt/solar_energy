@@ -25,7 +25,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gerenciar projetos.
     Permite criar, listar, recuperar, atualizar e deletar projetos.
-    O campo 'codigoCliente' é esperado no corpo da requisição para operações de criação/atualização.
+    O campo 'uuid' é esperado no corpo da requisição para operações de criação/atualização.
     As operações de detalhe (retrieve, update, destroy) usam o 'pk' (ID) do projeto na URL.
     """
     queryset = ClientProject.objects.all().order_by('-created_at')
