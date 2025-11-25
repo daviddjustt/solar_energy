@@ -226,23 +226,3 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
-
-class UserDetailSerializer(serializers.ModelSerializer):
-    """
-    Serializer para exibir detalhes de usuários, incluindo propriedades customizadas
-    e campos relacionados.
-    """
-    # Campos de propriedade (ReadOnlyField para que não sejam editáveis via API)
-    is_cliente = serializers.ReadOnlyField()
-
-    # Para campos relacionados como 'groups', é melhor usar SlugRelatedField
-    # para exibir os nomes dos grupos em vez dos IDs.
-    groups = serializers.SlugRelatedField(
-        many=True,
-        read_only=True,
-        slug_field='name' # Exibe o nome do grupo
-    )
-
-    class Meta:
-        model = User
-        fields = '__all__'
