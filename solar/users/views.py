@@ -83,7 +83,7 @@ class CustomUserViewSet(UserViewSet):
             self.throttle_classes = [GeneralUserThrottle]
         
         return super().get_throttles()
-    
+    #
     def get_serializer_context(self):
         """
         Adiciona o request ao contexto do serializador para acesso ao usuário atual.
