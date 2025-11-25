@@ -32,7 +32,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
-    filterset_fields = ['codigoCliente']
+    filterset_fields = ['created_by']
 
     def get_queryset(self):
         """
