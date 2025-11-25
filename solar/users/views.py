@@ -34,8 +34,8 @@ class ClientUserListView(APIView):
     Não recebe parâmetros, apenas retorna a lista de clientes ativos.
     """
     permission_classes = [IsAuthenticated] # Apenas usuários autenticados podem acessar
-
     def get(self, request, *args, **kwargs):
+        user_type = 'cliente'
         # Verifica se o usuário que faz a requisição é admin
         # (Opcional: remova esta verificação se qualquer usuário autenticado puder ver a lista de clientes)
         if not request.user.is_admin:
@@ -44,8 +44,9 @@ class ClientUserListView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Filtra usuários que são clientes e estão ativos
-        queryset = User.objects.filter(is_cliente=True, is_active=True)
+        if user_type == 'cliente':
+            # Filtra por associação ao grupo 'Clientes'
+            queryset = queryset.filter(groups__name='Clientes')
 
         # Verifica se existem clientes
         if not queryset.exists():
