@@ -274,6 +274,8 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     """
     Lista todos os documentos de um projeto específico ou faz upload de um novo documento.
     O upload de um documento do mesmo tipo para o mesmo projeto irá atualizá-lo.
+
+    URL: /api/v1/projects/{project_pk}/documents/
     """
     serializer_class = DocumentUploadSerializer
     permission_classes = [IsAuthenticated]
@@ -284,7 +286,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
 
-        # Filtrar por document_type se fornecido na query string
         queryset = project.documents.all()
         document_type = self.request.query_params.get('document_type')
 
@@ -293,18 +294,38 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
         return queryset.order_by('-created_at')
 
+    def get_serializer_context(self):
+        """
+        ✅ Passa o projeto no contexto do serializer.
+        Assim o serializer pode acessá-lo durante a validação.
+        """
+        context = super().get_serializer_context()
+
+        # Adiciona o projeto ao contexto
+        project_pk = self.kwargs.get('project_pk')
+        if project_pk:
+            project = get_object_or_404(ClientProject, pk=project_pk)
+            context['project'] = project
+
+        return context
+
     def create(self, request, *args, **kwargs):
         """
-        ✅ Override completo do método create para implementar lógica de update-or-create.
+        ✅ Implementa lógica de update-or-create.
+        O project_pk vem da URL, não do body.
         """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
 
-        # Adiciona o project aos dados
-        data = request.data.copy()
-        data['project'] = project.id
+        # ❌ NÃO adiciona project aos dados (ele vem da URL!)
+        # Os dados do body são usados diretamente
+        document_type = request.data.get('document_type')
 
-        document_type = data.get('document_type')
+        if not document_type:
+            return Response(
+                {'document_type': ['Este campo é obrigatório.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # ===== LÓGICA DE UPDATE-OR-CREATE =====
         # Verifica se já existe um documento deste tipo para o projeto
@@ -315,9 +336,15 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
         if existing_doc:
             # ✅ Atualiza o documento existente (re-upload)
-            serializer = self.get_serializer(existing_doc, data=data, partial=False)
+            serializer = self.get_serializer(
+                existing_doc,
+                data=request.data,
+                partial=False
+            )
             serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
+
+            # Salva passando o projeto explicitamente
+            self.perform_update(serializer, project)
 
             return Response(
                 serializer.data,
@@ -326,9 +353,11 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             )
         else:
             # ✅ Cria um novo documento
-            serializer = self.get_serializer(data=data)
+            serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+
+            # Salva passando o projeto explicitamente
+            self.perform_create(serializer, project)
 
             return Response(
                 serializer.data,
@@ -336,34 +365,38 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 headers=self.get_success_headers(serializer.data)
             )
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer, project):
         """
-        ✅ Simplesmente salva. Validações já foram feitas no serializer.
+        ✅ Cria o documento associado ao projeto.
+        O projeto vem da URL (project_pk), não do body.
         """
         # Se o status não foi fornecido, define como IN_ANALYSIS
         if 'status' not in serializer.validated_data:
-            serializer.save(status='IN_ANALYSIS')
+            serializer.save(project=project, status='IN_ANALYSIS')
         else:
-            serializer.save()
+            serializer.save(project=project)
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer, project):
         """
         ✅ Atualiza o documento. Reseta status se arquivo for alterado.
         """
         # Se um novo arquivo foi enviado, reseta o status
         if 'arquivo' in serializer.validated_data:
             serializer.save(
+                project=project,  # ✅ Garante que o projeto não muda
                 status='IN_ANALYSIS',
                 is_approved=False,
                 rejection_reason=None
             )
         else:
-            serializer.save()
+            serializer.save(project=project)
 
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Recupera, atualiza ou exclui um documento específico de um projeto.
+
+    URL: /api/v1/projects/{project_pk}/documents/{pk}/
     """
     serializer_class = DocumentUploadSerializer
     permission_classes = [IsAuthenticated]
@@ -375,12 +408,24 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         project = get_object_or_404(ClientProject, pk=project_pk)
         return project.documents.all()
 
+    def get_serializer_context(self):
+        """Passa o projeto no contexto do serializer."""
+        context = super().get_serializer_context()
+
+        project_pk = self.kwargs.get('project_pk')
+        if project_pk:
+            project = get_object_or_404(ClientProject, pk=project_pk)
+            context['project'] = project
+
+        return context
+
     def perform_update(self, serializer):
         """
         ✅ Validações de permissão para atualização.
         """
         user = self.request.user
         document = self.get_object()
+        project = document.project
 
         # Validações de permissão
         if document.document_type == 'boleto':
@@ -398,12 +443,13 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Se um novo arquivo for fornecido, reseta o status
         if 'arquivo' in serializer.validated_data:
             serializer.save(
+                project=project,  # ✅ Mantém o projeto original
                 status='IN_ANALYSIS',
                 is_approved=False,
                 rejection_reason=None
             )
         else:
-            serializer.save()
+            serializer.save(project=project)
 
     def perform_destroy(self, instance):
         """
