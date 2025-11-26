@@ -210,14 +210,14 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         """
         ✅ Sobrescreve create para injetar o project do contexto.
         """
-        project = self.context.get('project')
+        project = self.context.get('project_pk')
 
         if not project:
             raise serializers.ValidationError(
                 "O projeto deve ser fornecido no contexto para criar um documento."
             )
 
-        validated_data['project'] = project
+        validated_data['project_pk'] = project
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
