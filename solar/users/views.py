@@ -24,6 +24,7 @@ from .models import User, UserChangeLog
 from django.db.models import Q
 from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, ClientListSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
+from django.contrib.auth.models import Group
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

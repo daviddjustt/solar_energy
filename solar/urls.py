@@ -89,8 +89,8 @@ urlpatterns = [
         DocumentUserRetrieveUpdateDestroyView.as_view(),
         name='documentuser-detail'
     ),
-    path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
     path('filter/clients/', ClientListView.as_view(), name='filtered-user-client-list'),
+    path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
