@@ -102,10 +102,6 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     Serializer para upload de documentos em projetos.
     Gerencia permissões por tipo de usuário e tipo de documento.
     """
-
-    # Campos read-only (se existirem no modelo)
-    project = serializers.PrimaryKeyRelatedField(read_only=True)
-    is_approved = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     approved_at = serializers.DateTimeField(read_only=True)
@@ -118,8 +114,6 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
-            'is_approved', 
-            'project',
             'created_at',
             'updated_at',
             'approved_at',
