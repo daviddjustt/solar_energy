@@ -55,27 +55,29 @@ class ClientListView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Buscar usuários que estão APENAS no grupo 'Clientes'
+        # Buscar usuários que estão no grupo 'Clientes'
         try:
             clientes_group = Group.objects.get(name='Clientes')
 
-            # Anotar cada usuário com a contagem de grupos
+            # Buscar todos os usuários do grupo Clientes
             users = User.objects.filter(
                 groups=clientes_group,
                 is_active=True
-            ).annotate(
-                num_groups=Count('groups')
-            ).filter(
-                num_groups=1  # ✅ APENAS 1 grupo
-            ).distinct().order_by('name')
+            ).prefetch_related('groups').order_by('name')
+
+            # ✅ Filtrar em Python: apenas aqueles com EXATAMENTE 1 grupo
+            users_filtered = [
+                user for user in users 
+                if user.groups.count() == 1
+            ]
 
             # Serializar os dados
-            serializer = ClientListSerializer(users, many=True)
+            serializer = ClientListSerializer(users_filtered, many=True)
 
             return Response(
                 {
                     "success": True,
-                    "count": users.count(),
+                    "count": len(users_filtered),
                     "message": "Usuários que estão APENAS no grupo 'Clientes'",
                     "results": serializer.data
                 },
