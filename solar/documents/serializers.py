@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais
 from .utils import VOLTAGEM_LABELS, VOLTAGEM_MAP
+from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
 class VoltageField(serializers.CharField):
     """
@@ -97,48 +98,136 @@ class ListaDeMateriaisSerializer(serializers.ModelSerializer):
 # Serializer para Upload de Documentos
 
 class DocumentUploadSerializer(serializers.ModelSerializer):
+    """
+    Serializer para upload de documentos em projetos.
+    Gerencia permissões por tipo de usuário e tipo de documento.
+    """
 
-        class Meta:
-            model = ProjectDocument
-            fields = "__all__"
-            read_only_fields = [
-                'is_approved', 'project',
-            ]
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            request = self.context.get('request')
-            if request and hasattr(request, 'user'):
-                user = request.user
-                
-                # Controle de permissões por tipo de documento
-                if hasattr(self, 'initial_data') and self.initial_data:
-                    document_type = self.initial_data.get('document_type')
-                    
-                    # Cliente não pode criar/editar boleto
-                    if user.is_cliente and document_type == 'boleto':
-                        raise serializers.ValidationError({
-                            'document_type': 'Clientes não podem criar ou editar boletos.'
-                        })
+    # Campos read-only (se existirem no modelo)
+    project = serializers.PrimaryKeyRelatedField(read_only=True)
+    is_approved = serializers.BooleanField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    approved_at = serializers.DateTimeField(read_only=True)
 
-        def validate(self, data):
-            request = self.context.get('request')
-            user = request.user if request else None
-            document_type = data.get('document_type')
-            
-            # Validações de permissão
-            if user and user.is_cliente and document_type == 'boleto':
+    # Se o modelo tiver propriedades customizadas, adicione aqui:
+    # days_since_upload = serializers.IntegerField(read_only=True)
+    # is_recent = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = ProjectDocument
+        fields = "__all__"
+        read_only_fields = [
+            'is_approved', 
+            'project',
+            'created_at',
+            'updated_at',
+            'approved_at',
+        ]
+
+    def validate_document_type(self, value):
+        """
+        ✅ Validação básica do tipo de documento.
+        """
+        valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
+
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}"
+            )
+
+        return value
+
+    def validate_related_payment_document(self, value):
+        """
+        ✅ Converte valores inválidos (0, "0", "") para None.
+        Só use este método se o modelo ProjectDocument tiver este campo.
+        """
+        if value in [0, '0', '']:
+            return None
+
+        return value
+
+    def validate(self, data):
+        """
+        ✅ VALIDAÇÃO CONSOLIDADA - Todas as regras de negócio aqui.
+        Executa DEPOIS de todas as validações de campo individual.
+        """
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        if not user:
+            raise serializers.ValidationError(
+                "Usuário não autenticado. Faça login para realizar esta operação."
+            )
+
+        # Pega o document_type (pode estar em data ou na instância durante update)
+        document_type = data.get('document_type')
+        if self.instance and not document_type:
+            document_type = self.instance.document_type
+
+        # ===== VALIDAÇÃO DE PERMISSÕES POR TIPO DE DOCUMENTO =====
+
+        # 🔒 REGRA 1: Clientes NÃO podem criar/editar boletos
+        if user.is_cliente and document_type == 'boleto':
+            raise serializers.ValidationError({
+                'document_type': 
+                    'Clientes não têm permissão para criar ou editar boletos. '
+                    'Esta operação é restrita a administradores e técnicos.'
+            })
+
+        # 🔒 REGRA 2: Apenas Admin, Técnico e Superuser podem criar boletos
+        if document_type == 'boleto':
+            if not (user.is_admin or user.is_tecnico or user.is_superuser):
                 raise serializers.ValidationError({
-                    'document_type': 'Clientes não podem criar ou editar boletos.'
+                    'document_type': 
+                        'Apenas administradores e técnicos podem criar boletos. '
+                        f'Seu perfil atual: {user.get_user_type_display()}.'
                 })
-            
-            # Admin e técnico podem criar boleto
-            if document_type == 'boleto' and not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise serializers.ValidationError({
-                    'document_type': 'Apenas administradores e técnicos podem criar boletos.'
-                })
-            
-            return data
 
+        # ===== VALIDAÇÃO DE COMPROVANTE DE PAGAMENTO (se aplicável) =====
+
+        # 🔒 REGRA 3: Comprovantes de pagamento DEVEM ter boleto relacionado
+        if document_type == 'comprovante_de_pagamento':
+            related_payment_document = data.get('related_payment_document')
+
+            # Durante update, verifica na instância
+            if self.instance and not related_payment_document:
+                related_payment_document = self.instance.related_payment_document
+
+            if not related_payment_document:
+                raise serializers.ValidationError({
+                    'related_payment_document': [
+                        'Este campo é obrigatório para comprovantes de pagamento.',
+                        'Informe o ID do boleto/fatura que este comprovante está quitando.',
+                        'Para listar os boletos disponíveis, acesse: GET /projects/{id}/documents/?document_type=boleto'
+                    ]
+                })
+
+        return data
+
+    def create(self, validated_data):
+        """
+        ✅ Sobrescreve create para injetar o project do contexto.
+        """
+        project = self.context.get('project')
+
+        if not project:
+            raise serializers.ValidationError(
+                "O projeto deve ser fornecido no contexto para criar um documento."
+            )
+
+        validated_data['project'] = project
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """
+        ✅ Sobrescreve update para prevenir alteração do project.
+        """
+        # Remove 'project' se alguém tentar alterá-lo
+        validated_data.pop('project', None)
+
+        return super().update(instance, validated_data)
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
