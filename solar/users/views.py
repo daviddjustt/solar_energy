@@ -52,7 +52,7 @@ class ClientUserListView(APIView):
             is_active=True,
             is_cliente=True,
             # groups__name='Clientes'
-        ).distinct().order_by('name')  # ✅ .distinct() é OBRIGATÓRIO quando usa grupos
+        )
 
         # Serializar e retornar
         serializer = UserSerializerClientsOnly(
