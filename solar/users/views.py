@@ -22,59 +22,69 @@ from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
 from django.db.models import Q
-from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, UserSerializerClientsOnly
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, ClientListSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-class ClientUserListView(APIView):
+class ClientListView(APIView):
     """
-    View para listar apenas usuários do tipo CLIENTE.
-    Usa grupos para filtrar.
+    View para listar usuários do grupo 'Clientes'.
+
+    Endpoint: GET /api/v1/users/clients/
+    Método: GET (sem body request)
+    Permissão: Apenas administradores
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Apenas administradores podem acessar
+        """
+        Lista todos os usuários que pertencem ao grupo 'Clientes'.
+        """
+        # Verificar se o usuário é administrador
         if not (request.user.is_admin or request.user.is_superuser):
             return Response(
                 {
                     "success": False,
-                    "error": "Permissão negada",
-                    "detail": "Você não tem permissão para acessar este recurso."
+                    "message": "Você não tem permissão para acessar este recurso."
                 },
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Filtrar clientes ativos usando GRUPOS
-        queryset = User.objects.filter(
-            is_active=True,
-            is_cliente=True,
-            # groups__name='Clientes'
-        )
+        # Buscar usuários do grupo 'Clientes'
+        try:
+            clientes_group = Group.objects.get(name='Clientes')
+            users = User.objects.filter(
+                groups=clientes_group,
+                is_active=True
+            ).distinct().order_by('name')
 
-        # Serializar e retornar
-        serializer = UserSerializerClientsOnly(
-            queryset, 
-            many=True, 
-            context={'request': request}
-        )
+            # Serializar os dados
+            serializer = ClientListSerializer(users, many=True)
 
-        return Response(
-            {
-                "success": True,
-                "count": queryset.count(),
-                "results": serializer.data
-            },
-            status=status.HTTP_200_OK
-        )
+            return Response(
+                {
+                    "success": True,
+                    "count": users.count(),
+                    "results": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Group.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "message": "Grupo 'Clientes' não encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
     
 class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
     def get(self, request, user_type, *args, **kwargs):
-        user_type == "cliente"
         # Apenas administradores podem acessar este endpoint
         if not request.user.is_staff and not request.user.is_superuser:
             return Response(

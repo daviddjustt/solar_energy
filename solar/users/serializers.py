@@ -227,13 +227,33 @@ class UserDetailSerializer(serializers.ModelSerializer):
         model = User
         fields = '__all__'
 
-class UserSerializerClientsOnly(serializers.ModelSerializer):
-    is_cliente = serializers.ReadOnlyField()
-    groups = serializers.SlugRelatedField(
-        many=True,
-        read_only=True,
-        slug_field='name' # Exibe o nome do grupo
-    )
+class ClientListSerializer(serializers.ModelSerializer):
+    """
+    Serializer específico para listar clientes.
+    Retorna apenas informações relevantes, sem dados sensíveis.
+    """
+    groups = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = '__all__'
+        fields = [
+            'uuid',
+            'email',
+            'name',
+            'cnpj',
+            'cpf',
+            'celular',
+            'is_pessoa_juridica',
+            'is_active',
+            'is_admin',
+            'is_tecnico',
+            'is_cliente',
+            'groups',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields  # Todos os campos são read-only
+
+    def get_groups(self, obj):
+        """Retorna lista de nomes dos grupos do usuário"""
+        return [group.name for group in obj.groups.all()]
