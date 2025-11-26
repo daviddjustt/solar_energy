@@ -95,14 +95,14 @@ class ListaDeMateriaisSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['project']
 
-# Serializer para Upload de Documentos
 class DocumentUploadSerializer(serializers.ModelSerializer):
     """
     Serializer para upload de documentos em projetos.
-    Gerencia permissões por tipo de usuário e tipo de documento.
+    O campo 'project' vem da URL (project_pk) e não do body.
     """
 
-    # Campos read-only (mas project NÃO está aqui)
+    # Campos read-only
+    project = serializers.PrimaryKeyRelatedField(read_only=True)  # ✅ Read-only!
     is_approved = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
@@ -110,18 +110,31 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectDocument
-        fields = "__all__"
+        fields = [
+            'id',
+            'project',              # ✅ Read-only (vem da URL)
+            'document_type',
+            'arquivo',
+            'description',
+            'status',
+            'rejection_reason',
+            'related_payment_document',
+            'is_approved',
+            'approved_at',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = [
-            'is_approved',  # ❌ Removido 'project' daqui
+            'id',
+            'project',              # ✅ Não pode ser setado via body
+            'is_approved',
             'created_at',
             'updated_at',
             'approved_at',
         ]
 
     def validate_document_type(self, value):
-        """
-        ✅ Validação básica do tipo de documento.
-        """
+        """Validação básica do tipo de documento."""
         valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
 
         if value not in valid_types:
@@ -132,9 +145,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         return value
 
     def validate_related_payment_document(self, value):
-        """
-        ✅ Converte valores inválidos (0, "0", "") para None.
-        """
+        """Converte valores inválidos (0, "0", "") para None."""
         if value in [0, '0', '', None]:
             return None
 
@@ -142,15 +153,17 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        ✅ VALIDAÇÃO CONSOLIDADA - Todas as regras de negócio aqui.
+        ✅ VALIDAÇÃO CONSOLIDADA - Todas as regras de negócio.
+        O projeto vem do contexto (passado pela view), não do data.
         """
         request = self.context.get('request')
         user = request.user if request else None
 
         if not user:
-            raise serializers.ValidationError(
-                "Usuário não autenticado."
-            )
+            raise serializers.ValidationError("Usuário não autenticado.")
+
+        # Pega o project do contexto (passado pela view)
+        project = self.context.get('project')
 
         # Pega o document_type
         document_type = data.get('document_type')
@@ -183,8 +196,9 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             if self.instance and not related_payment_document:
                 related_payment_document = self.instance.related_payment_document
 
-            # Verifica se o projeto tem boletos
-            project = data.get('project') or (self.instance.project if self.instance else None)
+            # Usa o projeto do contexto ou da instância
+            if not project and self.instance:
+                project = self.instance.project
 
             if project and not related_payment_document:
                 # Verifica se existe pelo menos um boleto no projeto
@@ -207,6 +221,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                     })
 
         return data
+
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
