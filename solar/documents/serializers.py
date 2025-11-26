@@ -110,20 +110,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectDocument
-        fields = [
-            'id',
-            'project',              # ✅ Read-only (vem da URL)
-            'document_type',
-            'arquivo',
-            'description',
-            'status',
-            'rejection_reason',
-            'related_payment_document',
-            'is_approved',
-            'approved_at',
-            'created_at',
-            'updated_at',
-        ]
+        fields = "__all))"
         read_only_fields = [
             'id',
             'project',              # ✅ Não pode ser setado via body
