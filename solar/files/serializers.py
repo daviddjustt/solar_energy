@@ -32,7 +32,7 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         # e não diretamente pelo usuário na criação/atualização.
         read_only_fields = ['status', 'approved_at']
 
-    def create(self, validated_data):
+    def create(self, validated_data, value):
         """
         Sobrescreve o método create para usar o usuário fornecido no contexto da view.
         """
@@ -40,6 +40,21 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         if not user:
             # Esta validação é uma "rede de segurança" caso a view não injete o usuário
             raise serializers.ValidationError("O usuário deve ser fornecido para a criação de DocumentUser.")
+        valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
+        if value not in valid_types:
+            raise serializers.ValidationError(f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}")
+        elif value == "comprovante_pagamento":  # ✅ CORRIGIDO: value ao invés de valid_types
+            # Durante a criação, precisamos verificar o campo no validated_data
+            related_payment_document = self.initial_data.get('related_payment_document')
+
+            # Durante a atualização, podemos verificar na instância existente
+            if hasattr(self, 'instance') and self.instance:
+                related_payment_document = related_payment_document or self.instance.related_payment_document
+
+            if not related_payment_document:  # ✅ CORRIGIDO: verificação correta
+                raise serializers.ValidationError(
+                    "Comprovante de pagamento precisa ter um boleto relacionado."
+                )
         validated_data['user'] = user
         return super().create(validated_data)
         
