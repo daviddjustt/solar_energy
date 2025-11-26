@@ -131,16 +131,9 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_related_payment_document(self, value):
-        """Converte valores inválidos (0, "0", "") para None."""
-        if value in [0, '0', '', None]:
-            return None
-
-        return value
-
     def validate(self, data):
         """
-        ✅ VALIDAÇÃO CONSOLIDADA - Todas as regras de negócio.
+        ✅ VALIDAÇÃO CONSOLIDADA - SEMPRE executada antes de salvar.
         """
         request = self.context.get('request')
         user = request.user if request else None
@@ -149,7 +142,6 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Usuário não autenticado.")
 
         # ===== DETERMINA O PROJETO =====
-        # Tenta pegar do contexto (CREATE) ou da instância (UPDATE)
         project = self.context.get('project')
         if not project and self.instance:
             project = self.instance.project
@@ -171,58 +163,83 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
         # ===== VALIDAÇÃO 1: PERMISSÕES PARA BOLETOS =====
         if document_type == 'boleto':
-            # Cliente NÃO pode criar/editar boletos
             if user.is_cliente:
                 raise serializers.ValidationError({
                     'document_type': 
-                        'Clientes não têm permissão para criar ou editar boletos. '
-                        'Esta operação é restrita a administradores e técnicos.'
+                        'Clientes não têm permissão para criar ou editar boletos.'
                 })
 
-            # Apenas Admin, Técnico e Superuser podem criar boletos
             if not (user.is_admin or user.is_tecnico or user.is_superuser):
                 raise serializers.ValidationError({
                     'document_type': 
                         'Apenas administradores e técnicos podem criar boletos.'
                 })
 
-        # ===== VALIDAÇÃO 2: COMPROVANTES DEVEM TER BOLETO RELACIONADO =====
+        # ===== VALIDAÇÃO 2: COMPROVANTES EXIGEM BOLETO RELACIONADO =====
         if document_type == 'comprovante_de_pagamento':
-            # Pega o related_payment_document dos dados ou da instância
+            # ✅ Pega o valor do campo (pode ser instância, ID ou None)
             related_payment_document = data.get('related_payment_document')
 
-            # Durante UPDATE, se não foi fornecido, pega da instância
+            # ✅ Durante UPDATE, se não veio no request, mantém o valor atual
             if related_payment_document is None and self.instance:
                 related_payment_document = self.instance.related_payment_document
 
-            # ✅ VALIDAÇÃO ESTRITA: Comprovante SEMPRE precisa de boleto
+            # ✅ BLOQUEIO ABSOLUTO: Comprovante SEM boleto → ERRO
             if not related_payment_document:
-                # Verifica se existe pelo menos um boleto no projeto
-                from .models import ProjectDocument  # Import local para evitar circular
-
+                # Lista os boletos disponíveis no projeto
                 boletos_disponiveis = ProjectDocument.objects.filter(
                     project=project,
                     document_type='boleto'
-                )
+                ).values_list('id', flat=True)
 
-                if not boletos_disponiveis.exists():
+                if not boletos_disponiveis:
                     raise serializers.ValidationError({
                         'related_payment_document': 
-                            'Não é possível enviar comprovante de pagamento sem um boleto criado primeiro. '
-                            'Solicite ao administrador que crie um boleto antes de enviar o comprovante.'
+                            'Não é possível enviar comprovante sem um boleto criado primeiro. '
+                            'Solicite ao administrador que crie um boleto no projeto antes de enviar o comprovante.'
                     })
                 else:
-                    # Existe boleto, mas o usuário não relacionou
-                    boletos_list = list(boletos_disponiveis.values_list('id', flat=True))
-
+                    boletos_ids = ', '.join(map(str, boletos_disponiveis))
                     raise serializers.ValidationError({
                         'related_payment_document': [
-                            'Este campo é obrigatório para comprovantes de pagamento.',
-                            f'Informe o ID de um dos boletos disponíveis: {", ".join(map(str, boletos_list))}',
-                            'Use o endpoint GET /api/v1/projects/{project_pk}/payment-documents/ para listar os boletos.',
+                            '🚨 Este campo é OBRIGATÓRIO para comprovantes de pagamento.',
+                            f'📋 Boletos disponíveis no projeto: {boletos_ids}',
+                            f'📌 Para listar: GET /api/v1/projects/{project.id}/payment-documents/',
+                            '💡 Exemplo de uso: related_payment_document=51'
                         ]
                     })
 
+            # ✅ VALIDAÇÃO EXTRA: Se forneceu boleto, verifica se é válido
+            if related_payment_document:
+                # Verifica se é instância ou ID
+                if isinstance(related_payment_document, ProjectDocument):
+                    boleto = related_payment_document
+                else:
+                    try:
+                        boleto = ProjectDocument.objects.get(
+                            id=related_payment_document,
+                            document_type='boleto'
+                        )
+                    except ProjectDocument.DoesNotExist:
+                        raise serializers.ValidationError({
+                            'related_payment_document': 
+                                f'❌ Boleto #{related_payment_document} não encontrado ou não é do tipo "boleto".'
+                        })
+
+                # Verifica se pertence ao mesmo projeto
+                if boleto.project_id != project.id:
+                    raise serializers.ValidationError({
+                        'related_payment_document': 
+                            f'❌ O boleto #{boleto.id} pertence ao projeto #{boleto.project_id}, '
+                            f'mas você está enviando para o projeto #{project.id}.'
+                    })
+
+                # Evita auto-relacionamento
+                if self.instance and boleto.id == self.instance.id:
+                    raise serializers.ValidationError({
+                        'related_payment_document': 
+                            '❌ Um documento não pode ser relacionado a si mesmo.'
+                    })
 
         return data
 

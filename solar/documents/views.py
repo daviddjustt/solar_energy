@@ -281,38 +281,9 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = None
 
-    def get_queryset(self):
-        """Lista documentos do projeto especificado na URL."""
-        project_pk = self.kwargs['project_pk']
-        project = get_object_or_404(ClientProject, pk=project_pk)
-
-        queryset = project.documents.all()
-        document_type = self.request.query_params.get('document_type')
-
-        if document_type:
-            queryset = queryset.filter(document_type=document_type)
-
-        return queryset.order_by('-created_at')
-
-    def get_serializer_context(self):
-        """
-        ✅ CRÍTICO: Passa o projeto no contexto do serializer.
-        Isso garante que a validação tenha acesso ao projeto.
-        """
-        context = super().get_serializer_context()
-
-        # Adiciona o projeto ao contexto (sempre!)
-        project_pk = self.kwargs.get('project_pk')
-        if project_pk:
-            project = get_object_or_404(ClientProject, pk=project_pk)
-            context['project'] = project
-
-        return context
-
     def create(self, request, *args, **kwargs):
         """
-        ✅ Implementa lógica de update-or-create.
-        O project_pk vem da URL, não do body.
+        ✅ Implementa lógica de update-or-create com validação extra.
         """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
@@ -325,6 +296,32 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # ✅ VALIDAÇÃO EXTRA ANTES DO SERIALIZER (Failsafe)
+        if document_type == 'comprovante_de_pagamento':
+            related_payment_document = request.data.get('related_payment_document')
+
+            # Se vier vazio ou None
+            if not related_payment_document or related_payment_document in ['', '0', 0]:
+                boletos_disponiveis = ProjectDocument.objects.filter(
+                    project=project,
+                    document_type='boleto'
+                ).values_list('id', flat=True)
+
+                if not boletos_disponiveis:
+                    return Response({
+                        'related_payment_document': 
+                            'Não é possível enviar comprovante sem um boleto criado primeiro.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    boletos_ids = ', '.join(map(str, boletos_disponiveis))
+                    return Response({
+                        'related_payment_document': [
+                            '🚨 Este campo é OBRIGATÓRIO para comprovantes de pagamento.',
+                            f'📋 Boletos disponíveis: {boletos_ids}',
+                            f'📌 Liste em: GET /api/v1/projects/{project.id}/payment-documents/'
+                        ]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
         # ===== LÓGICA DE UPDATE-OR-CREATE =====
         existing_doc = ProjectDocument.objects.filter(
             project=project,
@@ -332,17 +329,12 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         ).first()
 
         if existing_doc:
-            # ✅ ATUALIZA documento existente
             serializer = self.get_serializer(
                 existing_doc,
                 data=request.data,
-                partial=False  # Validação completa
+                partial=False
             )
-
-            # ✅ A validação é executada aqui (com projeto no contexto!)
             serializer.is_valid(raise_exception=True)
-
-            # Salva passando o projeto explicitamente
             self.perform_update(serializer, project)
 
             return Response(
@@ -351,13 +343,8 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 headers=self.get_success_headers(serializer.data)
             )
         else:
-            # ✅ CRIA novo documento
             serializer = self.get_serializer(data=request.data)
-
-            # ✅ A validação é executada aqui (com projeto no contexto!)
             serializer.is_valid(raise_exception=True)
-
-            # Salva passando o projeto explicitamente
             self.perform_create(serializer, project)
 
             return Response(
@@ -366,29 +353,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 headers=self.get_success_headers(serializer.data)
             )
 
-    def perform_create(self, serializer, project):
-        """Cria o documento associado ao projeto."""
-        if 'status' not in serializer.validated_data:
-            serializer.save(project=project, status='IN_ANALYSIS')
-        else:
-            serializer.save(project=project)
-
-    def perform_update(self, serializer, project):
-        """
-        ✅ Atualiza o documento. Reseta status se arquivo for alterado.
-        """
-        # Se um novo arquivo foi enviado, reseta o status
-        if 'arquivo' in serializer.validated_data:
-            serializer.save(
-                project=project,
-                status='IN_ANALYSIS',
-                is_approved=False,
-                rejection_reason=None,
-                approved_at=None
-            )
-        else:
-            # Apenas atualiza outros campos
-            serializer.save(project=project)
+   
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
