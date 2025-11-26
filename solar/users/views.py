@@ -22,7 +22,7 @@ from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
 from django.db.models import Q
-from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer
+from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, UserSerializerClientsOnly
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 
 logger = logging.getLogger(__name__)
@@ -50,11 +50,12 @@ class ClientUserListView(APIView):
         # Filtrar clientes ativos usando GRUPOS
         queryset = User.objects.filter(
             is_active=True,
+            is_cliente=True,
             groups__name='Clientes'
         ).distinct().order_by('name')  # ✅ .distinct() é OBRIGATÓRIO quando usa grupos
 
         # Serializar e retornar
-        serializer = UserDetailSerializer(
+        serializer = UserSerializerClientsOnly(
             queryset, 
             many=True, 
             context={'request': request}

@@ -226,3 +226,14 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
+
+class UserSerializerClientsOnly(serializers.ModelSerializer):
+    is_cliente = serializers.ReadOnlyField()
+    groups = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='name' # Exibe o nome do grupo
+    )
+    class Meta:
+        model = User
+        fields = '__all__'
