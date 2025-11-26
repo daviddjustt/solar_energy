@@ -96,24 +96,23 @@ class ListaDeMateriaisSerializer(serializers.ModelSerializer):
         read_only_fields = ['project']
 
 # Serializer para Upload de Documentos
-
 class DocumentUploadSerializer(serializers.ModelSerializer):
     """
     Serializer para upload de documentos em projetos.
     Gerencia permissões por tipo de usuário e tipo de documento.
     """
+
+    # Campos read-only (mas project NÃO está aqui)
+    is_approved = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     approved_at = serializers.DateTimeField(read_only=True)
-
-    # Se o modelo tiver propriedades customizadas, adicione aqui:
-    # days_since_upload = serializers.IntegerField(read_only=True)
-    # is_recent = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = [
+            'is_approved',  # ❌ Removido 'project' daqui
             'created_at',
             'updated_at',
             'approved_at',
@@ -135,9 +134,8 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     def validate_related_payment_document(self, value):
         """
         ✅ Converte valores inválidos (0, "0", "") para None.
-        Só use este método se o modelo ProjectDocument tiver este campo.
         """
-        if value in [0, '0', '']:
+        if value in [0, '0', '', None]:
             return None
 
         return value
@@ -145,17 +143,16 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """
         ✅ VALIDAÇÃO CONSOLIDADA - Todas as regras de negócio aqui.
-        Executa DEPOIS de todas as validações de campo individual.
         """
         request = self.context.get('request')
         user = request.user if request else None
 
         if not user:
             raise serializers.ValidationError(
-                "Usuário não autenticado. Faça login para realizar esta operação."
+                "Usuário não autenticado."
             )
 
-        # Pega o document_type (pode estar em data ou na instância durante update)
+        # Pega o document_type
         document_type = data.get('document_type')
         if self.instance and not document_type:
             document_type = self.instance.document_type
@@ -175,11 +172,8 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             if not (user.is_admin or user.is_tecnico or user.is_superuser):
                 raise serializers.ValidationError({
                     'document_type': 
-                        'Apenas administradores e técnicos podem criar boletos. '
-                        f'Seu perfil atual: {user.get_user_type_display()}.'
+                        'Apenas administradores e técnicos podem criar boletos.'
                 })
-
-        # ===== VALIDAÇÃO DE COMPROVANTE DE PAGAMENTO (se aplicável) =====
 
         # 🔒 REGRA 3: Comprovantes de pagamento DEVEM ter boleto relacionado
         if document_type == 'comprovante_de_pagamento':
@@ -189,39 +183,30 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             if self.instance and not related_payment_document:
                 related_payment_document = self.instance.related_payment_document
 
-            if not related_payment_document:
-                raise serializers.ValidationError({
-                    'related_payment_document': [
-                        'Este campo é obrigatório para comprovantes de pagamento.',
-                        'Informe o ID do boleto/fatura que este comprovante está quitando.',
-                        'Para listar os boletos disponíveis, acesse: GET /projects/{id}/documents/?document_type=boleto'
-                    ]
-                })
+            # Verifica se o projeto tem boletos
+            project = data.get('project') or (self.instance.project if self.instance else None)
+
+            if project and not related_payment_document:
+                # Verifica se existe pelo menos um boleto no projeto
+                has_boleto = ProjectDocument.objects.filter(
+                    project=project,
+                    document_type='boleto'
+                ).exists()
+
+                if not has_boleto:
+                    raise serializers.ValidationError({
+                        'related_payment_document': 
+                            'Não é possível enviar comprovante sem um boleto criado primeiro.'
+                    })
+                else:
+                    raise serializers.ValidationError({
+                        'related_payment_document': [
+                            'Este campo é obrigatório para comprovantes de pagamento.',
+                            'Informe o ID do boleto/fatura que este comprovante está quitando.',
+                        ]
+                    })
 
         return data
-
-    def create(self, validated_data):
-        """
-        ✅ Sobrescreve create para injetar o project do contexto.
-        """
-        project = self.context.get('project_pk')
-
-        if not project:
-            raise serializers.ValidationError(
-                "O projeto deve ser fornecido no contexto para criar um documento."
-            )
-
-        validated_data['project_pk'] = project
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        """
-        ✅ Sobrescreve update para prevenir alteração do project.
-        """
-        # Remove 'project' se alguém tentar alterá-lo
-        validated_data.pop('project', None)
-
-        return super().update(instance, validated_data)
 # Serializer para as informações básicas do Projeto
 class ProjectInfoSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)

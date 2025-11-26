@@ -280,62 +280,86 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        # Garante que estamos listando documentos apenas para o projeto especificado na URL
+        """Lista documentos do projeto especificado na URL."""
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-        return project.documents.all()
+
+        # Filtrar por document_type se fornecido na query string
+        queryset = project.documents.all()
+        document_type = self.request.query_params.get('document_type')
+
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+
+        return queryset.order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        """
+        ✅ Override completo do método create para implementar lógica de update-or-create.
+        """
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
+
+        # Adiciona o project aos dados
+        data = request.data.copy()
+        data['project'] = project.id
+
+        document_type = data.get('document_type')
+
+        # ===== LÓGICA DE UPDATE-OR-CREATE =====
+        # Verifica se já existe um documento deste tipo para o projeto
+        existing_doc = ProjectDocument.objects.filter(
+            project=project,
+            document_type=document_type
+        ).first()
+
+        if existing_doc:
+            # ✅ Atualiza o documento existente (re-upload)
+            serializer = self.get_serializer(existing_doc, data=data, partial=False)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+                headers=self.get_success_headers(serializer.data)
+            )
+        else:
+            # ✅ Cria um novo documento
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED,
+                headers=self.get_success_headers(serializer.data)
+            )
 
     def perform_create(self, serializer):
-        project_pk = self.kwargs['project_pk']
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        document_type = serializer.validated_data.get('document_type')
-        file_obj = serializer.validated_data.get('file')
-        description = serializer.validated_data.get('description', '')
-        user = self.request.user
-
-        # Validações de permissão
-        if document_type == 'boleto':
-            if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied("Apenas administradores e técnicos podem criar boletos.")
-        
-        elif document_type == 'comprovante_de_pagamento':
-            # Cliente só pode enviar comprovante do próprio projeto
-            if user.is_cliente and project.created_by != user:
-                raise PermissionDenied("Você só pode enviar comprovante para seus próprios projetos.")
-            
-            # Verificar se existe boleto antes de permitir comprovante
-            if not project.documents.filter(document_type='boleto').exists():
-                raise ValidationError("Não é possível enviar comprovante sem um boleto criado primeiro.")
-            
-            # Verificar se já existe comprovante
-            # existing_comprovante = project.documents.filter(document_type='comprovante_de_pagamento').first()
-                # Novo ocmprovante será adicionado
-            serializer.save(
-                project=project,
-                status='IN_ANALYSIS' # Define o status inicial para comprovantes
-            )
-        
-        serializer.save(project=project)
-
-
-        # Verifica se já existe um documento deste tipo para o projeto
-        existing_doc = project.documents.filter(document_type=document_type).first()
-        
-        if existing_doc:
-            # Se existe, atualiza o documento existente (re-upload)
-            if file_obj: # Se um novo arquivo foi enviado
-                existing_doc.file = file_obj
-                existing_doc.description = description
-                existing_doc.is_approved = False # Reseta aprovação ao enviar novo arquivo
-                existing_doc.save()
-                serializer.instance = existing_doc # Define a instância para a resposta do serializer
-            else: # Se não há novo arquivo, apenas atualiza a descrição se necessário
-                existing_doc.description = description
-                existing_doc.save()
-                serializer.instance = existing_doc
+        """
+        ✅ Simplesmente salva. Validações já foram feitas no serializer.
+        """
+        # Se o status não foi fornecido, define como IN_ANALYSIS
+        if 'status' not in serializer.validated_data:
+            serializer.save(status='IN_ANALYSIS')
         else:
-            # Se não existe, cria um novo documento
-            serializer.save(project=project)
+            serializer.save()
+
+    def perform_update(self, serializer):
+        """
+        ✅ Atualiza o documento. Reseta status se arquivo for alterado.
+        """
+        # Se um novo arquivo foi enviado, reseta o status
+        if 'arquivo' in serializer.validated_data:
+            serializer.save(
+                status='IN_ANALYSIS',
+                is_approved=False,
+                rejection_reason=None
+            )
+        else:
+            serializer.save()
+
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -343,45 +367,62 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     serializer_class = DocumentUploadSerializer
     permission_classes = [IsAuthenticated]
-    lookup_url_kwarg = 'pk' # O nome do argumento URL para a PK do documento
+    lookup_url_kwarg = 'pk'
 
     def get_queryset(self):
-        # Garante que estamos operando em documentos do projeto correto
+        """Garante que operamos em documentos do projeto correto."""
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
         return project.documents.all()
 
     def perform_update(self, serializer):
+        """
+        ✅ Validações de permissão para atualização.
+        """
         user = self.request.user
         document = self.get_object()
-        
-        # Validações de permissão para atualização
+
+        # Validações de permissão
         if document.document_type == 'boleto':
             if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied("Apenas administradores e técnicos podem editar boletos.")
-        
+                raise PermissionDenied(
+                    "Apenas administradores e técnicos podem editar boletos."
+                )
+
         elif document.document_type == 'comprovante_de_pagamento':
             if user.is_cliente and document.project.created_by != user:
-                raise PermissionDenied("Você só pode editar comprovante dos seus próprios projetos.")
-        
+                raise PermissionDenied(
+                    "Você só pode editar comprovante dos seus próprios projetos."
+                )
+
         # Se um novo arquivo for fornecido, reseta o status
-        if 'file' in serializer.validated_data:
-            serializer.validated_data['status'] = 'IN_ANALYSIS'
-        
-        serializer.save()
+        if 'arquivo' in serializer.validated_data:
+            serializer.save(
+                status='IN_ANALYSIS',
+                is_approved=False,
+                rejection_reason=None
+            )
+        else:
+            serializer.save()
 
     def perform_destroy(self, instance):
+        """
+        ✅ Validações de permissão para exclusão.
+        """
         user = self.request.user
-        
-        # Validações de permissão para exclusão
+
         if instance.document_type == 'boleto':
             if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied("Apenas administradores e técnicos podem excluir boletos.")
-        
+                raise PermissionDenied(
+                    "Apenas administradores e técnicos podem excluir boletos."
+                )
+
         elif instance.document_type == 'comprovante_de_pagamento':
             if user.is_cliente and instance.project.created_by != user:
-                raise PermissionDenied("Você só pode excluir comprovante dos seus próprios projetos.")
-        
+                raise PermissionDenied(
+                    "Você só pode excluir comprovante dos seus próprios projetos."
+                )
+
         instance.delete()
 
 # 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
