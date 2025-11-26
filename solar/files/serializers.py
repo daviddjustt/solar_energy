@@ -40,6 +40,8 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         if not user:
             # Esta validação é uma "rede de segurança" caso a view não injete o usuário
             raise serializers.ValidationError("O usuário deve ser fornecido para a criação de DocumentUser.")
+        validated_data['user'] = user
+        return super().create(validated_data)
         
 
     def update(self, instance, validated_data):
