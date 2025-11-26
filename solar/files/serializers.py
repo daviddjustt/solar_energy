@@ -56,6 +56,16 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
         if value not in valid_types:
             raise serializers.ValidationError(f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}")
-        elif valid_types == "comprovante_pagamento" and DocumentUser.related_payment_document == None:
-            raise serializers.ValidationError(f"Comprovante de pagamento precisa ter um boleto relacionado: {', '.join(valid_types)}")
+        elif value == "comprovante_pagamento":  # ✅ CORRIGIDO: value ao invés de valid_types
+            # Durante a criação, precisamos verificar o campo no validated_data
+            related_payment_document = self.initial_data.get('related_payment_document')
+
+            # Durante a atualização, podemos verificar na instância existente
+            if hasattr(self, 'instance') and self.instance:
+                related_payment_document = related_payment_document or self.instance.related_payment_document
+
+            if not related_payment_document:  # ✅ CORRIGIDO: verificação correta
+                raise serializers.ValidationError(
+                    "Comprovante de pagamento precisa ter um boleto relacionado."
+                )
         return value
