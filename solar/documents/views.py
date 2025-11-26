@@ -296,12 +296,12 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
     def get_serializer_context(self):
         """
-        ✅ Passa o projeto no contexto do serializer.
-        Assim o serializer pode acessá-lo durante a validação.
+        ✅ CRÍTICO: Passa o projeto no contexto do serializer.
+        Isso garante que a validação tenha acesso ao projeto.
         """
         context = super().get_serializer_context()
 
-        # Adiciona o projeto ao contexto
+        # Adiciona o projeto ao contexto (sempre!)
         project_pk = self.kwargs.get('project_pk')
         if project_pk:
             project = get_object_or_404(ClientProject, pk=project_pk)
@@ -317,8 +317,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
 
-        # ❌ NÃO adiciona project aos dados (ele vem da URL!)
-        # Os dados do body são usados diretamente
         document_type = request.data.get('document_type')
 
         if not document_type:
@@ -328,19 +326,20 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             )
 
         # ===== LÓGICA DE UPDATE-OR-CREATE =====
-        # Verifica se já existe um documento deste tipo para o projeto
         existing_doc = ProjectDocument.objects.filter(
             project=project,
             document_type=document_type
         ).first()
 
         if existing_doc:
-            # ✅ Atualiza o documento existente (re-upload)
+            # ✅ ATUALIZA documento existente
             serializer = self.get_serializer(
                 existing_doc,
                 data=request.data,
-                partial=False
+                partial=False  # Validação completa
             )
+
+            # ✅ A validação é executada aqui (com projeto no contexto!)
             serializer.is_valid(raise_exception=True)
 
             # Salva passando o projeto explicitamente
@@ -352,8 +351,10 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 headers=self.get_success_headers(serializer.data)
             )
         else:
-            # ✅ Cria um novo documento
+            # ✅ CRIA novo documento
             serializer = self.get_serializer(data=request.data)
+
+            # ✅ A validação é executada aqui (com projeto no contexto!)
             serializer.is_valid(raise_exception=True)
 
             # Salva passando o projeto explicitamente
@@ -366,11 +367,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             )
 
     def perform_create(self, serializer, project):
-        """
-        ✅ Cria o documento associado ao projeto.
-        O projeto vem da URL (project_pk), não do body.
-        """
-        # Se o status não foi fornecido, define como IN_ANALYSIS
+        """Cria o documento associado ao projeto."""
         if 'status' not in serializer.validated_data:
             serializer.save(project=project, status='IN_ANALYSIS')
         else:
@@ -383,14 +380,15 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         # Se um novo arquivo foi enviado, reseta o status
         if 'arquivo' in serializer.validated_data:
             serializer.save(
-                project=project,  # ✅ Garante que o projeto não muda
+                project=project,
                 status='IN_ANALYSIS',
                 is_approved=False,
-                rejection_reason=None
+                rejection_reason=None,
+                approved_at=None
             )
         else:
+            # Apenas atualiza outros campos
             serializer.save(project=project)
-
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
