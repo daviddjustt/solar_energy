@@ -74,6 +74,7 @@ class FilteredUserListView(APIView):
     permission_classes = [IsAuthenticated] # Ou IsAdminUser, dependendo de quem pode ver isso
 
     def get(self, request, user_type, *args, **kwargs):
+        user_type == "cliente"
         # Apenas administradores podem acessar este endpoint
         if not request.user.is_staff and not request.user.is_superuser:
             return Response(
