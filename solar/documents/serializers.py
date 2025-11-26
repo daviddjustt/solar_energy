@@ -228,10 +228,13 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                 from .models import ProjectDocument
 
                 try:
-                    boleto = ProjectDocument.objects.get(
-                        id=related_payment_document,
-                        document_type='boleto'
-                    )
+                    if isinstance(related_payment_document, ProjectDocument):
+                        boleto = related_payment_document  # ← Já é o objeto!
+                    else:
+                        boleto = ProjectDocument.objects.get(
+                            id=related_payment_document,  # ← int
+                            document_type='boleto'
+                        )
 
                     # Verifica se o boleto pertence ao mesmo projeto
                     if boleto.project_id != project.id:
