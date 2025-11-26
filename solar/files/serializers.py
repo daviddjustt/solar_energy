@@ -4,21 +4,22 @@ from rest_framework import serializers
 from .models import DocumentUser
 from solar.files.utils import DOCUMENT_TYPE_CHOICES, STATUS_CHOICES
 
+
 class DocumentUserSerializer(serializers.ModelSerializer):
     """
     Serializer para o modelo DocumentUser.
     Permite a serialização e desserialização de documentos relacionados a usuários,
     incluindo o upload de arquivos.
     """
-    # O campo 'user' será definido pela view (do URL ou contexto),
-    # então ele é read_only aqui para evitar que o cliente o envie diretamente.
+    # O campo 'user' será definido pela view (do URL ou contexto)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    # Campos de auditoria e propriedades customizadas são geralmente read-only
+
+    # Campos de auditoria e propriedades customizadas são read-only
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
-    approved_at = serializers.DateTimeField(read_only=True) # Definido pela lógica do modelo
+    approved_at = serializers.DateTimeField(read_only=True)
 
-    # Propriedades customizadas do modelo DocumentUser (ou Document)
+    # Propriedades customizadas do modelo
     days_since_upload = serializers.IntegerField(read_only=True)
     is_recent = serializers.BooleanField(read_only=True)
     is_payment_document = serializers.BooleanField(read_only=True)
@@ -28,59 +29,74 @@ class DocumentUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentUser
         fields = '__all__'
-        # 'status' e 'approved_at' são geralmente gerenciados pela lógica de negócio
-        # e não diretamente pelo usuário na criação/atualização.
-        read_only_fields = ['status', 'approved_at']
+        read_only_fields = ['status', 'approved_at', 'user']
 
-    def create(self, validated_data, value):
+    def create(self, validated_data):
         """
+        ✅ CORRIGIDO: Removido o parâmetro 'value' que causava o erro.
         Sobrescreve o método create para usar o usuário fornecido no contexto da view.
         """
         user = self.context.get('user')
+
         if not user:
-            # Esta validação é uma "rede de segurança" caso a view não injete o usuário
-            raise serializers.ValidationError("O usuário deve ser fornecido para a criação de DocumentUser.")
-        valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
-        if value not in valid_types:
-            raise serializers.ValidationError(f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}")
-        elif value == "comprovante_pagamento":  # ✅ CORRIGIDO: value ao invés de valid_types
-            # Durante a criação, precisamos verificar o campo no validated_data
-            related_payment_document = self.initial_data.get('related_payment_document')
+            raise serializers.ValidationError(
+                "O usuário deve ser fornecido para a criação de DocumentUser."
+            )
 
-            # Durante a atualização, podemos verificar na instância existente
-            if hasattr(self, 'instance') and self.instance:
-                related_payment_document = related_payment_document or self.instance.related_payment_document
-
-            if not related_payment_document:  # ✅ CORRIGIDO: verificação correta
-                raise serializers.ValidationError(
-                    "Comprovante de pagamento precisa ter um boleto relacionado."
-                )
         validated_data['user'] = user
         return super().create(validated_data)
-        
 
     def update(self, instance, validated_data):
         """
         Sobrescreve o método update para prevenir a alteração do campo 'user'.
         """
-        validated_data.pop('user', None) # Remove 'user' se presente para evitar alteração
+        validated_data.pop('user', None)
         return super().update(instance, validated_data)
 
-    # Exemplo de validação customizada para o tipo de documento, se necessário
     def validate_document_type(self, value):
+        """
+        ✅ VALIDAÇÃO CONSOLIDADA: Toda a lógica de validação do document_type aqui.
+        """
         valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
+
         if value not in valid_types:
-            raise serializers.ValidationError(f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}")
-        elif value == "comprovante_pagamento":  # ✅ CORRIGIDO: value ao invés de valid_types
-            # Durante a criação, precisamos verificar o campo no validated_data
+            raise serializers.ValidationError(
+                f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}"
+            )
+
+        # ✅ Validação específica para comprovante de pagamento
+        if value == "comprovante_pagamento":
             related_payment_document = self.initial_data.get('related_payment_document')
 
-            # Durante a atualização, podemos verificar na instância existente
+            # Durante a atualização, verifica na instância existente
             if hasattr(self, 'instance') and self.instance:
                 related_payment_document = related_payment_document or self.instance.related_payment_document
 
-            if not related_payment_document:  # ✅ CORRIGIDO: verificação correta
+            # ✅ Aceita None/null mas não aceita 0 ou strings vazias
+            if related_payment_document in [0, '0', '']:
                 raise serializers.ValidationError(
-                    "Comprovante de pagamento precisa ter um boleto relacionado."
+                    "Para comprovante de pagamento, forneça um ID de boleto válido ou deixe em branco."
                 )
+
+            # Se forneceu um ID, valida se é um número válido
+            if related_payment_document and not str(related_payment_document).isdigit():
+                raise serializers.ValidationError(
+                    "O ID do boleto relacionado deve ser um número válido."
+                )
+
+        return value
+
+    def validate_related_payment_document(self, value):
+        """
+        ✅ VALIDAÇÃO DO CAMPO related_payment_document.
+        Evita que valores inválidos como 0 sejam aceitos.
+        """
+        # Se o valor for 0, converte para None
+        if value == 0:
+            return None
+
+        # Se for string "0", também converte para None
+        if isinstance(value, str) and value == "0":
+            return None
+
         return value
