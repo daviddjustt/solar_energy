@@ -335,6 +335,13 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 partial=False
             )
             serializer.is_valid(raise_exception=True)
+            serializer.save(
+                project=project,
+                status='IN_ANALYSIS',
+                is_approved=False,
+                rejection_reason=None,
+                approved_at=None
+            )
 
             return Response(
                 serializer.data,
