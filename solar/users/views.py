@@ -21,7 +21,7 @@ from django.db import transaction
 from rest_framework import generics, status, viewsets, permissions
 
 from .models import User, UserChangeLog
-from django.db.models import Q
+from django.db.models import Q, Count
 from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, ClientListSerializer
 from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 from django.contrib.auth.models import Group
@@ -31,7 +31,9 @@ User = get_user_model()
 
 class ClientListView(APIView):
     """
-    View para listar usuários do grupo 'Clientes'.
+    View para listar usuários que estão APENAS no grupo 'Clientes'.
+
+    Usuários em múltiplos grupos (ex: Clientes + Admins) NÃO serão retornados.
 
     Endpoint: GET /api/v1/users/clients/
     Método: GET (sem body request)
@@ -41,7 +43,7 @@ class ClientListView(APIView):
 
     def get(self, request):
         """
-        Lista todos os usuários que pertencem ao grupo 'Clientes'.
+        Lista usuários que pertencem EXCLUSIVAMENTE ao grupo 'Clientes'.
         """
         # Verificar se o usuário é administrador
         if not (request.user.is_admin or request.user.is_superuser):
@@ -53,12 +55,18 @@ class ClientListView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Buscar usuários do grupo 'Clientes'
+        # Buscar usuários que estão APENAS no grupo 'Clientes'
         try:
             clientes_group = Group.objects.get(name='Clientes')
+
+            # Anotar cada usuário com a contagem de grupos
             users = User.objects.filter(
                 groups=clientes_group,
                 is_active=True
+            ).annotate(
+                num_groups=Count('groups')
+            ).filter(
+                num_groups=1  # ✅ APENAS 1 grupo
             ).distinct().order_by('name')
 
             # Serializar os dados
@@ -68,6 +76,7 @@ class ClientListView(APIView):
                 {
                     "success": True,
                     "count": users.count(),
+                    "message": "Usuários que estão APENAS no grupo 'Clientes'",
                     "results": serializer.data
                 },
                 status=status.HTTP_200_OK
