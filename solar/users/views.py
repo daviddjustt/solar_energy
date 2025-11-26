@@ -35,7 +35,7 @@ class ClientUserListView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         # Apenas administradores podem acessar
         if not (request.user.is_admin or request.user.is_superuser):
             return Response(
@@ -51,7 +51,7 @@ class ClientUserListView(APIView):
         queryset = User.objects.filter(
             is_active=True,
             is_cliente=True,
-            groups__name='Clientes'
+            # groups__name='Clientes'
         ).distinct().order_by('name')  # ✅ .distinct() é OBRIGATÓRIO quando usa grupos
 
         # Serializar e retornar
