@@ -191,12 +191,8 @@ class DocumentUser(Document):
         if self.document_type == 'boleto':
             # CORREÇÃO AQUI: Usando a constante APPROVED importada
             return self.payment_proofs.filter(status=APPROVED).exists()
-        elif self.document_type == 'comprovante_de_pagamento':
-            return (
-                # CORREÇÃO AQUI: Usando a constante APPROVED importada
-                self.status == APPROVED and
-                self.related_payment_document is not None
-            )
+        elif self.document_type == 'comprovante_de_pagamento' and self.related_payment_document == None:
+            return False
         return False
 
     @property
