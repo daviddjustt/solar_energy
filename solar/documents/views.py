@@ -566,7 +566,7 @@ class PaymentDocumentView(generics.RetrieveUpdateAPIView):
             document_type=document_type
         )
         
-        # Verificar permissões de acesso
+        # Verificar permissões de acessos
         user = self.request.user
         if document_type == 'comprovante_de_pagamento':
             if user.is_cliente and project.created_by != user:
