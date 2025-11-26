@@ -13,7 +13,6 @@ class DocumentUserSerializer(serializers.ModelSerializer):
     # O campo 'user' será definido pela view (do URL ou contexto),
     # então ele é read_only aqui para evitar que o cliente o envie diretamente.
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-
     # Campos de auditoria e propriedades customizadas são geralmente read-only
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
@@ -41,8 +40,7 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         if not user:
             # Esta validação é uma "rede de segurança" caso a view não injete o usuário
             raise serializers.ValidationError("O usuário deve ser fornecido para a criação de DocumentUser.")
-        validated_data['user'] = user
-        return super().create(validated_data)
+        
 
     def update(self, instance, validated_data):
         """
@@ -56,4 +54,6 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
         if value not in valid_types:
             raise serializers.ValidationError(f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}")
+        elif valid_types == "comprovante_pagamento" and DocumentUser.related_payment_document == None:
+            raise serializers.ValidationError(f"Comprovante de pagamento precisa ter um boleto relacionado: {', '.join(valid_types)}")
         return value
