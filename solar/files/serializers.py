@@ -31,9 +31,55 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['status', 'approved_at', 'user']
 
+    def validate_document_type(self, value):
+        """
+        Validação básica do tipo de documento.
+        """
+        valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
+
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}"
+            )
+
+        return value
+
+    def validate_related_payment_document(self, value):
+        """
+        Converte valores inválidos (0, "0", "") para None.
+        """
+        if value in [0, '0', '']:
+            return None
+
+        return value
+
+    def validate(self, data):
+        """
+        ✅ VALIDAÇÃO DE NÍVEL DE OBJETO - Executa DEPOIS de todas as validações de campo.
+        Garante que comprovantes de pagamento tenham boleto relacionado.
+        """
+        document_type = data.get('document_type')
+        related_payment_document = data.get('related_payment_document')
+
+        # ✅ Se for comprovante de pagamento, DEVE ter boleto relacionado
+        if document_type == "comprovante_de_pagamento":
+            # Durante update, pode não ter document_type em data, usa o da instância
+            if self.instance:
+                document_type = document_type or self.instance.document_type
+                related_payment_document = related_payment_document or self.instance.related_payment_document
+
+            # ✅ Validação estrita: DEVE ter um ID válido
+            if not related_payment_document:
+                raise serializers.ValidationError({
+                    'related_payment_document': 
+                        'Comprovante de pagamento deve ter um boleto relacionado. '
+                        'Informe o ID do documento de pagamento.'
+                })
+
+        return data
+
     def create(self, validated_data):
         """
-        ✅ CORRIGIDO: Removido o parâmetro 'value' que causava o erro.
         Sobrescreve o método create para usar o usuário fornecido no contexto da view.
         """
         user = self.context.get('user')
@@ -52,51 +98,3 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         """
         validated_data.pop('user', None)
         return super().update(instance, validated_data)
-
-    def validate_document_type(self, value):
-        """
-        ✅ VALIDAÇÃO CONSOLIDADA: Toda a lógica de validação do document_type aqui.
-        """
-        valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
-
-        if value not in valid_types:
-            raise serializers.ValidationError(
-                f"Tipo de documento inválido. Escolha entre: {', '.join(valid_types)}"
-            )
-
-        # ✅ Validação específica para comprovante de pagamento
-        if value == "comprovante_pagamento":
-            related_payment_document = self.initial_data.get('related_payment_document')
-
-            # Durante a atualização, verifica na instância existente
-            if hasattr(self, 'instance') and self.instance:
-                related_payment_document = related_payment_document or self.instance.related_payment_document
-
-            # ✅ Aceita None/null mas não aceita 0 ou strings vazias
-            if related_payment_document in [0, '0', '']:
-                raise serializers.ValidationError(
-                    "Para comprovante de pagamento, forneça um ID de boleto válido ou deixe em branco."
-                )
-
-            # Se forneceu um ID, valida se é um número válido
-            if related_payment_document and not str(related_payment_document).isdigit():
-                raise serializers.ValidationError(
-                    "O ID do boleto relacionado deve ser um número válido."
-                )
-
-        return value
-
-    def validate_related_payment_document(self, value):
-        """
-        ✅ VALIDAÇÃO DO CAMPO related_payment_document.
-        Evita que valores inválidos como 0 sejam aceitos.
-        """
-        # Se o valor for 0, converte para None
-        if value == 0:
-            return None
-
-        # Se for string "0", também converte para None
-        if isinstance(value, str) and value == "0":
-            return None
-
-        return value
