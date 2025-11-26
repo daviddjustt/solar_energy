@@ -110,7 +110,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectDocument
-        fields = "__all))"
+        fields = "__all__"
         read_only_fields = [
             'id',
             'project',              # ✅ Não pode ser setado via body
