@@ -203,7 +203,6 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'related_payment_document': [
                             '🚨 Este campo é OBRIGATÓRIO para comprovantes de pagamento.',
-                            f'📋 Boletos disponíveis no projeto: {boletos_ids}',
                             f'📌 Para listar: GET /api/v1/projects/{project.id}/payment-documents/',
                             '💡 Exemplo de uso: related_payment_document=51'
                         ]

@@ -317,7 +317,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                     return Response({
                         'related_payment_document': [
                             '🚨 Este campo é OBRIGATÓRIO para comprovantes de pagamento.',
-                            f'📋 Boletos disponíveis: {boletos_ids}',
                             f'📌 Liste em: GET /api/v1/projects/{project.id}/payment-documents/'
                         ]
                     }, status=status.HTTP_400_BAD_REQUEST)
