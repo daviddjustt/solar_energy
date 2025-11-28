@@ -268,46 +268,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'results': output_serializer.data
         }, status=status.HTTP_200_OK)
 
+
 class ProjectDocumentListView(generics.ListCreateAPIView):
-    """
-    Lista todos os documentos de um projeto específico ou faz upload de um novo documento.
-    O upload de um documento do mesmo tipo para o mesmo projeto irá atualizá-lo.
-    """
     serializer_class = DocumentUploadSerializer
-    permission_classes = [IsAuthenticated] # ✅ Permissão de acesso ao projeto
     pagination_class = None
 
     def get_queryset(self):
-        """
-        ✅ Retorna apenas documentos do projeto especificado na URL.
-        Usa o mixin de permissão para filtrar.
-        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-
-        # ✅ Filtra documentos do projeto e aplica permissão de visualização
-        queryset = ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
-
-        # Filtra a queryset para o usuário atual, usando o método do mixin
-        # (AuthDocumentMixin.can_be_viewed_by é implementado em ProjectDocument)
-        return [doc for doc in queryset if doc.can_be_viewed_by(self.request.user)]
+        return ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
 
     def get_serializer_context(self):
-        """
-        ✅ Passa o projeto e o request no contexto do serializer.
-        """
         context = super().get_serializer_context()
         project_pk = self.kwargs.get('project_pk')
         if project_pk:
             project = get_object_or_404(ClientProject, pk=project_pk)
-            context['project'] = project
-        context['request'] = self.request # ✅ Passa o request para validações no serializer
+            context['project'] = project # ✅ Project é adicionado ao contexto aqui
+        context['request'] = self.request
         return context
 
     def create(self, request, *args, **kwargs):
-        """
-        ✅ Implementa lógica de update-or-create com validação extra.
-        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
         document_type = request.data.get('document_type')
@@ -315,14 +295,12 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         if not document_type:
             raise ValidationError({'document_type': ['Este campo é obrigatório.']})
 
-        # ===== LÓGICA DE UPDATE-OR-CREATE =====
         existing_doc = ProjectDocument.objects.filter(
             project=project,
             document_type=document_type
         ).first()
 
         if existing_doc:
-            # UPDATE
             serializer = self.get_serializer(
                 existing_doc,
                 data=request.data,
@@ -330,37 +308,30 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             )
             serializer.is_valid(raise_exception=True)
 
-            # ✅ Verifica permissão para editar o documento existente
-            existing_doc.ensure_user_permission(request.user, existing_doc.ACTION_EDIT)
-
-            # Se um novo arquivo for fornecido, reseta o status
             if 'arquivo' in request.FILES:
                 serializer.save(
-                    project=project,
+                    # ✅ Não precisa passar 'project=project' aqui se o serializer pega do contexto
                     status='IN_ANALYSIS',
                     is_approved=False,
                     rejection_reason=None,
                     approved_at=None
                 )
             else:
-                serializer.save(project=project)
+                serializer.save() # ✅ O serializer pega o project do contexto
 
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
-            # CREATE
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # ✅ Passa o projeto para o serializer.save()
-            serializer.save(project=project)
+            serializer.save() # ✅ O serializer pega o project do contexto
 
             return Response(
                 serializer.data,
                 status=status.HTTP_201_CREATED,
                 headers=self.get_success_headers(serializer.data)
             )
-
-
+        
 # ==============================================================================
 # 2. View para Recuperação, Atualização, Deleção e Aprovação (ProjectDocumentDetailView)
 #    URL: /api/v1/projects/{project_pk}/documents/{pk}/
