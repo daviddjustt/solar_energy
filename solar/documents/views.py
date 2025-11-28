@@ -268,7 +268,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'results': output_serializer.data
         }, status=status.HTTP_200_OK)
 
-
 class ProjectDocumentListView(generics.ListCreateAPIView):
     serializer_class = DocumentUploadSerializer
     pagination_class = None
@@ -310,7 +309,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
             if 'arquivo' in request.FILES:
                 serializer.save(
-                    # ✅ Não precisa passar 'project=project' aqui se o serializer pega do contexto
+                    # ✅ Não precisa passar 'project=project' aqui, o serializer pega do contexto
                     status='IN_ANALYSIS',
                     is_approved=False,
                     rejection_reason=None,
