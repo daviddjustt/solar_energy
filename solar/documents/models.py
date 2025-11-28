@@ -514,11 +514,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         """
         # Executar validações
         self.full_clean()
-
-        if self.status == ProjectDocument.APPROVED and not self.approved_at:
-            self.approved_at = timezone.now()
-        elif self.status != ProjectDocument.APPROVED and self.approved_at:
-            self.approved_at = None
         
         # Salvar o objeto
         super().save(*args, **kwargs)
