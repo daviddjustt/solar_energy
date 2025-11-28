@@ -20,7 +20,7 @@ from .serializers import (
     ListaDeMateriaisSerializer
 )
 
-
+from solar.users.models import User
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets
@@ -34,38 +34,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gerenciar projetos.
     Permite criar, listar, recuperar, atualizar e deletar projetos.
-    O campo 'uuid' é esperado no corpo da requisição para operações de criação/atualização.
     As operações de detalhe (retrieve, update, destroy) usam o 'pk' (ID) do projeto na URL.
     """
     queryset = ClientProject.objects.all().order_by('-created_at')
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated] # ✅ Mantido, mas pode ser customizado
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
-    filterset_fields = ['created_by', 'codigoCliente']
+    filterset_fields = ['created_by', 'codigoCliente'] # ✅ Mantido para a listagem padrão
 
     def get_queryset(self):
         """
         Filtra os projetos com base no tipo de usuário usando as novas flags.
         """
         user = self.request.user
-
-        # Superusuários veem tudo
-        if user.is_superuser:
+        # Superusuários, Administradores e Técnicos veem tudo
+        if user.is_superuser or user.is_admin or user.is_tecnico:
             return ClientProject.objects.all().order_by('-created_at')
-
-        # Administradores (usando a nova flag) também veem tudo
-        if user.is_admin:
-            return ClientProject.objects.all().order_by('-created_at')
-
-        # Técnicos veem todos os projetos
-        if user.is_tecnico:
-            return ClientProject.objects.all().order_by('-created_at')
-
         # Clientes veem apenas seus próprios projetos
         if user.is_cliente:
             return ClientProject.objects.filter(created_by=user).order_by('-created_at')
-
-        # Para qualquer outro usuário autenticado
+        # Para qualquer outro usuário autenticado (que não se encaixe nas categorias acima)
         return ClientProject.objects.filter(created_by=user).order_by('-created_at')
 
     def get_serializer_class(self):
@@ -73,20 +61,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Retorna o serializer apropriado baseado no tipo de usuário e na ação.
         """
         user = self.request.user
-
         # Técnicos e Clientes usam o serializer com campos financeiros read-only
         if user.is_tecnico or user.is_cliente:
             return TecnicoClientProjectSerializer
-
-        # Para outros usuários
+        # Para outras ações ou usuários, usa serializers específicos
         if self.action == 'list':
             return ProjectListSerializer
+        # Se for 'create', 'retrieve', 'update', 'partial_update', 'destroy'
+        # ou qualquer outra action não listada acima, usa ProjectSerializer
         return ProjectInfoSerializer
 
     def perform_update(self, serializer):
         """Verificar permissões antes de atualizar campos financeiros."""
         user = self.request.user
-
         if user.is_tecnico or user.is_cliente:
             financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
             for field in financial_fields:
@@ -110,6 +97,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """
         Endpoint para projetos do usuário logado.
         """
+        # O get_queryset() já filtra por created_by=user para clientes e outros usuários,
+        # e retorna todos para staff. Então, basta usar o queryset filtrado.
         projetos = self.get_queryset()
         serializer = self.get_serializer(projetos, many=True)
         return Response(serializer.data)
@@ -121,7 +110,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Apenas administradores podem acessar.
         """
         user = self.request.user
-
         # Técnicos e Clientes não podem ver resumos financeiros completos
         if user.is_tecnico or user.is_cliente:
             return Response({
@@ -136,7 +124,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         total_mensalidades = sum(
             p.valor_total for p in projetos.filter(tipo_financeiro='mensalidade')
         )
-
         return Response({
             'total_projetos': projetos.count(),
             'projetos_valor_unico': projetos.filter(tipo_financeiro='valor_unico').count(),
@@ -165,13 +152,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Exemplo: GET /api/v1/projects/by_email/?email=cliente@exemplo.com
         """
         email = request.query_params.get('email')
-
         if not email:
             return Response(
                 {"detail": "O parâmetro 'email' é obrigatório na query string."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         # Validação de formato de e-mail
         try:
             serializers.EmailField().run_validation(email)
@@ -180,22 +165,68 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 {"detail": "O email fornecido não é válido."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         # Filtra os projetos pelo email
         queryset = self.get_queryset().filter(email=email).order_by('-created_at')
         output_serializer = ProjectListSerializer(queryset, many=True)
-
         return Response(output_serializer.data, status=status.HTTP_200_OK)
 
-    # ✅ NOVO ENDPOINT: BUSCAR POR created_by OU codigoCliente (POST com body)
+    # ✅ NOVO ENDPOINT: BUSCAR POR created_by (GET com query parameter)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='created_by',
+                type=OpenApiTypes.UUID, # ✅ Tipo UUID
+                location=OpenApiParameter.QUERY,
+                description='UUID do usuário que criou o projeto.',
+                required=True,
+            ),
+        ],
+        responses={
+            200: ProjectListSerializer(many=True),
+            400: {'description': 'Parâmetro inválido ou ausente'},
+            404: {'description': 'Usuário não encontrado'}
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='buscar-por-criador')
+    def buscar_projetos_por_criador(self, request):
+        """
+        Busca projetos por 'created_by' (UUID do usuário) como parâmetro de query.
+        Retorna os projetos criados por esse usuário.
+
+        Exemplo de URL: /api/v1/projects/buscar-por-criador/?created_by=3fa85f64-5717-4562-b3fc-2c963f66afa6
+        """
+        created_by_uuid = request.query_params.get('created_by')
+
+        if not created_by_uuid:
+            return Response(
+                {"detail": "O parâmetro 'created_by' é obrigatório na query string."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        queryset = self.get_queryset() # Começa com o queryset base (respeitando permissões)
+
+        try:
+            user = get_object_or_404(User, uuid=created_by_uuid)
+            queryset = queryset.filter(created_by=user)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": f"Usuário com UUID '{created_by_uuid}' não encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    # ✅ ENDPOINT EXISTENTE: BUSCAR POR created_by OU codigoCliente (POST com body)
     @extend_schema(
         request={
             'application/json': {
                 'type': 'object',
                 'properties': {
                     'created_by': {
-                        'type': 'integer',
-                        'description': 'ID do usuário que criou o projeto'
+                        'type': 'string', # ✅ CORRIGIDO: Agora é string (UUID)
+                        'format': 'uuid', # ✅ ADICIONADO: Formato UUID
+                        'description': 'UUID do usuário que criou o projeto'
                     },
                     'codigoCliente': {
                         'type': 'string',
@@ -216,53 +247,42 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def buscar_projetos(self, request):
         """
         Busca projetos por 'created_by' OU 'codigoCliente'.
-
         Método: POST
         Body (JSON):
         {
-            "created_by": 5,           # Opcional: ID do usuário
-            "codigoCliente": "ABC123"  # Opcional: Código do cliente
+            "created_by": "3fa85f64-5717-4562-b3fc-2c963f66afa6", # Opcional: UUID do usuário
+            "codigoCliente": "ABC123"                          # Opcional: Código do cliente
         }
-
         Você pode enviar um ou ambos os parâmetros.
         Se enviar ambos, a busca será por AND (created_by E codigoCliente).
         """
-        created_by = request.data.get('created_by')
+        created_by_uuid = request.data.get('created_by') # ✅ Pega o UUID
         codigo_cliente = request.data.get('codigoCliente')
 
-        # ✅ Validação: Pelo menos um parâmetro deve ser fornecido
-        if not created_by and not codigo_cliente:
+        if not created_by_uuid and not codigo_cliente:
             return Response(
                 {
                     "detail": "Pelo menos um dos parâmetros é obrigatório: 'created_by' ou 'codigoCliente'.",
                     "exemplo": {
-                        "created_by": 5,
+                        "created_by": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                         "codigoCliente": "ABC123"
                     }
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ✅ Inicia com o queryset base (respeitando permissões do usuário)
-        queryset = self.get_queryset()
-
-        # ✅ Aplica filtros conforme os parâmetros fornecidos
-        if created_by:
-            queryset = queryset.filter(created_by=created_by)
+        queryset = self.get_queryset() # Inicia com o queryset base (respeitando permissões do usuário)
 
         if codigo_cliente:
-            queryset = queryset.filter(codigoCliente=codigo_cliente)
+            queryset = queryset.filter(codigoCliente__icontains=codigo_cliente) # icontains para busca parcial
 
-        # ✅ Ordena por data de criação (mais recentes primeiro)
         queryset = queryset.order_by('-created_at')
 
-        # ✅ Serializa e retorna os resultados
         output_serializer = ProjectListSerializer(queryset, many=True)
-
         return Response({
             'total_results': queryset.count(),
             'filters_applied': {
-                'created_by': created_by,
+                'created_by': created_by_uuid,
                 'codigoCliente': codigo_cliente
             },
             'results': output_serializer.data
