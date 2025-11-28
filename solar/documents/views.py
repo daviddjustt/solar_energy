@@ -246,33 +246,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='buscar')
     def buscar_projetos(self, request):
         """
-        Busca projetos por 'created_by' OU 'codigoCliente'.
-        Método: POST
-        Body (JSON):
-        {
-            "created_by": "3fa85f64-5717-4562-b3fc-2c963f66afa6", # Opcional: UUID do usuário
-            "codigoCliente": "ABC123"                          # Opcional: Código do cliente
-        }
+        Busca projetos por 'created_by' OU 'codigoCliente' como parâmetros de query.
+        Método: GET
+        Exemplo: GET /api/v1/projects/buscar/?created_by=3fa85f64-5717-4562-b3fc-2c963f66afa6&codigoCliente=ABC123
         Você pode enviar um ou ambos os parâmetros.
         Se enviar ambos, a busca será por AND (created_by E codigoCliente).
         """
-        created_by_uuid = request.data.get('created_by') # ✅ Pega o UUID
-        codigo_cliente = request.data.get('codigoCliente')
+        created_by_uuid = request.query_params.get('created_by')
+        codigo_cliente = request.query_params.get('codigoCliente')
 
         if not created_by_uuid and not codigo_cliente:
             return Response(
                 {
                     "detail": "Pelo menos um dos parâmetros é obrigatório: 'created_by' ou 'codigoCliente'.",
-                    "exemplo": {
-                        "created_by": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                        "codigoCliente": "ABC123"
-                    }
+                    "exemplo": "GET /api/v1/projects/buscar/?created_by=UUID_DO_USUARIO ou /api/v1/projects/buscar/?codigoCliente=ABC123"
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         queryset = self.get_queryset() # Inicia com o queryset base (respeitando permissões do usuário)
-
         if codigo_cliente:
             queryset = queryset.filter(codigoCliente__icontains=codigo_cliente) # icontains para busca parcial
 
