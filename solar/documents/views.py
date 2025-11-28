@@ -243,7 +243,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             400: {'description': 'Parâmetros inválidos ou ausentes'}
         }
     )
-    @action(detail=False, methods=['post'], url_path='buscar')
+    @action(detail=False, methods=['get'], url_path='buscar')
     def buscar_projetos(self, request):
         """
         Busca projetos por 'created_by' OU 'codigoCliente'.
