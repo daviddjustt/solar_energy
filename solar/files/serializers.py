@@ -29,7 +29,7 @@ class DocumentUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentUser
         fields = '__all__'
-        read_only_fields = ['approved_at', 'user']
+        read_only_fields = ['approved_at']
 
     def validate_document_type(self, value):
         """
