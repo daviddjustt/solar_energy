@@ -253,6 +253,20 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Se enviar ambos, a busca será por AND (created_by E codigoCliente).
         """
         created_by_uuid = request.query_params.get('created_by')
+        codigo_cliente = request.query_params.get('codigoCliente')
+
+        if not created_by_uuid and not codigo_cliente:
+            return Response(
+                {
+                    "detail": "Pelo menos um dos parâmetros é obrigatório: 'created_by' ou 'codigoCliente'.",
+                    "exemplo": "GET /api/v1/projects/buscar/?created_by=UUID_DO_USUARIO ou /api/v1/projects/buscar/?codigoCliente=ABC123"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        queryset = self.get_queryset() # Inicia com o queryset base (respeitando permissões do usuário)
+        if codigo_cliente:
+            queryset = queryset.filter(codigoCliente__icontains=codigo_cliente) # icontains para busca parcial
 
         queryset = queryset.order_by('-created_at')
 
@@ -261,6 +275,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'total_results': queryset.count(),
             'filters_applied': {
                 'created_by': created_by_uuid,
+                'codigoCliente': codigo_cliente
             },
             'results': output_serializer.data
         }, status=status.HTTP_200_OK)
