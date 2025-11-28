@@ -268,19 +268,41 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'results': output_serializer.data
         }, status=status.HTTP_200_OK)
 
-
-# 2. Views para Documentos do Projeto (Aninhadas)
 class ProjectDocumentListView(generics.ListCreateAPIView):
     """
     Lista todos os documentos de um projeto específico ou faz upload de um novo documento.
     O upload de um documento do mesmo tipo para o mesmo projeto irá atualizá-lo.
-
-    URL: /api/v1/projects/{project_pk}/documents/
     """
     serializer_class = DocumentUploadSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] # ✅ Permissão de acesso ao projeto
     pagination_class = None
-    queryset = ProjectDocument.objects.all()
+
+    def get_queryset(self):
+        """
+        ✅ Retorna apenas documentos do projeto especificado na URL.
+        Usa o mixin de permissão para filtrar.
+        """
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
+
+        # ✅ Filtra documentos do projeto e aplica permissão de visualização
+        queryset = ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
+
+        # Filtra a queryset para o usuário atual, usando o método do mixin
+        # (AuthDocumentMixin.can_be_viewed_by é implementado em ProjectDocument)
+        return [doc for doc in queryset if doc.can_be_viewed_by(self.request.user)]
+
+    def get_serializer_context(self):
+        """
+        ✅ Passa o projeto e o request no contexto do serializer.
+        """
+        context = super().get_serializer_context()
+        project_pk = self.kwargs.get('project_pk')
+        if project_pk:
+            project = get_object_or_404(ClientProject, pk=project_pk)
+            context['project'] = project
+        context['request'] = self.request # ✅ Passa o request para validações no serializer
+        return context
 
     def create(self, request, *args, **kwargs):
         """
@@ -288,39 +310,10 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-
         document_type = request.data.get('document_type')
 
         if not document_type:
-            return Response(
-                {'document_type': ['Este campo é obrigatório.']},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # ✅ VALIDAÇÃO EXTRA ANTES DO SERIALIZER (Failsafe)
-        if document_type == 'comprovante_de_pagamento':
-            related_payment_document = request.data.get('related_payment_document')
-
-            # Se vier vazio ou None
-            if not related_payment_document or related_payment_document in ['', '0', 0]:
-                boletos_disponiveis = ProjectDocument.objects.filter(
-                    project=project,
-                    document_type='boleto'
-                ).values_list('id', flat=True)
-
-                if not boletos_disponiveis:
-                    return Response({
-                        'related_payment_document': 
-                            'Não é possível enviar comprovante sem um boleto criado primeiro.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                else:
-                    boletos_ids = ', '.join(map(str, boletos_disponiveis))
-                    return Response({
-                        'related_payment_document': [
-                            '🚨 Este campo é OBRIGATÓRIO para comprovantes de pagamento.',
-                            f'📌 Liste em: GET /api/v1/projects/{project.id}/payment-documents/'
-                        ]
-                    }, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'document_type': ['Este campo é obrigatório.']})
 
         # ===== LÓGICA DE UPDATE-OR-CREATE =====
         existing_doc = ProjectDocument.objects.filter(
@@ -329,29 +322,37 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         ).first()
 
         if existing_doc:
+            # UPDATE
             serializer = self.get_serializer(
                 existing_doc,
                 data=request.data,
                 partial=False
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save(
-                project=project,
-                status='IN_ANALYSIS',
-                is_approved=False,
-                rejection_reason=None,
-                approved_at=None
-            )
 
-            return Response(
-                serializer.data,
-                status=status.HTTP_200_OK,
-                headers=self.get_success_headers(serializer.data)
-            )
+            # ✅ Verifica permissão para editar o documento existente
+            existing_doc.ensure_user_permission(request.user, existing_doc.ACTION_EDIT)
+
+            # Se um novo arquivo for fornecido, reseta o status
+            if 'arquivo' in request.FILES:
+                serializer.save(
+                    project=project,
+                    status='IN_ANALYSIS',
+                    is_approved=False,
+                    rejection_reason=None,
+                    approved_at=None
+                )
+            else:
+                serializer.save(project=project)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
         else:
+            # CREATE
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer, project)
+
+            # ✅ Passa o projeto para o serializer.save()
+            serializer.save(project=project)
 
             return Response(
                 serializer.data,
@@ -359,86 +360,71 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
                 headers=self.get_success_headers(serializer.data)
             )
 
-   
+
+# ==============================================================================
+# 2. View para Recuperação, Atualização, Deleção e Aprovação (ProjectDocumentDetailView)
+#    URL: /api/v1/projects/{project_pk}/documents/{pk}/
+# ==============================================================================
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Recupera, atualiza ou exclui um documento específico de um projeto.
-
-    URL: /api/v1/projects/{project_pk}/documents/{pk}/
     """
     serializer_class = DocumentUploadSerializer
-    permission_classes = [IsAuthenticated]
-    lookup_url_kwarg = 'pk'
+    permission_classes = [IsAuthenticated] # ✅ Permissões de objeto
 
     def get_queryset(self):
-        """Garante que operamos em documentos do projeto correto."""
+        """
+        ✅ Garante que operamos em documentos do projeto correto.
+        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-        return project.documents.all()
+
+        # Retorna todos os documentos do projeto, a permissão de objeto filtra depois
+        return ProjectDocument.objects.filter(project=project).select_related('project')
 
     def get_serializer_context(self):
-        """Passa o projeto no contexto do serializer."""
+        """
+        ✅ Passa o projeto e o request no contexto do serializer.
+        """
         context = super().get_serializer_context()
-
         project_pk = self.kwargs.get('project_pk')
         if project_pk:
             project = get_object_or_404(ClientProject, pk=project_pk)
             context['project'] = project
-
+        context['request'] = self.request
         return context
 
     def perform_update(self, serializer):
         """
-        ✅ Validações de permissão para atualização.
+        ✅ Validações de permissão para atualização e lógica de reset de status.
         """
-        user = self.request.user
         document = self.get_object()
-        project = document.project
+        user = self.request.user
 
-        # Validações de permissão
-        if document.document_type == 'boleto':
-            if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied(
-                    "Apenas administradores e técnicos podem editar boletos."
-                )
-
-        elif document.document_type == 'comprovante_de_pagamento':
-            if user.is_cliente and document.project.created_by != user:
-                raise PermissionDenied(
-                    "Você só pode editar comprovante dos seus próprios projetos."
-                )
+        # ✅ Usa o mixin para verificar permissão de edição
+        document.ensure_user_permission(user, document.ACTION_EDIT)
 
         # Se um novo arquivo for fornecido, reseta o status
-        if 'arquivo' in serializer.validated_data:
+        if 'arquivo' in self.request.FILES: # ✅ Verifica request.FILES para arquivos
             serializer.save(
-                project=project,  # ✅ Mantém o projeto original
                 status='IN_ANALYSIS',
                 is_approved=False,
-                rejection_reason=None
+                rejection_reason=None,
+                approved_at=None
             )
         else:
-            serializer.save(project=project)
+            serializer.save()
 
     def perform_destroy(self, instance):
         """
         ✅ Validações de permissão para exclusão.
         """
         user = self.request.user
-
-        if instance.document_type == 'boleto':
-            if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied(
-                    "Apenas administradores e técnicos podem excluir boletos."
-                )
-
-        elif instance.document_type == 'comprovante_de_pagamento':
-            if user.is_cliente and instance.project.created_by != user:
-                raise PermissionDenied(
-                    "Você só pode excluir comprovante dos seus próprios projetos."
-                )
-
+        # ✅ Usa o mixin para verificar permissão de deleção
+        instance.ensure_user_permission(user, instance.ACTION_DELETE)
         instance.delete()
+
 
 # 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
 class ConsumerUnitListView(generics.ListCreateAPIView):

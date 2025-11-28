@@ -100,7 +100,12 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     Serializer para upload de documentos em projetos.
     O campo 'project' vem da URL (project_pk) e não do body.
     """
-
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=ClientProject.objects.all(), # Permite que o usuário envie o ID do projeto
+        write_only=True, # Apenas para escrita, não aparece na resposta
+        required=True,
+        help_text="ID do projeto ao qual o documento pertence."
+    )
     # Campos read-only
     is_approved = serializers.BooleanField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
@@ -115,7 +120,19 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             'updated_at',
             'approved_at',
         ]
-
+    def create(self, validated_data):
+        project = validated_data.pop('project') # Pega o objeto Project já validado
+        # ... resto da lógica ...
+        document = ProjectDocument.objects.create(project=project, **validated_data)
+        return document
+    
+    def update(self, instance, validated_data):
+        project = validated_data.pop('project', None) # Pode não vir no update
+        if project:
+            instance.project = project
+        # ... resto da lógica ...
+        return super().update(instance, validated_data)
+    
     def validate_document_type(self, value):
         """Validação básica do tipo de documento."""
         valid_types = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
