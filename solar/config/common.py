@@ -298,7 +298,7 @@ class Common(Configuration):
         'USER_ID_FIELD': 'uuid',
         'USER_ID_CLAIM': 'user_id',
     }
-
+    DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
     # CORS
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
