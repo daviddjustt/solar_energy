@@ -280,6 +280,7 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
     serializer_class = DocumentUploadSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
+    queryset = ProjectDocument.objects.all()
 
     def create(self, request, *args, **kwargs):
         """
