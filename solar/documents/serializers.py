@@ -100,6 +100,10 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     Serializer para upload de documentos em projetos.
     O campo 'project' vem da URL (project_pk) e não do body.
     """
+    project = serializers.PrimaryKeyRelatedField(
+        read_only=True, # ✅ Isso foi adicionado na minha última sugestão
+        help_text="ID do projeto ao qual o documento pertence (apenas leitura)."
+    )
 
     class Meta:
         model = ProjectDocument
