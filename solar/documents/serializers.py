@@ -88,30 +88,18 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
                 })
         return data
 
-        
+    
 class ListaDeMateriaisSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListaDeMateriais
         fields = "__all__"
         read_only_fields = ['project']
 
-
 class DocumentUploadSerializer(serializers.ModelSerializer):
     """
     Serializer para upload de documentos em projetos.
     O campo 'project' vem da URL (project_pk) e não do body.
     """
-    project = serializers.PrimaryKeyRelatedField(
-        queryset=ClientProject.objects.all(),
-        read_only=True, # ✅ MUDANÇA CRUCIAL: Agora é read_only
-        help_text="ID do projeto ao qual o documento pertence (apenas leitura)."
-    )
-
-    # Campos read-only
-    is_approved = serializers.BooleanField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
-    approved_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = ProjectDocument
