@@ -269,15 +269,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 class ProjectDocumentListView(generics.ListCreateAPIView):
+    """
+    Lista todos os documentos de um projeto específico ou faz upload de um novo documento.
+    O upload de um documento do mesmo tipo para o mesmo projeto irá atualizá-lo.
+    """
     serializer_class = DocumentUploadSerializer
     pagination_class = None
 
     def get_queryset(self):
+        """
+        Retorna apenas documentos do projeto especificado na URL.
+        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
         return ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
 
     def get_serializer_context(self):
+        """
+        Passa o projeto e o request no contexto do serializer.
+        """
         context = super().get_serializer_context()
         project_pk = self.kwargs.get('project_pk')
         if project_pk:
@@ -287,6 +297,9 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         return context
 
     def create(self, request, *args, **kwargs):
+        """
+        Implementa lógica de update-or-create com validação extra.
+        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
         document_type = request.data.get('document_type')
@@ -309,28 +322,28 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
             if 'arquivo' in request.FILES:
                 serializer.save(
-                    # ✅ Não precisa passar 'project=project' aqui, o serializer pega do contexto
                     status='IN_ANALYSIS',
                     is_approved=False,
                     rejection_reason=None,
                     approved_at=None
                 )
             else:
-                serializer.save() # ✅ O serializer pega o project do contexto
+                serializer.save() 
 
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            serializer.save() # ✅ O serializer pega o project do contexto
+            serializer.save() 
 
             return Response(
                 serializer.data,
                 status=status.HTTP_201_CREATED,
                 headers=self.get_success_headers(serializer.data)
             )
-        
+
+
 # ==============================================================================
 # 2. View para Recuperação, Atualização, Deleção e Aprovação (ProjectDocumentDetailView)
 #    URL: /api/v1/projects/{project_pk}/documents/{pk}/
@@ -338,25 +351,17 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
 class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    Recupera, atualiza ou exclui um documento específico de um projeto.
+    Recupera, atualiza ou deleta um documento específico de um projeto.
     """
     serializer_class = DocumentUploadSerializer
-    permission_classes = [IsAuthenticated] # ✅ Permissões de objeto
+    pagination_class = None
 
     def get_queryset(self):
-        """
-        ✅ Garante que operamos em documentos do projeto correto.
-        """
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
-
-        # Retorna todos os documentos do projeto, a permissão de objeto filtra depois
-        return ProjectDocument.objects.filter(project=project).select_related('project')
+        return ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
 
     def get_serializer_context(self):
-        """
-        ✅ Passa o projeto e o request no contexto do serializer.
-        """
         context = super().get_serializer_context()
         project_pk = self.kwargs.get('project_pk')
         if project_pk:
@@ -366,35 +371,21 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return context
 
     def perform_update(self, serializer):
-        """
-        ✅ Validações de permissão para atualização e lógica de reset de status.
-        """
-        document = self.get_object()
-        user = self.request.user
+        project_pk = self.kwargs['project_pk']
+        project = get_object_or_404(ClientProject, pk=project_pk)
 
-        # ✅ Usa o mixin para verificar permissão de edição
-        document.ensure_user_permission(user, document.ACTION_EDIT)
-
-        # Se um novo arquivo for fornecido, reseta o status
-        if 'arquivo' in self.request.FILES: # ✅ Verifica request.FILES para arquivos
+        if 'arquivo' in self.request.FILES:
             serializer.save(
+                project=project,
                 status='IN_ANALYSIS',
                 is_approved=False,
-                rejection_reason=None,
-                approved_at=None
+                rejection_reason=None
             )
         else:
-            serializer.save()
+            serializer.save(project=project)
 
     def perform_destroy(self, instance):
-        """
-        ✅ Validações de permissão para exclusão.
-        """
-        user = self.request.user
-        # ✅ Usa o mixin para verificar permissão de deleção
-        instance.ensure_user_permission(user, instance.ACTION_DELETE)
         instance.delete()
-
 
 # 3. Views para Unidades Consumidoras do Projeto (Aninhadas)
 class ConsumerUnitListView(generics.ListCreateAPIView):
