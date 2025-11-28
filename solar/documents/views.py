@@ -253,7 +253,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Se enviar ambos, a busca será por AND (created_by E codigoCliente).
         """
         created_by_uuid = request.query_params.get('created_by')
-        codigo_cliente = request.query_params.get('codigoCliente')
 
         if not created_by_uuid and not codigo_cliente:
             return Response(
