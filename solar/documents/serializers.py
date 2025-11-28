@@ -102,8 +102,6 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     """
     project = serializers.PrimaryKeyRelatedField(
         queryset=ClientProject.objects.all(), # Permite que o usuário envie o ID do projeto
-        write_only=True, # Apenas para escrita, não aparece na resposta
-        required=True,
         help_text="ID do projeto ao qual o documento pertence."
     )
     # Campos read-only
