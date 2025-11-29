@@ -25,6 +25,7 @@ class DocumentUserSerializer(serializers.ModelSerializer):
     is_payment_document = serializers.BooleanField(read_only=True)
     is_payment_complete = serializers.BooleanField(read_only=True)
     payment_status = serializers.CharField(read_only=True)
+    download_url = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentUser
@@ -92,6 +93,18 @@ class DocumentUserSerializer(serializers.ModelSerializer):
         validated_data['user'] = user
         return super().create(validated_data)
 
+    def get_download_url(self, obj):
+        """
+        Gera a URL para baixar o documento do usuário.
+        """
+        request = self.context.get('request')
+        if request and obj.user and obj.id:
+            # Assumindo que a URL de download é 'documentuser-download'
+            return request.build_absolute_uri(
+                f'/api/v1/users/{obj.user.uuid}/documents/{obj.id}/download/'
+            )
+        return None
+    
     def update(self, instance, validated_data):
         """
         Sobrescreve o método update para prevenir a alteração do campo 'user'.

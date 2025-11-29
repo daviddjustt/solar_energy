@@ -22,7 +22,9 @@ from solar.documents.views import (
 )
 from solar.files.views import (
     DocumentUserListCreateView,
-    DocumentUserRetrieveUpdateDestroyView
+    DocumentUserRetrieveUpdateDestroyView,
+    DocumentUserDownloadView,
+    DocumentUserDownloadAllView,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .users.permissions import AuthenticationThrottle
@@ -91,6 +93,19 @@ urlpatterns = [
     ),
     path('filter/clients/', ClientListView.as_view(), name='filtered-user-client-list'),
     path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
+
+    # Views de download dos documentos
+    # Usuários :
+    path(
+        'api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/',
+        DocumentUserDownloadView.as_view(),
+        name='documentuser-download'
+    ),
+    path(
+        'api/v1/users/<uuid:user_pk>/documents/download-all/',
+        DocumentUserDownloadAllView.as_view(),
+        name='documentuser-download-all'
+    ),
 ]
 
 # Servir arquivos estáticos e de mídia em ambiente de desenvolvimento

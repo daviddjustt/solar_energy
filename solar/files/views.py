@@ -1,13 +1,83 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-
+from rest_framework.views import APIView
+from rest_framework.response import FileResponse, Response
+from rest_framework import status, permissions, generics
+from rest_framework.exceptions import PermissionDenied, Http404 # Importa Http404 do DRF
+from django.shortcuts import get_object_or_404
+from django.conf import settings
+import os
+import zipfile
+from io import BytesIO
 #
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
 from solar.users.models import User
 #
 from .serializers import DocumentUser, DocumentUserSerializer
+
+class DocumentUserDownloadView(APIView):
+    """
+    Permite baixar um documento específico de um usuário.
+    URL: /api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_pk, document_pk):
+        user = get_object_or_404(User, uuid=user_pk)
+        document = get_object_or_404(DocumentUser, pk=document_pk, user=user)
+
+        # Lógica de Permissão:
+        # Apenas o próprio usuário, superusuários, administradores ou técnicos podem baixar.
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == user):
+            raise PermissionDenied("Você não tem permissão para baixar este documento.")
+
+        # Assumindo que 'arquivo' é um FileField/ImageField no seu modelo DocumentUser
+        if not document.arquivo:
+            raise Http404("O documento não possui um arquivo anexado.")
+
+        file_path = document.arquivo.path
+
+        if not os.path.exists(file_path):
+            raise Http404("Arquivo não encontrado no servidor.")
+
+        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+        return response
+
+class DocumentUserDownloadAllView(APIView):
+    """
+    Compacta e baixa todos os documentos de um usuário em um arquivo ZIP.
+    URL: /api/v1/users/<uuid:user_pk>/documents/download-all/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_pk):
+        user = get_object_or_404(User, uuid=user_pk)
+        documents = DocumentUser.objects.filter(user=user)
+
+        # Lógica de Permissão:
+        # Apenas o próprio usuário, superusuários, administradores ou técnicos podem baixar todos os documentos.
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == user):
+            raise PermissionDenied("Você não tem permissão para baixar todos os documentos deste usuário.")
+
+        if not documents.exists():
+            return Response({"detail": "Nenhum documento encontrado para este usuário."}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as zip_file:
+            for doc in documents:
+                if doc.arquivo and os.path.exists(doc.arquivo.path):
+                    # Adiciona o arquivo ao ZIP. O segundo argumento é o nome dentro do ZIP.
+                    # Usamos doc.document_type para evitar nomes duplicados se houver vários arquivos com o mesmo nome base
+                    file_name_in_zip = f"{doc.document_type}_{os.path.basename(doc.arquivo.path)}"
+                    zip_file.write(doc.arquivo.path, file_name_in_zip)
+
+        buffer.seek(0)
+        response = FileResponse(buffer, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{user.username}_documents.zip"'
+        return response
 
 class DocumentUserListCreateView(generics.ListCreateAPIView):
     serializer_class = DocumentUserSerializer
