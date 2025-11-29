@@ -1,14 +1,31 @@
-from rest_framework import generics, status, viewsets, permissions
-from rest_framework.permissions import IsAuthenticated
+import os
+import zipfile
+from io import BytesIO
+from uuid import UUID # Adicionado para validação de UUID, se necessário
+
+# Imports do Django
 from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import ValidationError
+from django.http import FileResponse # Corrigido para Http404 também
+from django.db.models import Q # Se você usa Q objects para buscas complexas
+
+# Imports do Django REST Framework
+from rest_framework import generics, status, viewsets, permissions
+from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError # ValidationError do DRF
+from rest_framework.views import APIView # Para as views de download
+from rest_framework import serializers # Se você usa serializers diretamente na view para validação (ex: EmailField)
+
+# Imports de terceiros
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
-from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit
-from solar.users.permissions import IsAdminUser
+# Imports de módulos locais do seu projeto
+from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit # Se esses modelos estão no mesmo app
+from solar.users.models import User # Assumindo que seu modelo User está aqui
+from solar.users.permissions import IsAdminUser # Sua permissão customizada
+
+# Imports de serializers locais
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -18,18 +35,6 @@ from .serializers import (
     PaymentDocumentSerializer,
     ListaDeMateriaisSerializer
 )
-
-from solar.users.models import User
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.http import FileResponse
-from rest_framework.views import APIView
-from rest_framework import status, permissions, viewsets
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiParameter
-from drf_spectacular.types import OpenApiTypes
-from rest_framework.exceptions import PermissionDenied
-from rest_framework import serializers
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """
@@ -526,8 +531,6 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
 # 6 Views para download de arquivos 
 
 class ProjectDocumentDownloadView(APIView):
-    from rest_framework.exceptions import PermissionDenied
-    from io import BytesIO
     """
     Permite baixar um documento específico de um projeto.
     URL: /api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/
@@ -557,6 +560,7 @@ class ProjectDocumentDownloadView(APIView):
         return response
 
 class ProjectDocumentDownloadAllView(APIView):
+    
     """
     Compacta e baixa todos os documentos de um projeto em um arquivo ZIP.
     URL: /api/v1/projects/<int:project_pk>/documents/download-all/
