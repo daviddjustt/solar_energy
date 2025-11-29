@@ -74,7 +74,7 @@ class DocumentUserDownloadAllView(APIView):
 
         buffer.seek(0)
         response = FileResponse(buffer, content_type='application/zip')
-        response['Content-Disposition'] = f'attachment; filename="{user.username}_documents.zip"'
+        response['Content-Disposition'] = f'attachment; filename="{user.name}_documents.zip"'
         return response
 
 class DocumentUserListCreateView(generics.ListCreateAPIView):
