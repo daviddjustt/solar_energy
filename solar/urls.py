@@ -19,6 +19,9 @@ from solar.documents.views import (
     ListaDeMateriasListView,
     ListaDeMateriasDetailView,
     PaymentDocumentView,
+    ProjectDocumentDownloadView,
+    ProjectDocumentDownloadAllView
+
 )
 from solar.files.views import (
     DocumentUserListCreateView,
@@ -105,6 +108,19 @@ urlpatterns = [
         'api/v1/users/<uuid:user_pk>/documents/download-all/',
         DocumentUserDownloadAllView.as_view(),
         name='documentuser-download-all'
+    ),
+    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
+    path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
+    # ✅ NOVAS URLs para Download de Documentos de Projeto
+    path(
+        'api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/',
+        ProjectDocumentDownloadView.as_view(),
+        name='project-document-download'
+    ),
+    path(
+        'api/v1/projects/<int:project_pk>/documents/download-all/',
+        ProjectDocumentDownloadAllView.as_view(),
+        name='project-document-download-all'
     ),
 ]
 

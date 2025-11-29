@@ -1,5 +1,4 @@
 from rest_framework import generics, status, viewsets, permissions
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
@@ -23,6 +22,8 @@ from .serializers import (
 from solar.users.models import User
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.http import FileResponse
+from rest_framework.views import APIView
 from rest_framework import status, permissions, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -520,6 +521,73 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
         project_pk = self.kwargs['project_pk']
         project = get_object_or_404(ClientProject, pk=project_pk)
         return ListaDeMateriais.objects.filter(project__pk=project_pk)
+
+
+# 6 Views para download de arquivos 
+
+class ProjectDocumentDownloadView(APIView):
+    from rest_framework.exceptions import PermissionDenied
+    from io import BytesIO
+    """
+    Permite baixar um documento específico de um projeto.
+    URL: /api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, project_pk, document_pk):
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        document = get_object_or_404(ProjectDocument, pk=document_pk, project=project)
+
+        # Lógica de Permissão:
+        # Apenas o criador do projeto, superusuários, administradores ou técnicos podem baixar.
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+            raise PermissionDenied("Você não tem permissão para baixar este documento do projeto.")
+
+        # Assumindo que 'arquivo' é um FileField/ImageField no seu modelo ProjectDocument
+        if not document.arquivo:
+            raise("O documento não possui um arquivo anexado.")
+
+        file_path = document.arquivo.path
+
+        if not os.path.exists(file_path):
+            raise("Arquivo não encontrado no servidor.")
+
+        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+        return response
+
+class ProjectDocumentDownloadAllView(APIView):
+    """
+    Compacta e baixa todos os documentos de um projeto em um arquivo ZIP.
+    URL: /api/v1/projects/<int:project_pk>/documents/download-all/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, project_pk):
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        documents = ProjectDocument.objects.filter(project=project)
+
+        # Lógica de Permissão:
+        # Apenas o criador do projeto, superusuários, administradores ou técnicos podem baixar todos os documentos.
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+            raise PermissionDenied("Você não tem permissão para baixar todos os documentos deste projeto.")
+
+        if not documents.exists():
+            return Response({"detail": "Nenhum documento encontrado para este projeto."}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as zip_file:
+            for doc in documents:
+                if doc.arquivo and os.path.exists(doc.arquivo.path):
+                    # Adiciona o arquivo ao ZIP. O segundo argumento é o nome dentro do ZIP.
+                    # Usamos doc.document_type para evitar nomes duplicados se houver vários arquivos com o mesmo nome base
+                    file_name_in_zip = f"{doc.document_type}_{os.path.basename(doc.arquivo.path)}"
+                    zip_file.write(doc.arquivo.path, file_name_in_zip)
+
+        buffer.seek(0)
+        response = FileResponse(buffer, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{project.codigoCliente}_documents.zip"'
+        return response
 
 # Nova view específica para documentos de pagamento
 class PaymentDocumentView(generics.RetrieveUpdateAPIView):

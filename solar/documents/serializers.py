@@ -137,6 +137,18 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
         document = ProjectDocument.objects.create(project=project, **validated_data)
         return document
+    
+    def get_download_url(self, obj):
+        """
+        Gera a URL para baixar o documento do projeto.
+        """
+        request = self.context.get('request')
+        if request and obj.project and obj.id:
+            # Assumindo que a URL de download é 'project-document-download'
+            return request.build_absolute_uri(
+                f'/api/v1/projects/{obj.project.pk}/documents/{obj.id}/download/'
+            )
+        return None
 
     def update(self, instance, validated_data):
         # O project já está na instância, não precisa ser atualizado via validated_data
