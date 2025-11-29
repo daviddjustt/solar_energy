@@ -1,17 +1,15 @@
-from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from rest_framework.response import FileResponse, Response
+from rest_framework.response import Response
 from rest_framework import status, permissions, generics
-from rest_framework.exceptions import PermissionDenied, Http404 # Importa Http404 do DRF
-from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import PermissionDenied # Importa Http404 do DRF
 from django.conf import settings
+from django.http import FileResponse
 import os
 import zipfile
 from io import BytesIO
-#
-from rest_framework import generics
+
 from rest_framework.exceptions import PermissionDenied
 from solar.users.models import User
 #
@@ -35,12 +33,12 @@ class DocumentUserDownloadView(APIView):
 
         # Assumindo que 'arquivo' é um FileField/ImageField no seu modelo DocumentUser
         if not document.arquivo:
-            raise Http404("O documento não possui um arquivo anexado.")
+            raise("O documento não possui um arquivo anexado.")
 
         file_path = document.arquivo.path
 
         if not os.path.exists(file_path):
-            raise Http404("Arquivo não encontrado no servidor.")
+            raise("Arquivo não encontrado no servidor.")
 
         response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
         response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
