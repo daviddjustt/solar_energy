@@ -66,28 +66,36 @@ class ConsumerUnitSerializer(serializers.ModelSerializer):
         prioridade_is_porcentagem = data.get('prioridade_is_porcentagem')
         porcentagem = data.get('porcentagem')
 
-        # Se prioridade_is_porcentagem for True, então porcentagem é obrigatório
+         # Lógica de validação:
         if prioridade_is_porcentagem is True:
-            if priority_level is None or priority_level == '':
-                raise serializers.ValidationError({
-                    'priority_level': 'O campo "priority_level" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é True.'
-                })
-            if porcentagem is not None and porcentagem != '':
-                raise serializers.ValidationError({
-                    'porcentagem': 'O campo "porcentagem" deve ser nulo ou vazio quando "prioridade_is_porcentagem" é True.'
-                })
-            
-        elif prioridade_is_porcentagem is False:
+            # Se prioridade_is_porcentagem é True, porcentagem DEVE ser preenchido
             if porcentagem is None or porcentagem == '':
                 raise serializers.ValidationError({
-                    'porcentagem': 'O campo "porcentagem" não pode ser vazio, nulo ou branco quando "prioridade_is_porcentagem" é False.'
+                    'porcentagem': 'O campo "porcentagem" é obrigatório quando "prioridade_is_porcentagem" é True.'
                 })
+            # E priority_level DEVE ser nulo/vazio
             if priority_level is not None and priority_level != '':
                 raise serializers.ValidationError({
-                    'priority_level': 'O campo "priority_level" deve ser nulo ou vazio quando "prioridade_is_porcentagem" é False.'
+                    'priority_level': 'O campo "priority_level" deve ser nulo ou vazio quando "prioridade_is_porcentagem" é True.'
                 })
-        return data
+        elif prioridade_is_porcentagem is False:
+            # Se prioridade_is_porcentagem é False, priority_level DEVE ser preenchido
+            if priority_level is None or priority_level == '':
+                raise serializers.ValidationError({
+                    'priority_level': 'O campo "priority_level" é obrigatório quando "prioridade_is_porcentagem" é False.'
+                })
+            # E porcentagem DEVE ser nulo/vazio
+            if porcentagem is not None and porcentagem != '':
+                raise serializers.ValidationError({
+                    'porcentagem': 'O campo "porcentagem" deve ser nulo ou vazio quando "prioridade_is_porcentagem" é False.'
+                })
+        else:
+            # Caso prioridade_is_porcentagem não seja fornecido ou seja inválido
+            raise serializers.ValidationError({
+                'prioridade_is_porcentagem': 'O campo "prioridade_is_porcentagem" é obrigatório e deve ser True ou False.'
+            })
 
+        return data
     
 class ListaDeMateriaisSerializer(serializers.ModelSerializer):
     class Meta:
