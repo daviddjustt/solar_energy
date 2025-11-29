@@ -1,31 +1,24 @@
+from rest_framework import generics, status, viewsets, permissions
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+from io import BytesIO
+from solar.users.models import User
+from rest_framework.response import Response
+from django.http import FileResponse
+from rest_framework.views import APIView
+
+from rest_framework import serializers
 import os
 import zipfile
-from io import BytesIO
-from uuid import UUID # Adicionado para validação de UUID, se necessário
 
-# Imports do Django
-from django.shortcuts import get_object_or_404
-from django.http import FileResponse # Corrigido para Http404 também
-from django.db.models import Q # Se você usa Q objects para buscas complexas
-
-# Imports do Django REST Framework
-from rest_framework import generics, status, viewsets, permissions
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError # ValidationError do DRF
-from rest_framework.views import APIView # Para as views de download
-from rest_framework import serializers # Se você usa serializers diretamente na view para validação (ex: EmailField)
-
-# Imports de terceiros
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-
-# Imports de módulos locais do seu projeto
-from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit # Se esses modelos estão no mesmo app
-from solar.users.models import User # Assumindo que seu modelo User está aqui
-from solar.users.permissions import IsAdminUser # Sua permissão customizada
-
-# Imports de serializers locais
+from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit
+from solar.users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -411,15 +404,15 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
     Lista todas as unidades consumidoras de um projeto específico ou cria uma nova.
     """
     serializer_class = ConsumerUnitSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, IsAuthenticated]
+            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
-            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+            permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
 
         return [permission() for permission in permission_classes]
 
@@ -444,10 +437,10 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, IsAuthenticated]
+            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
-            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+            permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
 
         return [permission() for permission in permission_classes]
     def get_queryset(self):
@@ -462,15 +455,15 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
     Listagem e criação de listas de materiais para um projeto específico.
     """
     serializer_class = ListaDeMateriaisSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, IsAuthenticated]
+            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
-            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+            permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
 
         return [permission() for permission in permission_classes]
 
@@ -516,10 +509,10 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, IsAuthenticated]
+            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
-            permission_classes = [IsAuthenticated] # Ou a permissão apropriada para GET
+            permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
 
         return [permission() for permission in permission_classes]
     def get_queryset(self):
@@ -599,7 +592,7 @@ class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     View específica para gerenciar documentos de pagamento (boleto e comprovante)
     """
     serializer_class = PaymentDocumentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_object(self):
         project_pk = self.kwargs['project_pk']
