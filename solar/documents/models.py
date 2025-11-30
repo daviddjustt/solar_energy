@@ -17,6 +17,7 @@ from .utils import (
     DOCUMENT_TYPE_CHOICES_PESSOA,
     DOCUMENT_TYPE_CHOICES,
     IN_ANALYSIS,
+    WATS_CHOICES,
     APPROVED, 
     REJECTED,
     get_document_upload_path, 
@@ -347,6 +348,12 @@ class ConsumerUnit(models.Model):
         blank=True,
         null=True,
         verbose_name="Porcentagem (%)"
+    )
+    unidade_de_medida = models.CharField(
+        max_length=100,
+        choices=WATS_CHOICES,
+        help_text="Voltagem do consumidor",
+        default="wats"
     )
     priority_level = models.PositiveSmallIntegerField(
         verbose_name="Nível de Prioridade",
