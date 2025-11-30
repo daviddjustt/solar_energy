@@ -457,6 +457,12 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         on_delete=models.CASCADE,
         related_name='documents'
     )
+    document_name = models.CharField(
+        max_length=80,
+        verbose_name="Nome opcional para o documento",
+        blank=True,
+        null=True
+    )
     document_type = models.CharField(
         max_length=80,
         choices=DOCUMENT_TYPE_CHOICES,

@@ -68,6 +68,12 @@ class Document(BaseModel, ArquivoMixin):
         default=IN_ANALYSIS, # Documentos recém-enviados começam "Em Análise"
         verbose_name="Status do Documento"
     )
+    document_name = models.CharField(
+        max_length=80,
+        verbose_name="Nome opcional para o documento",
+        blank=True,
+        null=True
+    )
     related_payment_document = models.ForeignKey(
         'self', 
         on_delete=models.CASCADE, 
