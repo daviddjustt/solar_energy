@@ -349,12 +349,6 @@ class ConsumerUnit(models.Model):
         null=True,
         verbose_name="Porcentagem (%)"
     )
-    unidade_de_medida = models.CharField(
-        max_length=100,
-        choices=WATS_CHOICES,
-        help_text="Voltagem do consumidor",
-        default="wats"
-    )
     priority_level = models.PositiveSmallIntegerField(
         verbose_name="Nível de Prioridade",
         help_text="Um valor inteiro, onde o número mais baixo indica maior prioridade. Deve ser único por projeto.",
@@ -446,9 +440,15 @@ class ListaDeMateriais(models.Model):
     potencia = models.DecimalField(
         max_digits=7,
         decimal_places=2,
-        verbose_name="Potência nominal em kW",
+        verbose_name="Potência nominal em w ou kW",
         blank=True,
         null=True,
+    )
+    unidade_de_medida = models.CharField(
+        max_length=100,
+        choices=WATS_CHOICES,
+        help_text="Voltagem do consumidor",
+        default="wats"
     )
 
 class ProjectDocument(BaseModel, ArquivoMixin):
