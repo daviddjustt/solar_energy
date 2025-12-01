@@ -97,9 +97,15 @@ except Exception as e:
     sys.exit(1)
 EOF
 echo ""
+# ==========================================
+# 5. CRIAR USUÁRIOS CLIENTES DE TESTE
+# ==========================================
+echo "👥 Criando usuários clientes de teste..."
+python manage.py create_test_clients # ✅ Nova linha aqui!
+echo ""
 
 # ==========================================
-# 5. INICIAR SERVIDOR GUNICORN
+# 6. INICIAR SERVIDOR GUNICORN
 # ==========================================
 echo "✅ Iniciando servidor Gunicorn..."
 exec gunicorn solar.wsgi:application \
