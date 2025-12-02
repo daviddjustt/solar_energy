@@ -38,7 +38,7 @@ STATUS_CHOICES = [
     ]
 WATS_CHOICES = [
     ('w','Wats'),
-    ('kw','KiloWats'),
+    ('kW','KiloWats'),
 ]
 IN_ANALYSIS = 'IN_ANALYSIS'
 APPROVED = 'APPROVED'
