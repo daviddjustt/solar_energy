@@ -409,7 +409,7 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
+            permission_classes = [permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
@@ -437,7 +437,7 @@ class ConsumerUnitDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
+            permission_classes = [permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
@@ -460,7 +460,7 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
+            permission_classes = [permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
@@ -509,7 +509,7 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request and self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            permission_classes = [IsAdminUser, permissions.IsAuthenticated]
+            permission_classes = [permissions.IsAuthenticated]
         else:
             # Permissões para operações de leitura (GET)
             permission_classes = [permissions.IsAuthenticated] # Ou a permissão apropriada para GET
