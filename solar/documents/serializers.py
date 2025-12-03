@@ -213,12 +213,15 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                     document_type='boleto'
                 ).values_list('id', flat=True)
 
+                request_method = self.context['request'].method
+
                 if not boletos_disponiveis:
                     raise serializers.ValidationError({
                         'related_payment_document': 'Não é possível enviar comprovante sem um boleto criado primeiro. '
                                                     'Solicite ao administrador que crie um boleto no projeto antes de enviar o comprovante.'
                     })
-                else:
+                elif request_method != 'PATCH':
+                    # Sua lógica de validação existente
                     boletos_ids = ', '.join(map(str, boletos_disponiveis))
                     raise serializers.ValidationError({
                         'related_payment_document': [
@@ -227,6 +230,8 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                             '💡 Exemplo de uso: related_payment_document=51'
                         ]
                     })
+                else :
+                    pass
 
             # ✅ VALIDAÇÃO EXTRA: Se forneceu boleto, verifica se é válido
             if related_payment_document:
