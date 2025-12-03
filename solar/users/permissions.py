@@ -1,4 +1,3 @@
-from rest_framework.permissions import BasePermission, permissions
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 import logging
 
