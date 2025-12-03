@@ -35,7 +35,6 @@ def validate_cnpj(cnpj):
     
     return bool(re.match(cnpj_pattern, cnpj))
 
-
 class UserManager(BaseUserManager):
     """
     Gerenciador de usuários customizado para o modelo User.
