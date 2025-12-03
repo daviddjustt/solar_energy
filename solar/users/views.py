@@ -23,7 +23,7 @@ from rest_framework import generics, status, viewsets, permissions
 from .models import User, UserChangeLog
 from django.db.models import Q, Count
 from .serializers import UserUpdateSerializer, CustomUserDeleteSerializer, UserDetailSerializer, ClientListSerializer
-from .permissions import IsAdminUser, IsOwnerOrAdmin, CanDeleteUser, PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
+from .permissions import PasswordResetThrottle, UserDeleteThrottle, GeneralUserThrottle, LoginThrottle, RegistrationThrottle, ActivationThrottle
 from django.contrib.auth.models import Group
 
 logger = logging.getLogger(__name__)
@@ -158,11 +158,11 @@ class CustomUserViewSet(UserViewSet):
         if self.action == 'create':
             permission_classes = []  # Qualquer um pode se registrar
         elif self.action == 'destroy':
-            permission_classes = [CanDeleteUser]
+            permission_classes = [IsAuthenticated]
         elif self.action in ['update', 'partial_update']:
-            permission_classes = [IsOwnerOrAdmin]
+            permission_classes = [IsAuthenticated]
         elif self.action in ['list', 'retrieve']:
-            permission_classes = [IsAdminUser]
+            permission_classes = [IsAuthenticated]
         else:
             permission_classes = [IsAuthenticated]
         
