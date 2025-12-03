@@ -18,7 +18,6 @@ import os
 import zipfile
 
 from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit
-from solar.users.permissions import IsAdminUser
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,

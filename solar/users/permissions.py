@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission, IsAuthenticated
+from rest_framework.permissions import BasePermission, permissions
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 import logging
 
@@ -11,39 +11,6 @@ class AuthenticationThrottle(AnonRateThrottle):
     """
     scope = 'authentication'
     rate = '5/minute'  # 5 tentativas por minuto
-
-class IsAdminUser(BasePermission):
-    """
-    Permite acesso apenas para admins
-    """
-    def has_permission(self, request, view):
-        # Primeiro, verifica se o usuário está autenticado.
-        # AnonymousUser.is_authenticated é False.
-        if not request.user.is_authenticated:
-            return False
-
-        # Se autenticado, verifica se é admin ou superuser.
-        return request.user.is_admin or request.user.is_superuser
-    
-class IsOwnerOrAdmin(BasePermission):
-    """
-    Permite que o usuário acesse seus próprios dados ou admins acessem qualquer um
-    """
-    def has_object_permission(self, request, view, obj):
-        if request.user.is_admin or request.user.is_superuser:
-            return True
-        return obj == request.user
-
-class CanDeleteUser(BasePermission):
-    """
-    Permite deleção apenas para admins (sem senha) ou o próprio usuário (com senha)
-    """
-    def has_object_permission(self, request, view, obj):
-        # Admin pode deletar qualquer um
-        if request.user.is_admin or request.user.is_superuser:
-            return True
-        # Usuário comum só pode deletar a si mesmo
-        return obj == request.user
 
 class LoginThrottle(AnonRateThrottle):
     """Rate limit para login - 5 tentativas por minuto"""
