@@ -29,7 +29,7 @@ class Common(Configuration):
         # Your apps
         'solar.users',
         'solar.documents',
-        'solar.files',
+        'solar.project',
     )
     DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
     MIDDLEWARE = (

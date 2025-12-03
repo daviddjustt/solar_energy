@@ -33,9 +33,8 @@ RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
     chmod -R 755 /app/media
 
 # Copiar entrypoint e dar permissões
-COPY --chown=nonroot:nonroot entrypoint.sh /code/
+COPY --chown=nonroot:nonroot entrypoint.sh /code/entrypoint.sh
 RUN chmod +x /code/entrypoint.sh
-
 # Makemigrations
 # RUN python manage.py makemigrations
 
