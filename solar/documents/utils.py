@@ -37,7 +37,7 @@ STATUS_CHOICES = [
         ('REJECTED', 'Rejeitado'),
     ]
 WATS_CHOICES = [
-    ('w','Wats'),
+    ('W','Wats'),
     ('kW','KiloWats'),
 ]
 IN_ANALYSIS = 'IN_ANALYSIS'
