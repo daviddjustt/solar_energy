@@ -280,23 +280,23 @@ class User(AbstractBaseUser, PermissionsMixin):
         # A validação de CPF/CNPJ agora depende dos grupos
         if self.is_pessoa_juridica:
             if not self.cnpj:
-                raise models.ValidationError({'cnpj': 'CNPJ é obrigatório para Pessoa Jurídica.'})
+                raise ValidationError({'cnpj': 'CNPJ é obrigatório para Pessoa Jurídica.'})
             if self.cpf:
-                raise models.ValidationError({'cpf': 'CPF deve ser vazio para Pessoa Jurídica.'})
+                raise ValidationError({'cpf': 'CPF deve ser vazio para Pessoa Jurídica.'})
         elif self.is_pessoa_fisica: # Se for PF
             if not self.cpf:
-                raise models.ValidationError({'cpf': 'CPF é obrigatório para Pessoa Física.'})
+                raise ValidationError({'cpf': 'CPF é obrigatório para Pessoa Física.'})
             if self.cnpj:
-                raise models.ValidationError({'cnpj': 'CNPJ deve ser vazio para Pessoa Física.'})
+                raise ValidationError({'cnpj': 'CNPJ deve ser vazio para Pessoa Física.'})
         else: # Para usuários que não são clientes (ex: Técnicos, Superusuários sem grupo cliente)
             if self.cpf or self.cnpj:
-                raise models.ValidationError({'cpf': 'CPF/CNPJ deve ser vazio para usuários que não são clientes.'})
+                raise ValidationError({'cpf': 'CPF/CNPJ deve ser vazio para usuários que não são clientes.'})
 
         # Validação de unicidade para CPF/CNPJ (já garantida por unique=True, mas bom ter aqui também)
         if self.cpf and User.objects.filter(cpf=self.cpf).exclude(uuid=self.uuid).exists():
-            raise models.ValidationError({'cpf': 'Já existe um usuário com este CPF.'})
+            raise ValidationError({'cpf': 'Já existe um usuário com este CPF.'})
         if self.cnpj and User.objects.filter(cnpj=self.cnpj).exclude(uuid=self.uuid).exists():
-            raise models.ValidationError({'cnpj': 'Já existe um usuário com este CNPJ.'})
+            raise ValidationError({'cnpj': 'Já existe um usuário com este CNPJ.'})
         
     def _assign_to_groups(self):
         """
