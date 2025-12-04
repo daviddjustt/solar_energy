@@ -15,28 +15,25 @@ from solar.choices import (
     MaxImageSize
 )
 
-def validate_cpf(cpf):
-    cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}/\d{2}$'
-    """Valida o cpf de forma simplificada."""
-    cpf = ''.join(filter(str.isdigit, cpf))
-    if len(cpf) != 11:
-        raise ValidationError('cpf deve conter 18 dígitos')
-    if all(d == cpf[0] for d in cpf):
-        raise ValidationError('cpf inválido')
-    
-    return bool(re.match(cpf_pattern, cpf))
+def validate_cpf(cpf_value):
+    """Valida o formato do CPF (11 dígitos numéricos) e retorna o CPF limpo."""
+    cpf_cleaned = ''.join(filter(str.isdigit, cpf_value))
+    if len(cpf_cleaned) != 11:
+        raise ValidationError('CPF deve conter 11 dígitos numéricos.')
+    if all(d == cpf_cleaned[0] for d in cpf_cleaned):
+        raise ValidationError('CPF inválido: todos os dígitos são iguais.')
+    # Aqui você pode adicionar uma validação de dígitos verificadores mais robusta se necessário
+    return cpf_cleaned
 
-def validate_cnpj(cnpj):
-    cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
-    """Valida o cnpj de forma simplificada."""
-    cnpj = ''.join(filter(str.isdigit, cnpj))
-    if len(cnpj) != 14:
-        raise ValidationError('cnpj deve conter 18 dígitos')
-    if all(d == cnpj[0] for d in cnpj):
-        raise ValidationError('cnpj inválido')
-    
-    return bool(re.match(cnpj_pattern, cnpj))
-
+def validate_cnpj(cnpj_value):
+    """Valida o formato do CNPJ (14 dígitos numéricos) e retorna o CNPJ limpo."""
+    cnpj_cleaned = ''.join(filter(str.isdigit, cnpj_value))
+    if len(cnpj_cleaned) != 14:
+        raise ValidationError('CNPJ deve conter 14 dígitos numéricos.')
+    if all(d == cnpj_cleaned[0] for d in cnpj_cleaned):
+        raise ValidationError('CNPJ inválido: todos os dígitos são iguais.')
+    # Aqui você pode adicionar uma validação de dígitos verificadores mais robusta se necessário
+    return cnpj_cleaned
 class UserManager(BaseUserManager):
     """
     Gerenciador de usuários customizado para o modelo User.
@@ -56,8 +53,12 @@ class UserManager(BaseUserManager):
         email = self.normalize_email(email)
 
         # Validação de celular
-        if celular and not models.RegexValidator(regex=CelularRegex.REGEX)(celular):
-             raise ValidationError('Celular inválido. Formato esperado: DDNNNNNNNNN (ex: 11987654321).')
+        celular_validator_instance = RegexValidator(regex=CelularRegex.REGEX, message=CelularRegex.MESSAGE)
+        try:
+            celular_validator_instance(celular)
+        except ValidationError as e:
+            # Re-raise como ValidationError do Django para ser capturado pelo full_clean
+            raise ValidationError({'celular': e.message}) from e
 
         user = self.model(
             email=email,
