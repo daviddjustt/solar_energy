@@ -1,4 +1,4 @@
-# Core
+# Cores
 Django==5.1.7
 django-configurations==2.5.1
 gunicorn==23.0.0
