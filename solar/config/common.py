@@ -28,7 +28,7 @@ class Common(Configuration):
         
         # Your apps
         'solar.users'
-        'solar.users.apps.UsersConfig',
+        # 'solar.users.apps.UsersConfig',
         'solar.documents',
         'solar.project',
     )
