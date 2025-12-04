@@ -1,11 +1,21 @@
 import os
 import uuid
+import re
 
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 from django.utils import timezone
-
+from django.core.validators import RegexValidator 
 from django.db import models
+
+class CelularRegex:
+    """Classe para a constante de regex de celular."""
+    REGEX = r'^\d{11}$'
+    MESSAGE = 'Celular inválido. Formato esperado: DDNNNNNNNNN (ex: 11987654321).'
+
+class MaxImageSize:
+    """Classe para a constante de tamanho máximo de imagem."""
+    MB = 10
 
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'

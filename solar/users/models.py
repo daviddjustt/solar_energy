@@ -10,8 +10,10 @@ from django.conf import settings
 from django.contrib.auth.models import Group # Importar Group
 from django.utils import timezone
 # Constantes para validações
-CELULAR_REGEX = r'^\d{11}$'
-MAX_IMAGE_SIZE_MB = 7
+from solar.choices import (
+    CelularRegex,
+    MaxImageRegex
+)
 
 def validate_cpf(cpf):
     cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}/\d{2}$'
@@ -54,7 +56,7 @@ class UserManager(BaseUserManager):
         email = self.normalize_email(email)
 
         # Validação de celular
-        if celular and not models.RegexValidator(regex=CELULAR_REGEX)(celular):
+        if celular and not models.RegexValidator(regex=CelularRegex.REGEX)(celular):
              raise ValidationError('Celular inválido. Formato esperado: DDNNNNNNNNN (ex: 11987654321).')
 
         user = self.model(
@@ -209,7 +211,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text="Cadastro Nacional da Pessoa Jurídica (apenas números)."
     )
     celular_validator = RegexValidator(
-        regex=CELULAR_REGEX,
+        regex=CelularRegex.REGEX,
         message='Celular inválido. Formato esperado: DDNNNNNNNNN (ex: 11987654321).'
     )
     celular = models.CharField(
