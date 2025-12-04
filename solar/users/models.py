@@ -12,7 +12,7 @@ from django.utils import timezone
 # Constantes para validações
 from solar.choices import (
     CelularRegex,
-    MaxImageRegex
+    MaxImageSize
 )
 
 def validate_cpf(cpf):
