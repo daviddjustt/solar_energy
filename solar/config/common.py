@@ -27,7 +27,7 @@ class Common(Configuration):
         'simple_history',  # ADICIONADO - estava faltando
         
         # Your apps
-        'solar.users',
+        'solar.users.apps.UsersConfig',
         'solar.documents',
         'solar.project',
     )
