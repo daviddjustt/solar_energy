@@ -87,7 +87,7 @@ class DocumentUserListCreateView(generics.ListCreateAPIView):
         user = get_object_or_404(User, pk=user_pk)
         # Garante que apenas o próprio usuário ou um admin/técnico pode ver seus documentos
         if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff):
-            return DocumentUser.objects.filter(user=user)
+            return DocumentUser.objects.filter(user=user).order_by('created_at')
         raise PermissionDenied("Você não tem permissão para acessar estes documentos.")
 
     def perform_create(self, serializer):
