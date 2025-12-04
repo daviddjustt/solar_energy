@@ -15,7 +15,7 @@ class ArquivoMixin(models.Model):
     class Meta:
         abstract = True
 
-class Document(ArquivoMixin, models):
+class Document(ArquivoMixin, models.Model):
     """
     Modelo abstrato base para documentos, fornecendo campos comuns
     como tipo, status, motivo de rejeição e data de aprovação.
