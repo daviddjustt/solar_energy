@@ -162,7 +162,7 @@ class ProjectDocument(Document): # Herda do modelo abstrato Document
     Representa um documento específico que pertence a um projeto.
     """
     project = models.ForeignKey(
-        'projects.Projeto', # Referência ao seu modelo Projeto
+        'project.Projeto', # Referência ao seu modelo Projeto
         on_delete=models.CASCADE,
         related_name='documents', # Nome para acessar documentos a partir de um projeto
         verbose_name="Projeto"
