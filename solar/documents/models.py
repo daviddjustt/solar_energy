@@ -10,7 +10,13 @@ from solar.choices import (
     get_document_upload_path,
     validate_file_size,)
 
-class ArquivoMixin(models.Model):
+class TimestampMixin(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última atualização em")
+
+    class Meta:
+        abstract = True
+class ArquivoMixin(TimestampMixin, models.Model):
     arquivo = models.FileField(upload_to=get_document_upload_path)
     class Meta:
         abstract = True
