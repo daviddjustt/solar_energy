@@ -332,10 +332,10 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
             if 'arquivo' in request.FILES:
                 serializer.save(
-                    status='IN_ANALYSIS',
-                    is_approved=False,
-                    rejection_reason=None,
-                    approved_at=None
+                    #status='IN_ANALYSIS',
+                    #s_approved=False,
+                    #rejection_reason=None,
+                    #approved_at=None
                 )
             else:
                 serializer.save() 
