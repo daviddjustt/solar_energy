@@ -189,21 +189,24 @@ class ClientProject(models.Model):
         sign = -1 if self.longGraus < 0 else 1
         return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
     
-    @property
+    property
     def approved_documents_count(self):
         """Retorna o número de documentos aprovados para o projeto."""
-        return self.documents.filter(status=ProjectDocument.APPROVED).count()
+        # ✅ Correção: Usar a constante de classe STATUS_APPROVED
+        return self.documents.filter(status=ProjectDocument.STATUS_APPROVED).count()
 
     @property
     def in_analysis_documents_count(self):
         """Retorna o número de documentos em análise para o projeto."""
-        return self.documents.filter(status=ProjectDocument.IN_ANALYSIS).count()
+        # ✅ Correção: Usar a constante de classe STATUS_IN_ANALYSIS
+        return self.documents.filter(status=ProjectDocument.STATUS_IN_ANALYSIS).count()
 
     @property
     def rejected_documents_count(self):
         """Retorna o número de documentos rejeitados para o projeto."""
-        return self.documents.filter(status=ProjectDocument.REJECTED).count()
-
+        # ✅ Correção: Usar a constante de classe STATUS_REJECTED
+        return self.documents.filter(status=ProjectDocument.STATUS_REJECTED).count()
+    
     @property
     def total_documents_count(self):
         """Retorna o número total de documentos para o projeto."""
@@ -295,20 +298,24 @@ class ClientProject(models.Model):
             ]
         return base_docs
 
+
     @property
     def is_payment_complete(self):
         """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
         if self.document_type == 'boleto':
-            return self.payment_proofs.filter(status=self.APPROVED).exists()
+            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
+            return self.payment_proofs.filter(status=self.STATUS_APPROVED).exists()
         elif self.document_type == 'comprovante_de_pagamento':
-            return self.status == self.APPROVED and self.related_payment_document is not None
+            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
+            return self.status == self.STATUS_APPROVED and self.related_payment_document is not None
         return False
 
     @property
     def payment_status(self):
         """Status do pagamento para boletos"""
         if self.document_type == 'boleto':
-            if self.payment_proofs.filter(status=self.APPROVED).exists():
+            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
+            if self.payment_proofs.filter(status=self.STATUS_APPROVED).exists():
                 return 'PAGO'
             elif self.payment_proofs.exists():
                 return 'COMPROVANTE_EM_ANALISE'
@@ -318,18 +325,19 @@ class ClientProject(models.Model):
     
     def check_documetacaoCompleta(self):
         """Verifica se toda documentação obrigatória foi enviada E APROVADA"""
-        required_docs = self.get_required_documents()
+        required_docs = self.get_required_documents() # Este método deve estar no modelo Project
         # Agora, consideramos apenas documentos aprovados para a completude
         uploaded_approved_doc_types = set(
-            self.documents.filter(status=ProjectDocument.APPROVED)
+            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED do ProjectDocument
+            self.documents.filter(status=ProjectDocument.STATUS_APPROVED)
             .values_list('document_type', flat=True)
         )
         self.documetacaoCompleta = all(doc_type in uploaded_approved_doc_types for doc_type in required_docs)
-        self.save(update_fields=['documetacaoCompleta']) # Salva apenas o campo atualizado
+        self.save(update_fields=['documetacaoCompleta'])
 
- 
     def __str__(self):
         return f"{self.codigoCliente} - {self.nomeTitular} (Criado por: {self.created_by_name})"
+    
 
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
@@ -458,6 +466,9 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         ('APPROVED', 'Aprovado'),
         ('REJECTED', 'Rejeitado'),
     ]
+    STATUS_IN_ANALYSIS = 'IN_ANALYSIS'
+    STATUS_APPROVED = 'APPROVED'
+    STATUS_REJECTED = 'REJECTED'
 
     project = models.ForeignKey(
         ClientProject,
@@ -585,10 +596,10 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     def is_payment_complete(self):
         """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
         if self.document_type == 'boleto':
-            return self.payment_proofs.filter(status=self.APPROVED).exists()
+            return self.payment_proofs.filter(status=self.STATUS_APPROVED).exists()
         elif self.document_type == 'comprovante_de_pagamento':
             return (
-                self.status == self.APPROVED and 
+                self.status == self.STATUS_APPROVED and 
                 self.related_payment_document is not None
             )
         return False
@@ -597,7 +608,7 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     def payment_status(self):
         """Status do pagamento para boletos"""
         if self.document_type == 'boleto':
-            if self.payment_proofs.filter(status=self.APPROVED).exists():
+            if self.payment_proofs.filter(status=self.STATUS_APPROVED).exists():
                 return 'PAGO'
             elif self.payment_proofs.exists():
                 return 'COMPROVANTE_EM_ANALISE'
