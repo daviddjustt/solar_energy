@@ -23,8 +23,7 @@ User = get_user_model()
 SUPERUSER_DATA = {
     'email': 'admin@solarenergy.com',
     'name': 'Administrador',
-    'cpf': '12345678900',           # 11 dígitos (sem formatação)
-    'cnpj': '12345678000190',       # 14 dígitos (sem formatação)
+    'cpf': '12345678900',           # 11 dígitos (sem formatação)     # 14 dígitos (sem formatação)
     'celular': '11987654321',       # 11 dígitos
     'password': 'admin123456',      # ⚠️ TROQUE POR UMA SENHA FORTE!
 }
