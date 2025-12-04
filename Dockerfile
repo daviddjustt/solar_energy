@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-WORKDIR /code # O WORKDIR ainda pode ser /code para o resto da aplicação
+WORKDIR /code
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -33,9 +33,11 @@ RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
     chmod -R 755 /app/media
 
 # Copiar entrypoint e dar permissões
-COPY --chown=nonroot:nonroot entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh 
-RUN python manage.py makemigrations
+COPY --chown=nonroot:nonroot entrypoint.sh /code/
+RUN chmod +x /code/entrypoint.sh
+
+# Makemigrations
+# RUN python manage.py makemigrations
 
 # ⚠️ NÃO mudar para usuário nonroot ainda
 # Deixar como root para o entrypoint configurar permissões
@@ -43,4 +45,4 @@ RUN python manage.py makemigrations
 
 EXPOSE 8080
 
-ENTRYPOINT ["/entrypoint.sh"] # ✅ Executa /entrypoint.sh
+ENTRYPOINT ["/code/entrypoint.sh"]

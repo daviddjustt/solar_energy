@@ -1,8 +1,8 @@
 site_name: solar
 site_description: App operacional da PMSE
-repo_url: https://github.com/isisaraujo/solar-api
+repo_url: https://github.com/daviddjustt/solar-api
 site_dir: site
-copyright: Copyright &copy; 2020, <a href="https://github.com/isisaraujo">isisaraujo</a>.
+copyright: Copyright &copy; 2020, <a href="https://github.com/daviddjustt">daviddjustt</a>.
 dev_addr: 0.0.0.0:8001
 
 nav:
