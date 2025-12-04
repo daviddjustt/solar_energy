@@ -16,10 +16,10 @@ from solar.choices import (
 )
 
 def validate_cpf(cpf_value):
-    """Valida o formato do CPF (11 dígitos numéricos) e retorna o CPF limpo."""
+    """Valida o formato do CPF (14 dígitos numéricos) e retorna o CPF limpo."""
     cpf_cleaned = ''.join(filter(str.isdigit, cpf_value))
-    if len(cpf_cleaned) != 11:
-        raise ValidationError('CPF deve conter 11 dígitos numéricos.')
+    if len(cpf_cleaned) != 14:
+        raise ValidationError('CPF deve conter 14 dígitos numéricos.')
     if all(d == cpf_cleaned[0] for d in cpf_cleaned):
         raise ValidationError('CPF inválido: todos os dígitos são iguais.')
     # Aqui você pode adicionar uma validação de dígitos verificadores mais robusta se necessário
@@ -28,7 +28,7 @@ def validate_cpf(cpf_value):
 def validate_cnpj(cnpj_value):
     """Valida o formato do CNPJ (14 dígitos numéricos) e retorna o CNPJ limpo."""
     cnpj_cleaned = ''.join(filter(str.isdigit, cnpj_value))
-    if len(cnpj_cleaned) != 14:
+    if len(cnpj_cleaned) != 18:
         raise ValidationError('CNPJ deve conter 14 dígitos numéricos.')
     if all(d == cnpj_cleaned[0] for d in cnpj_cleaned):
         raise ValidationError('CNPJ inválido: todos os dígitos são iguais.')
