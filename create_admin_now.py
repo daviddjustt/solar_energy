@@ -24,7 +24,6 @@ SUPERUSER_DATA = {
     'email': 'admin@solarenergy.com',
     'name': 'Administrador',
     'cpf': '12345678900',           # 11 dígitos (sem formatação)
-    'cnpj': '12345678000190',       # 14 dígitos (sem formatação)
     'celular': '11987654321',       # 11 dígitos
     'password': 'admin123456',      # ⚠️ TROQUE POR UMA SENHA FORTE!
 }
@@ -42,7 +41,6 @@ else:
             email=SUPERUSER_DATA['email'],
             name=SUPERUSER_DATA['name'],
             cpf=SUPERUSER_DATA['cpf'],
-            cnpj=SUPERUSER_DATA['cnpj'],
             celular=SUPERUSER_DATA['celular'],
             password=SUPERUSER_DATA['password']
         )
@@ -51,7 +49,6 @@ else:
         print(f'   Email: {user.email}')
         print(f'   Nome: {user.name}')
         print(f'   CPF: {user.cpf}')
-        print(f'   CNPJ: {user.cnpj}')
         print()
         print(f'🌐 Acesse: /admin/')
         print(f'📧 Login: {user.email}')

@@ -72,7 +72,7 @@ User = get_user_model()
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
 password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
 name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
+# cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
 cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')     # Exemplo de CPF válido e formatado
 celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321') # Exemplo de celular válido (11 dígitos)
 
@@ -84,7 +84,6 @@ try:
             email=email,
             password=password,
             name=name,
-            cnpj=cnpj,
             cpf=cpf,
             celular=celular
         )
