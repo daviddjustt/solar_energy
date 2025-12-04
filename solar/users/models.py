@@ -288,9 +288,6 @@ class User(AbstractBaseUser, PermissionsMixin):
                 raise ValidationError({'cpf': 'CPF é obrigatório para Pessoa Física.'})
             if self.cnpj:
                 raise ValidationError({'cnpj': 'CNPJ deve ser vazio para Pessoa Física.'})
-        else: # Para usuários que não são clientes (ex: Técnicos, Superusuários sem grupo cliente)
-            if self.cpf or self.cnpj:
-                raise ValidationError({'cpf': 'CPF/CNPJ deve ser vazio para usuários que não são clientes.'})
 
         # Validação de unicidade para CPF/CNPJ (já garantida por unique=True, mas bom ter aqui também)
         if self.cpf and User.objects.filter(cpf=self.cpf).exclude(uuid=self.uuid).exists():
