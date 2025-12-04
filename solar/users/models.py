@@ -196,7 +196,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     # e sua lógica será substituída por grupos.
 
     cpf = models.CharField(
-        max_length=11,
+        max_length=14,
         unique=True,
         blank=True,
         null=True,
@@ -204,7 +204,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text="Cadastro de Pessoa Física (apenas números)."
     )
     cnpj = models.CharField(
-        max_length=14,
+        max_length=18,
         unique=True,
         blank=True,
         null=True,
