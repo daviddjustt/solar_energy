@@ -4,14 +4,14 @@ from django.dispatch import receiver
 
 class UsersConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'users'
+    name = 'solar.users'
     verbose_name = "Gerenciamento de Usuários"
 
     def ready(self):
         # Importa o modelo Group aqui para evitar importação circular
         from django.contrib.auth.models import Group
         # Importa o User para o signal, se necessário, mas não para criar grupos
-        # from .models import User
+        from .models import User
 
         @receiver(post_migrate)
         def create_default_groups(sender, **kwargs):
