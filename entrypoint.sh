@@ -101,7 +101,7 @@ echo ""
 # 5. CRIAR USUÁRIOS CLIENTES DE TESTE
 # ==========================================
 echo "👥 Criando usuários clientes de teste..."
-python manage.py create_test_clients # ✅ Nova linha aqui!
+# python manage.py create_test_clients # ✅ Nova linha aqui!
 echo ""
 
 # ==========================================
