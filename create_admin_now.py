@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Script para criar superuser automaticamente com dados fixos
 """
