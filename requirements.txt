@@ -53,3 +53,7 @@ django-auditlog==2.3.0
 
 whitenoise==6.7.0
 
+# SMTP
+sendgrid==6.12.5
+python-dotenv==1.2.1
+
