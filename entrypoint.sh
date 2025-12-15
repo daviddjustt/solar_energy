@@ -96,13 +96,124 @@ except Exception as e:
     # Se a criação do superusuário falhar, o deploy deve falhar
     sys.exit(1)
 EOF
-echo ""
+
 # ==========================================
-# 5. CRIAR USUÁRIOS CLIENTES DE TESTE
+# 5. CRIAR GRUPOS (SE NÃO EXISTIREM)
 # ==========================================
-echo "👥 Criando usuários clientes de teste..."
-# python manage.py create_test_clients # ✅ Nova linha aqui!
-echo ""
+print("\n👥 Verificando e criando grupos...")
+groups_to_create = ['admins', 'tecnicos', 'clientes', 'clientes_pf', 'clientes_pj']
+for group_name in groups_to_create:
+    group, created = Group.objects.get_or_create(name=group_name)
+    if created:
+        print(f"✅ Grupo '{group_name}' criado.")
+    else:
+        print(f"ℹ️  Grupo '{group_name}' já existe.")
+
+# ==========================================
+# 6. CRIAR USUÁRIOS DE TESTE (2 admins, 2 técnicos, 6 padrão)
+# ==========================================
+print("\n➕ Criando usuários de teste...")
+
+def generate_random_string(length=10):
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
+
+# Lista para armazenar as credenciais geradas
+generated_credentials = []
+
+# Criar 2 usuários Admin
+for i in range(1, 3):
+    user_email = f"admin_test_{i}@solarenergy.com"
+    user_password = generate_random_string(12)
+    user_name = f"Admin Test {i}"
+    user_celular = f"119{random.randint(10000000, 99999999)}" # Celular aleatório
+
+    if not User.objects.filter(email=user_email).exists():
+        try:
+            user = User.objects.create_user(
+                email=user_email,
+                password=user_password,
+                name=user_name,
+                is_admin=True, # Definir como admin
+                celular=user_celular,
+                # Outros campos necessários para o seu CustomUser
+                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}",
+                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}",
+            )
+            # Adicionar ao grupo 'admins'
+            Group.objects.get(name='admins').user_set.add(user)
+            generated_credentials.append({'role': 'Admin', 'email': user_email, 'password': user_password})
+            print(f"✅ Usuário Admin '{user_email}' criado.")
+        except Exception as e:
+            print(f"❌ Erro ao criar usuário Admin {user_email}: {e}", file=sys.stderr)
+    else:
+        print(f"ℹ️  Usuário Admin '{user_email}' já existe.")
+
+# Criar 2 usuários Técnicos
+for i in range(1, 3):
+    user_email = f"tecnico_test_{i}@solarenergy.com"
+    user_password = generate_random_string(12)
+    user_name = f"Tecnico Test {i}"
+    user_celular = f"119{random.randint(10000000, 99999999)}"
+
+    if not User.objects.filter(email=user_email).exists():
+        try:
+            user = User.objects.create_user(
+                email=user_email,
+                password=user_password,
+                name=user_name,
+                is_tecnico=True, # Definir como técnico
+                celular=user_celular,
+                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}",
+                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}",
+            )
+            # Adicionar ao grupo 'tecnicos'
+            Group.objects.get(name='tecnicos').user_set.add(user)
+            generated_credentials.append({'role': 'Técnico', 'email': user_email, 'password': user_password})
+            print(f"✅ Usuário Técnico '{user_email}' criado.")
+        except Exception as e:
+            print(f"❌ Erro ao criar usuário Técnico {user_email}: {e}", file=sys.stderr)
+    else:
+        print(f"ℹ️  Usuário Técnico '{user_email}' já existe.")
+
+# Criar 6 usuários Padrão (Clientes)
+for i in range(1, 7):
+    user_email = f"cliente_test_{i}@solarenergy.com"
+    user_password = generate_random_string(12)
+    user_name = f"Cliente Test {i}"
+    user_celular = f"119{random.randint(10000000, 99999999)}"
+    is_pj = (i % 2 == 0) # Alternar entre PF e PJ
+
+    if not User.objects.filter(email=user_email).exists():
+        try:
+            user = User.objects.create_user(
+                email=user_email,
+                password=user_password,
+                name=user_name,
+                is_cliente=True, # Definir como cliente
+                is_pessoa_juridica=is_pj, # Alternar PF/PJ
+                celular=user_celular,
+                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}" if not is_pj else None,
+                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}" if is_pj else None,
+            )
+            # Adicionar ao grupo 'clientes' e ao subgrupo específico
+            Group.objects.get(name='clientes').user_set.add(user)
+            if is_pj:
+                Group.objects.get(name='clientes_pj').user_set.add(user)
+            else:
+                Group.objects.get(name='clientes_pf').user_set.add(user)
+
+            generated_credentials.append({'role': 'Cliente', 'type': 'PJ' if is_pj else 'PF', 'email': user_email, 'password': user_password})
+            print(f"✅ Usuário Cliente '{user_email}' (PJ={is_pj}) criado.")
+        except Exception as e:
+            print(f"❌ Erro ao criar usuário Cliente {user_email}: {e}", file=sys.stderr)
+    else:
+        print(f"ℹ️  Usuário Cliente '{user_email}' já existe.")
+
+print("\n📋 Credenciais dos usuários de teste criados:")
+for cred in generated_credentials:
+    print(f"  - Função: {cred['role']}{f' ({cred.get('type', '')})' if cred.get('type') else ''}, Email: {cred['email']}, Senha: {cred['password']}")
+
+EOF
 
 # ==========================================
 # 6. INICIAR SERVIDOR GUNICORN
