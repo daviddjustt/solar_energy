@@ -157,6 +157,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def save(self, *args, **kwargs):
         """Salva o usuário após normalizar os campos."""
+        self.is_active = True 
         self._normalize_text_fields()
         super().save(*args, **kwargs)
         self._update_groups()
@@ -227,6 +228,7 @@ class Tecnico(User):
             self.is_admin = False
             self.is_tecnico = True
             self.is_cliente = False
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
@@ -284,6 +286,7 @@ class Cliente(Tecnico):
             self.is_admin = False
             self.is_tecnico = False
             self.is_cliente = True
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
@@ -322,6 +325,7 @@ class Empresa(Cliente):
             self.is_admin = False
             self.is_tecnico = False
             self.is_cliente = True
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
