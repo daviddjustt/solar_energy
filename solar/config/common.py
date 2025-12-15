@@ -76,6 +76,8 @@ class Common(Configuration):
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@sntechsolar.com')
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", default="")
+
     
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
@@ -298,7 +300,7 @@ class Common(Configuration):
         'USER_ID_FIELD': 'uuid',
         'USER_ID_CLAIM': 'user_id',
     }
-    DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
+
     # CORS
     CORS_ALLOWED_ORIGINS = [
         "http://127.0.0.1:3000",
