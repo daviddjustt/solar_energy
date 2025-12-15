@@ -43,12 +43,6 @@ django-import-export==4.3.2
 # pandas==2.2.0
 # openpyxl==3.1.2
 
-flake8==7.1.1
-# Testing / Data Generation
-mock==5.1.0
-factory-boy==3.3.1
-pytest-django==4.9.0
-Faker==25.0.0 
 #Admin Enhancements
 django-admin-interface==0.29.4
 django-colorfield==0.11.0
@@ -58,4 +52,8 @@ django-simple-history==3.4.0
 django-auditlog==2.3.0
 
 whitenoise==6.7.0
+
+# SMTP
+sendgrid==6.12.5
+python-dotenv==1.2.1
 
