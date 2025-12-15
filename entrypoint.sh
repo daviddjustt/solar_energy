@@ -56,29 +56,28 @@ python manage.py migrate --noinput
 echo ""
 
 # ==========================================
-# 4. CRIAR SUPERUSER E USUÁRIOS DE TESTE
+# 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
 # ==========================================
-echo "👤 Configurando usuários (superuser e de teste)..." # Título mais abrangente
+echo "👤 Criando superuser..."
 python manage.py shell << EOF
 import os
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
-import sys
-import random
-import string
-from django.contrib.auth.models import Group
+import sys # Importar sys para sys.exit()
 
 User = get_user_model()
 
 # Obter valores das variáveis de ambiente ou usar defaults seguros
+# Certifique-se de definir estas variáveis no Railway (ou no seu ambiente local)
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
 password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
 name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00')
-cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')
-celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
+cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
+cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')     # Exemplo de CPF válido e formatado
+celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321') # Exemplo de celular válido (11 dígitos)
 
 try:
+    # Tenta encontrar o usuário pelo email, que é o USERNAME_FIELD
     if not User.objects.filter(email=email).exists():
         print(f"Attempting to create superuser {email}...")
         User.objects.create_superuser(
@@ -94,128 +93,19 @@ try:
         print(f"ℹ️  Superuser {email} já existe, pulando criação.")
 except Exception as e:
     print(f"❌ Erro crítico ao criar superuser: {e}", file=sys.stderr)
+    # Se a criação do superusuário falhar, o deploy deve falhar
     sys.exit(1)
+EOF
+echo ""
+# ==========================================
+# 5. CRIAR USUÁRIOS CLIENTES DE TESTE
+# ==========================================
+echo "👥 Criando usuários clientes de teste..."
+# python manage.py create_test_clients # ✅ Nova linha aqui!
+echo ""
 
 # ==========================================
-# 5. CRIAR GRUPOS (SE NÃO EXISTIREM)
-# ==========================================
-print("\n👥 Verificando e criando grupos...")
-groups_to_create = ['admins', 'tecnicos', 'clientes', 'clientes_pf', 'clientes_pj']
-for group_name in groups_to_create:
-    group, created = Group.objects.get_or_create(name=group_name)
-    if created:
-        print(f"✅ Grupo '{group_name}' criado.")
-    else:
-        print(f"ℹ️  Grupo '{group_name}' já existe.")
-
-# ==========================================
-# 6. CRIAR USUÁRIOS DE TESTE (2 admins, 2 técnicos, 6 padrão)
-# ==========================================
-print("\n➕ Criando usuários de teste...")
-
-def generate_random_string(length=10):
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
-
-# Lista para armazenar as credenciais geradas
-generated_credentials = []
-
-# Criar 2 usuários Admin
-for i in range(1, 3):
-    user_email = f"admin_test_{i}@solarenergy.com"
-    user_password = generate_random_string(12)
-    user_name = f"Admin Test {i}"
-    user_celular = f"119{random.randint(10000000, 99999999)}" # Celular aleatório
-
-    if not User.objects.filter(email=user_email).exists():
-        try:
-            user = User.objects.create_user(
-                email=user_email,
-                password=user_password,
-                name=user_name,
-                is_admin=True, # Definir como admin
-                celular=user_celular,
-                # Outros campos necessários para o seu CustomUser
-                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}",
-                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}",
-            )
-            # Adicionar ao grupo 'admins'
-            Group.objects.get(name='admins').user_set.add(user)
-            generated_credentials.append({'role': 'Admin', 'email': user_email, 'password': user_password})
-            print(f"✅ Usuário Admin '{user_email}' criado.")
-        except Exception as e:
-            print(f"❌ Erro ao criar usuário Admin {user_email}: {e}", file=sys.stderr)
-    else:
-        print(f"ℹ️  Usuário Admin '{user_email}' já existe.")
-
-# Criar 2 usuários Técnicos
-for i in range(1, 3):
-    user_email = f"tecnico_test_{i}@solarenergy.com"
-    user_password = generate_random_string(12)
-    user_name = f"Tecnico Test {i}"
-    user_celular = f"119{random.randint(10000000, 99999999)}"
-
-    if not User.objects.filter(email=user_email).exists():
-        try:
-            user = User.objects.create_user(
-                email=user_email,
-                password=user_password,
-                name=user_name,
-                is_tecnico=True, # Definir como técnico
-                celular=user_celular,
-                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}",
-                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}",
-            )
-            # Adicionar ao grupo 'tecnicos'
-            Group.objects.get(name='tecnicos').user_set.add(user)
-            generated_credentials.append({'role': 'Técnico', 'email': user_email, 'password': user_password})
-            print(f"✅ Usuário Técnico '{user_email}' criado.")
-        except Exception as e:
-            print(f"❌ Erro ao criar usuário Técnico {user_email}: {e}", file=sys.stderr)
-    else:
-        print(f"ℹ️  Usuário Técnico '{user_email}' já existe.")
-
-# Criar 6 usuários Padrão (Clientes)
-for i in range(1, 7):
-    user_email = f"cliente_test_{i}@solarenergy.com"
-    user_password = generate_random_string(12)
-    user_name = f"Cliente Test {i}"
-    user_celular = f"119{random.randint(10000000, 99999999)}"
-    is_pj = (i % 2 == 0) # Alternar entre PF e PJ
-
-    if not User.objects.filter(email=user_email).exists():
-        try:
-            user = User.objects.create_user(
-                email=user_email,
-                password=user_password,
-                name=user_name,
-                is_cliente=True, # Definir como cliente
-                is_pessoa_juridica=is_pj, # Alternar PF/PJ
-                celular=user_celular,
-                cpf=f"{random.randint(100, 999)}.{random.randint(100, 999)}.{random.randint(100, 999)}-{random.randint(10, 99)}" if not is_pj else None,
-                cnpj=f"{random.randint(10, 99)}.{random.randint(100, 999)}.{random.randint(100, 999)}/{random.randint(1000, 9999)}-{random.randint(10, 99)}" if is_pj else None,
-            )
-            # Adicionar ao grupo 'clientes' e ao subgrupo específico
-            Group.objects.get(name='clientes').user_set.add(user)
-            if is_pj:
-                Group.objects.get(name='clientes_pj').user_set.add(user)
-            else:
-                Group.objects.get(name='clientes_pf').user_set.add(user)
-
-            generated_credentials.append({'role': 'Cliente', 'type': 'PJ' if is_pj else 'PF', 'email': user_email, 'password': user_password})
-            print(f"✅ Usuário Cliente '{user_email}' (PJ={is_pj}) criado.")
-        except Exception as e:
-            print(f"❌ Erro ao criar usuário Cliente {user_email}: {e}", file=sys.stderr)
-    else:
-        print(f"ℹ️  Usuário Cliente '{user_email}' já existe.")
-
-print("\n📋 Credenciais dos usuários de teste criados:")
-for cred in generated_credentials:
-    print(f"  - Função: {cred['role']}{f' ({cred.get('type', '')})' if cred.get('type') else ''}, Email: {cred['email']}, Senha: {cred['password']}")
-
-EOF # ✅ O marcador EOF final está aqui, fechando o bloco python manage.py shell
-
-# ==========================================
-# 7. INICIAR SERVIDOR GUNICORN
+# 6. INICIAR SERVIDOR GUNICORN
 # ==========================================
 echo "✅ Iniciando servidor Gunicorn..."
 exec gunicorn solar.wsgi:application \
