@@ -56,28 +56,29 @@ python manage.py migrate --noinput
 echo ""
 
 # ==========================================
-# 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
+# 4. CRIAR SUPERUSER E USUÁRIOS DE TESTE
 # ==========================================
-echo "👤 Criando superuser..."
+echo "👤 Configurando usuários (superuser e de teste)..." # Título mais abrangente
 python manage.py shell << EOF
 import os
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
-import sys # Importar sys para sys.exit()
+import sys
+import random
+import string
+from django.contrib.auth.models import Group
 
 User = get_user_model()
 
 # Obter valores das variáveis de ambiente ou usar defaults seguros
-# Certifique-se de definir estas variáveis no Railway (ou no seu ambiente local)
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
 password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
 name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
-cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')     # Exemplo de CPF válido e formatado
-celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321') # Exemplo de celular válido (11 dígitos)
+cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00')
+cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')
+celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
 
 try:
-    # Tenta encontrar o usuário pelo email, que é o USERNAME_FIELD
     if not User.objects.filter(email=email).exists():
         print(f"Attempting to create superuser {email}...")
         User.objects.create_superuser(
@@ -93,9 +94,7 @@ try:
         print(f"ℹ️  Superuser {email} já existe, pulando criação.")
 except Exception as e:
     print(f"❌ Erro crítico ao criar superuser: {e}", file=sys.stderr)
-    # Se a criação do superusuário falhar, o deploy deve falhar
     sys.exit(1)
-EOF
 
 # ==========================================
 # 5. CRIAR GRUPOS (SE NÃO EXISTIREM)
@@ -213,10 +212,10 @@ print("\n📋 Credenciais dos usuários de teste criados:")
 for cred in generated_credentials:
     print(f"  - Função: {cred['role']}{f' ({cred.get('type', '')})' if cred.get('type') else ''}, Email: {cred['email']}, Senha: {cred['password']}")
 
-EOF
+EOF # ✅ O marcador EOF final está aqui, fechando o bloco python manage.py shell
 
 # ==========================================
-# 6. INICIAR SERVIDOR GUNICORN
+# 7. INICIAR SERVIDOR GUNICORN
 # ==========================================
 echo "✅ Iniciando servidor Gunicorn..."
 exec gunicorn solar.wsgi:application \
