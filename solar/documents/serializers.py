@@ -366,7 +366,10 @@ class ProjectListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClientProject
         fields = "__all__"
-    
+        read_only_fields = (
+            'created_by', 'created_at', 'updated_at',
+            'documento_cliente'
+        )
 
     def get_tipoDocumento(self, obj):
         return 'cpf' if obj.tipoDocumento == 'PF' else 'PJ'
@@ -392,7 +395,7 @@ class TecnicoClientProjectSerializer(serializers.ModelSerializer):
         model = ClientProject
         fields = '__all__'
         read_only_fields = (
-            'created_by', 'created_at', 'updated_at', 
+            'created_by', 'created_at', 'updated_at','documento_cliente' 
         )
         
     def __init__(self, *args, **kwargs):
