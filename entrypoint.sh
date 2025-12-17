@@ -66,6 +66,9 @@ echo "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003 como
 python manage.py migrate files 0003 --fake --noinput || true
 echo "✅ Migração 'files.0003_documentuser_rejection_reason' marcada como aplicada (fake)."
 echo ""
+python manage.py migrate files 0004 --fake --noinput || true
+echo "✅ Migração 'files.0004_documentuser_related_payment_document' marcada como aplicada (fake)."
+echo ""
 
 # Agora, a lógica principal de migração para as outras apps e migrações pendentes.
 # A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
