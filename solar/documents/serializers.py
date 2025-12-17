@@ -258,6 +258,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
         return data
 # Serializer para as informações básicas do Projeto
+
 class ProjectInfoSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     voltagem = VoltageField()
@@ -383,7 +384,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     
 class TecnicoClientProjectSerializer(serializers.ModelSerializer):
     """Serializer para técnicos e clientes - campos financeiros são read-only"""
-    
+    documento_cliente = serializers.CharField(source='cnpj_or_cpf_do_cliente', read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     voltagem = VoltageField()
     
