@@ -360,6 +360,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     documents_count = serializers.SerializerMethodField()
     consumer_units_count = serializers.SerializerMethodField()
     voltagem = VoltageField()
+    documento_cliente = serializers.CharField(source='cnpj_or_cpf_do_cliente', read_only=True)
 
     class Meta:
         model = ClientProject
