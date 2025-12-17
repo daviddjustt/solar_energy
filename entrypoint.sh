@@ -46,13 +46,18 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
     fi
 fi
 
-# Agora, execute makemigrations e migrate normalmente
-#echo "Executando python manage.py makemigrations --noinput..."
-#python manage.py makemigrations --noinput
-#echo ""
-
-echo "Executando python manage.py migrate --noinput..."
-python manage.py migrate --noinput
+if ! python manage.py showmigrations --list 2>&1 | grep -q "|$X$|"; then
+    echo "⚠️  Tabela django_migrations não encontrada ou sem migrações aplicadas."
+    echo "    Assumindo estado de recuperação. Executando 'migrate --fake-initial'..."
+    # Executa --fake-initial para registrar as migrações iniciais sem tentar recriar tabelas existentes.
+    python manage.py migrate --fake-initial --noinput
+    echo "✅ Migrações iniciais 'fakeadas' com sucesso."
+else
+    echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
+    # Executa migrate normalmente para aplicar quaisquer migrações novas.
+    python manage.py migrate --noinput
+    echo "✅ Migrações aplicadas com sucesso."
+fi
 echo ""
 
 # ==========================================
