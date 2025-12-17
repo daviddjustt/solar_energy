@@ -51,33 +51,35 @@ fi
 # ==========================================
 echo "⚙️ Verificando e aplicando migrações do Django..."
 
-# ✅ LINHAS ALTERADAS/ADICIONADAS AQUI:
 # Primeiro, vamos garantir que todas as migrações de 'contenttypes' sejam marcadas como aplicadas.
-# Isso resolve o erro "column 'name' of relation 'django_content_type' does not exist"
-# ao evitar que o Django tente executar a migração 0002_remove_content_type_name novamente.
-python manage.py makemigrations --noinput
 echo "🔍 Corrigindo histórico de migrações para 'contenttypes' (marcando todas como fake)..."
 python manage.py migrate contenttypes --fake --noinput || true
 echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
 echo ""
 
-echo "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003 como fake)..."
-# Faka a migração específica que adiciona a coluna 'rejection_reason'.
-# Isso diz ao Django que esta migração já foi aplicada, sem tentar executá-la novamente.
+# Lidar com os erros 'DuplicateColumn' para 'files'
+echo "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003, 0004 e 0005 como fake)..."
 python manage.py migrate files 0003 --fake --noinput || true
 echo "✅ Migração 'files.0003_documentuser_rejection_reason' marcada como aplicada (fake)."
-echo ""
 python manage.py migrate files 0004 --fake --noinput || true
 echo "✅ Migração 'files.0004_documentuser_related_payment_document' marcada como aplicada (fake)."
-echo ""
 python manage.py migrate files 0005 --fake --noinput || true
 echo "✅ Migração 'files.0005_documentuser_document_name' marcada como aplicada (fake)."
 echo ""
-# Agora, a lógica principal de migração para as outras apps e migrações pendentes.
+
+# ✅ LINHAS ALTERADAS/ADICIONADAS AQUI:
+# Agora, aplicar as migrações da app 'documents'.
+# Como a migração para 'documento' foi criada, este comando irá aplicá-la de fato.
+echo "🔍 Aplicando migrações pendentes para 'documents'..."
+python manage.py migrate documents --noinput
+echo "✅ Migrações para 'documents' aplicadas."
+echo ""
+
+# Agora, a lógica principal de migração para as *outras* apps e migrações pendentes.
 # A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
-# Como acabamos de fakar 'contenttypes', esta condição deve ser verdadeira agora.
+# Como já resolvemos 'contenttypes', 'files' e 'documents', esta condição deve ser verdadeira agora.
 if ! python manage.py showmigrations --list 2>&1 | grep -q "|$X$|"; then
-    echo "⚠️  Tabela django_migrations ainda sem todas as migrações aplicadas (após contenttypes)."
+    echo "⚠️  Tabela django_migrations ainda sem todas as migrações aplicadas (após contenttypes, files e documents)."
     echo "    Assumindo estado de recuperação para outras apps. Executando 'migrate --fake-initial'..."
     python manage.py migrate --fake-initial --noinput
     echo "✅ Migrações iniciais das outras apps 'fakeadas' com sucesso."
