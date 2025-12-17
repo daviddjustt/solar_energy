@@ -5,6 +5,9 @@ from decimal import Decimal
 import os
 from django.utils import timezone
 
+from users.models import (
+    User,
+)
 
 from solar.files.models import ( 
     BaseModel,
@@ -71,8 +74,14 @@ class ClientProject(models.Model):
     tipoDocumento = models.CharField(
         max_length=2,
         choices=DOCUMENT_TYPE_CHOICES_PESSOA,
-        default='PJ',
+        default='',
         verbose_name="Tipo de cliente"
+    )
+    documento = models.CharField(
+        max_length=18, # Suficiente para CNPJ (XX.XXX.XXX/XXXX-XX) e CPF (XXX.XXX.XXX-XX)
+        verbose_name='Documento do Cliente (CPF/CNPJ)',
+        null=True, # ✅ Permite que seja nulo
+        blank=True, # ✅ Permite que seja vazio
     )
     voltagem = models.CharField(
         max_length=100,
