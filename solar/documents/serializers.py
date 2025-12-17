@@ -372,7 +372,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
         )
 
     def get_tipoDocumento(self, obj):
-        return 'PF' if obj.tipoDocumento == 'PF' else 'PJ'
+        return 'cpf' if obj.tipoDocumento == 'PF' else 'PJ'
 
     def get_documents_count(self, obj):
         return obj.documents.count()
