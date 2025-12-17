@@ -300,7 +300,7 @@ class ProjectInfoSerializer(serializers.ModelSerializer):
         tipo_documento = data.get('tipoDocumento', '').lower()
         documento = data.get('client_document')
 
-        if tipo_documento == 'cpf':
+        if tipo_documento == 'PF':
             data['tipoDocumento'] = 'PF'
             if documento:
                 import re
@@ -372,7 +372,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
         )
 
     def get_tipoDocumento(self, obj):
-        return 'cpf' if obj.tipoDocumento == 'PF' else 'PJ'
+        return 'PF' if obj.tipoDocumento == 'PF' else 'PJ'
 
     def get_documents_count(self, obj):
         return obj.documents.count()
