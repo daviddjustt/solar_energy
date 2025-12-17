@@ -74,11 +74,9 @@ echo "🔍 Aplicando migrações pendentes para 'documents'..."
 python manage.py migrate documents --noinput
 echo "✅ Migrações para 'documents' aplicadas."
 echo ""
-
 echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
 python manage.py migrate --noinput
 echo "✅ Migrações aplicadas com sucesso."
-fi
 echo ""
 
 # ==========================================
