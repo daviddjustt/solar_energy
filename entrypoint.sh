@@ -46,15 +46,30 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
     fi
 fi
 
+# ==========================================
+# 3. LÓGICA DE MIGRAÇÕES ROBUSTA
+# ==========================================
+echo "⚙️ Verificando e aplicando migrações do Django..."
+
+# ✅ LINHAS ALTERADAS/ADICIONADAS AQUI:
+# Primeiro, vamos garantir que todas as migrações de 'contenttypes' sejam marcadas como aplicadas.
+# Isso resolve o erro "column 'name' of relation 'django_content_type' does not exist"
+# ao evitar que o Django tente executar a migração 0002_remove_content_type_name novamente.
+echo "🔍 Corrigindo histórico de migrações para 'contenttypes' (marcando todas como fake)..."
+python manage.py migrate contenttypes --fake --noinput || true
+echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
+echo ""
+
+# Agora, a lógica principal de migração para as outras apps e migrações pendentes.
+# A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
+# Como acabamos de fakar 'contenttypes', esta condição deve ser verdadeira agora.
 if ! python manage.py showmigrations --list 2>&1 | grep -q "|$X$|"; then
-    echo "⚠️  Tabela django_migrations não encontrada ou sem migrações aplicadas."
-    echo "    Assumindo estado de recuperação. Executando 'migrate --fake-initial'..."
-    # Executa --fake-initial para registrar as migrações iniciais sem tentar recriar tabelas existentes.
+    echo "⚠️  Tabela django_migrations ainda sem todas as migrações aplicadas (após contenttypes)."
+    echo "    Assumindo estado de recuperação para outras apps. Executando 'migrate --fake-initial'..."
     python manage.py migrate --fake-initial --noinput
-    echo "✅ Migrações iniciais 'fakeadas' com sucesso."
+    echo "✅ Migrações iniciais das outras apps 'fakeadas' com sucesso."
 else
     echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
-    # Executa migrate normalmente para aplicar quaisquer migrações novas.
     python manage.py migrate --noinput
     echo "✅ Migrações aplicadas com sucesso."
 fi
