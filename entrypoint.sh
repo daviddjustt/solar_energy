@@ -60,6 +60,13 @@ python manage.py migrate contenttypes --fake --noinput || true
 echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
 echo ""
 
+cho "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003 como fake)..."
+# Faka a migração específica que adiciona a coluna 'rejection_reason'.
+# Isso diz ao Django que esta migração já foi aplicada, sem tentar executá-la novamente.
+python manage.py migrate files 0003 --fake --noinput || true
+echo "✅ Migração 'files.0003_documentuser_rejection_reason' marcada como aplicada (fake)."
+echo ""
+
 # Agora, a lógica principal de migração para as outras apps e migrações pendentes.
 # A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
 # Como acabamos de fakar 'contenttypes', esta condição deve ser verdadeira agora.
