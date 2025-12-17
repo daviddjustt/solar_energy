@@ -157,11 +157,10 @@ class ClientProject(models.Model):
     
     @property
     def cnpj_or_cpf_do_cliente(self):
-        """
-        Retorna o valor do campo CNPJ do usuário associado a este projeto.
-        """
-        if self.user:
-            return self.user.cnpj or self.user.cpf
+        """Retorna o CNPJ ou CPF do usuário (cliente) associado ao projeto."""
+        if self.created_by: # ✅ Usar self.created_by para acessar o usuário
+            return self.created_by.cnpj_or_cpf_do_cliente # ✅ Chamar a property do objeto User
+        return None
         
     @property
     def documento_tipo(self):

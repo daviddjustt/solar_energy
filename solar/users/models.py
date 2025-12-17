@@ -177,6 +177,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         Permite definir is_staff, que na verdade altera is_admin.
         """
         self.is_admin = value
+
+    @property
+    def cnpj_or_cpf_do_cliente(self):
+        """Retorna o CNPJ se for PJ, ou o CPF se for PF."""
+        if self.is_pessoa_juridica:
+            return self.cnpj
+        return self.cpf
     
     def get_full_name(self):
             """Retorna o nome completo do usuário."""
