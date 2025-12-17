@@ -75,18 +75,9 @@ python manage.py migrate documents --noinput
 echo "✅ Migrações para 'documents' aplicadas."
 echo ""
 
-# Agora, a lógica principal de migração para as *outras* apps e migrações pendentes.
-# A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
-# Como já resolvemos 'contenttypes', 'files' e 'documents', esta condição deve ser verdadeira agora.
-if ! python manage.py showmigrations --list 2>&1 | grep -q "|$X$|"; then
-    echo "⚠️  Tabela django_migrations ainda sem todas as migrações aplicadas (após contenttypes, files e documents)."
-    echo "    Assumindo estado de recuperação para outras apps. Executando 'migrate --fake-initial'..."
-    python manage.py migrate --fake-initial --noinput
-    echo "✅ Migrações iniciais das outras apps 'fakeadas' com sucesso."
-else
-    echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
-    python manage.py migrate --noinput
-    echo "✅ Migrações aplicadas com sucesso."
+echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
+python manage.py migrate --noinput
+echo "✅ Migrações aplicadas com sucesso."
 fi
 echo ""
 
