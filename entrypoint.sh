@@ -60,7 +60,7 @@ python manage.py migrate contenttypes --fake --noinput || true
 echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
 echo ""
 
-cho "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003 como fake)..."
+echo "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003 como fake)..."
 # Faka a migração específica que adiciona a coluna 'rejection_reason'.
 # Isso diz ao Django que esta migração já foi aplicada, sem tentar executá-la novamente.
 python manage.py migrate files 0003 --fake --noinput || true
