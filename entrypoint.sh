@@ -55,6 +55,7 @@ echo "⚙️ Verificando e aplicando migrações do Django..."
 # Primeiro, vamos garantir que todas as migrações de 'contenttypes' sejam marcadas como aplicadas.
 # Isso resolve o erro "column 'name' of relation 'django_content_type' does not exist"
 # ao evitar que o Django tente executar a migração 0002_remove_content_type_name novamente.
+python manage.py makemigrations --noinput
 echo "🔍 Corrigindo histórico de migrações para 'contenttypes' (marcando todas como fake)..."
 python manage.py migrate contenttypes --fake --noinput || true
 echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
@@ -72,8 +73,6 @@ echo ""
 python manage.py migrate files 0005 --fake --noinput || true
 echo "✅ Migração 'files.0005_documentuser_document_name' marcada como aplicada (fake)."
 echo ""
-
-python manage.py makemigrations --noinput
 # Agora, a lógica principal de migração para as outras apps e migrações pendentes.
 # A condição 'grep -q "|$X$|"' verifica se *alguma* migração está marcada como aplicada.
 # Como acabamos de fakar 'contenttypes', esta condição deve ser verdadeira agora.
