@@ -70,7 +70,7 @@ class ClientProject(models.Model):
     tipoDocumento = models.CharField(
         max_length=2,
         choices=DOCUMENT_TYPE_CHOICES_PESSOA,
-        default='',
+        default='PJ',
         verbose_name="Tipo de cliente"
     )
     documento = models.CharField(
