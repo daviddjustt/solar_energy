@@ -111,7 +111,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     
     is_active = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name='Ativo'
     )
     is_admin = models.BooleanField(default=False, verbose_name="É Administrador")
