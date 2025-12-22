@@ -24,7 +24,10 @@ class Common(Configuration):
         'corsheaders',
         'djoser',
         'import_export',
-        'simple_history',  # ADICIONADO - estava faltando
+        'simple_history',
+
+        # SMTP
+        'sendgrid_backend',
         
         # Your apps
         'solar.users',
@@ -67,7 +70,7 @@ class Common(Configuration):
     WSGI_APPLICATION = 'solar.wsgi.application'
 
     # Email
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailhog.railway.internal')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))
@@ -76,7 +79,7 @@ class Common(Configuration):
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@sntechsolar.com')
-    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", default="")
+    ENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 
     
     ADMINS = (
