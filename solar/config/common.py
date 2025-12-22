@@ -78,7 +78,7 @@ class Common(Configuration):
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@sntechsolar.com')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'daviddjustt@gmail.com')
     SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 
     
