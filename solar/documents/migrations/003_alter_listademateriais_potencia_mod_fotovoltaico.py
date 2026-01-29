@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AlterField(
             model_name='listademateriais',
-            name='potencia_mod_fotovoltaico',
+            name='potencia',
             field=models.DecimalField(blank=True, decimal_places=10, max_digits=20, null=True, verbose_name='Potência de cada Módulo Fotovoltaico (W)'),
         ),
     ]
