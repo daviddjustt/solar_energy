@@ -19,5 +19,5 @@ docker-compose up
 Run a command inside the docker container:
 
 ```bash
-docker-compose run --rm web [command]
+docker compose exec web python manage.py makemigrations
 ```

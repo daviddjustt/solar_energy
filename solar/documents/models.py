@@ -482,7 +482,7 @@ class ListaDeMateriais(models.Model):
     )
     potencia_mod_fotovoltaico = models.DecimalField(
         max_digits=7,
-        decimal_places=2,
+        decimal_places=3,
         verbose_name="Potência de cada Módulo Fotovoltaico (W)",
         blank=True,
         null=True,
