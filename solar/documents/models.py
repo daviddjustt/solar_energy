@@ -451,7 +451,7 @@ class ListaDeMateriais(models.Model):
     
     potencia = models.DecimalField(
         max_digits=7,
-        decimal_places=2,
+        decimal_places=10,
         verbose_name="Potência nominal em w ou kW",
         blank=True,
         null=True,
