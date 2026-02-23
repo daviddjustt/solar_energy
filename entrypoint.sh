@@ -20,29 +20,36 @@ else
 fi
 
 # ==========================================
-# 1.5 AGUARDAR O BANCO DE DADOS
+# AGUARDAR O BANCO DE DADOS (VERSÃO ROBUSTA)
 # ==========================================
-# ==========================================
-# AGUARDAR O BANCO DE DADOS (USANDO AS VARS DO RAILWAY)
-# ==========================================
-echo "⏳ Verificando se o banco em $PGHOST:$PGPORT está pronto..."
 
-# Tentativa de conexão por até 30 segundos
-MAX_RETRIES=15
+# Se DATABASE_URL não existir, tenta montar uma com as variáveis PG
+if [ -z "$DATABASE_URL" ]; then
+    DB_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE"
+else
+    DB_URL=$DATABASE_URL
+fi
+
+echo "⏳ Verificando conexão com o banco..."
+
+MAX_RETRIES=20
 COUNT=0
 
-while ! pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" > /dev/null 2>&1; do
+# O pg_isready aceita a string de conexão completa com -d
+while ! pg_isready -d "$DB_URL" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
     if [ $COUNT -ge $MAX_RETRIES ]; then
-        echo "❌ ERRO: Banco de dados não respondeu após 30 segundos. Abortando."
+        echo "❌ ERRO: Banco de dados não respondeu. Verifique as variáveis no Railway."
+        # Se falhar, vamos imprimir o que está tentando ser usado (sem a senha por segurança)
+        echo "Tentando conectar em: ${PGHOST:-[vazio]}:${PGPORT:-[vazio]}"
         exit 1
     fi
     echo "😴 Banco ainda não disponível ($COUNT/$MAX_RETRIES)... aguardando 2s"
     sleep 2
 done
 
-echo "✅ Banco de dados detectado! Iniciando operações do Django..."
-echo ""
+echo "✅ Conexão estabelecida! Seguindo com o deploy..."
+
 # ==========================================
 # 2. COLETAR ARQUIVOS ESTÁTICOS
 # ==========================================
