@@ -20,35 +20,35 @@ else
 fi
 
 # ==========================================
-# AGUARDAR O BANCO DE DADOS (VERSÃO ROBUSTA)
+# AGUARDAR O BANCO DE DADOS
 # ==========================================
+echo "⏳ Verificando conexão com o banco de dados..."
 
-# Se DATABASE_URL não existir, tenta montar uma com as variáveis PG
-if [ -z "$DATABASE_URL" ]; then
-    DB_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE"
+# Se PGHOST não existe, tentamos usar a DATABASE_URL para o teste
+if [ -z "$PGHOST" ]; then
+    echo "🔗 Usando DATABASE_URL para checagem..."
+    TARGET_DB="$DATABASE_URL"
 else
-    DB_URL=$DATABASE_URL
+    TARGET_DB="postgresql://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE"
 fi
-
-echo "⏳ Verificando conexão com o banco..."
 
 MAX_RETRIES=20
 COUNT=0
 
-# O pg_isready aceita a string de conexão completa com -d
-while ! pg_isready -d "$DB_URL" > /dev/null 2>&1; do
+# O pg_isready funciona passando a URL completa no parâmetro -d
+until pg_isready -d "$TARGET_DB" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
     if [ $COUNT -ge $MAX_RETRIES ]; then
-        echo "❌ ERRO: Banco de dados não respondeu. Verifique as variáveis no Railway."
-        # Se falhar, vamos imprimir o que está tentando ser usado (sem a senha por segurança)
-        echo "Tentando conectar em: ${PGHOST:-[vazio]}:${PGPORT:-[vazio]}"
+        echo "❌ ERRO: Banco de dados não respondeu após 40 segundos."
+        echo "Verifique se a variável DATABASE_URL está correta no painel."
         exit 1
     fi
     echo "😴 Banco ainda não disponível ($COUNT/$MAX_RETRIES)... aguardando 2s"
     sleep 2
 done
 
-echo "✅ Conexão estabelecida! Seguindo com o deploy..."
+echo "✅ Banco detectado! Prosseguindo..."
+echo ""
 
 # ==========================================
 # 2. COLETAR ARQUIVOS ESTÁTICOS
