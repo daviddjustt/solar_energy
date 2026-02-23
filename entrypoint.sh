@@ -21,31 +21,6 @@ else
 fi
 
 # ==========================================
-# 1.5 AGUARDAR O BANCO DE DADOS
-# ==========================================
-# ==========================================
-# AGUARDAR O BANCO DE DADOS (USANDO AS VARS DO RAILWAY)
-# ==========================================
-echo "⏳ Verificando se o banco em $PGHOST:$PGPORT está pronto..."
-
-# Tentativa de conexão por até 30 segundos
-MAX_RETRIES=15
-COUNT=0
-
-while ! pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" > /dev/null 2>&1; do
-    COUNT=$((COUNT + 1))
-    if [ $COUNT -ge $MAX_RETRIES ]; then
-        echo "❌ ERRO: Banco de dados não respondeu após 30 segundos. Abortando."
-        exit 1
-    fi
-    echo "😴 Banco ainda não disponível ($COUNT/$MAX_RETRIES)... aguardando 2s"
-    sleep 2
-done
-
-echo "✅ Banco de dados detectado! Iniciando operações do Django..."
-echo ""
-
-# ==========================================
 # 2. COLETAR ARQUIVOS ESTÁTICOS
 # ==========================================
 echo "📦 Coletando arquivos estáticos..."
@@ -74,6 +49,31 @@ fi
 # ==========================================
 # 3. LÓGICA DE MIGRAÇÕES ROBUSTA
 # ==========================================
+# ==========================================
+# 1.5 AGUARDAR O BANCO DE DADOS
+# ==========================================
+# ==========================================
+# AGUARDAR O BANCO DE DADOS (USANDO AS VARS DO RAILWAY)
+# ==========================================
+echo "⏳ Verificando se o banco em $PGHOST:$PGPORT está pronto..."
+
+# Tentativa de conexão por até 30 segundos
+MAX_RETRIES=15
+COUNT=0
+
+while ! pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" > /dev/null 2>&1; do
+    COUNT=$((COUNT + 1))
+    if [ $COUNT -ge $MAX_RETRIES ]; then
+        echo "❌ ERRO: Banco de dados não respondeu após 30 segundos. Abortando."
+        exit 1
+    fi
+    echo "😴 Banco ainda não disponível ($COUNT/$MAX_RETRIES)... aguardando 2s"
+    sleep 2
+done
+
+echo "✅ Banco de dados detectado! Iniciando operações do Django..."
+echo ""
+
 echo "⚙️ Verificando e aplicando migrações do Django..."
 
 # Primeiro, vamos garantir que todas as migrações de 'contenttypes' sejam marcadas como aplicadas.
