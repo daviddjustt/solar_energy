@@ -87,10 +87,20 @@ class Common(Configuration):
     )
 
     # Postgres
+
+    # Verifica se estamos no Railway (geralmente via uma var de ambiente que você define ou a própria DATABASE_URL)
+    IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None # Exemplo
+
     DATABASES = {
         'default': dj_database_url.config(
-            default='postgres://postgres:@postgres:5432/postgres',
-            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
+            # 1. Pega a URL do Railway, se não houver, usa o localhost para sua máquina
+            default=os.getenv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/nome_do_seu_db'),
+            
+            # 2. Reduza para 0 ou um valor baixo para evitar conexões "zumbis"
+            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 0)),
+            
+            # 3. Força SSL em produção, mas desabilita localmente
+            ssl_require=IS_PRODUCTION
         )
     }
 #
