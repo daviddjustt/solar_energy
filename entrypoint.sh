@@ -21,6 +21,24 @@ else
 fi
 
 # ==========================================
+# 1.5 AGUARDAR O BANCO DE DADOS
+# ==========================================
+echo "⏳ Aguardando o banco de dados ($DATABASE_URL) ficar disponível..."
+
+# Extrai o host e a porta da DATABASE_URL (ou usa variáveis se preferir)
+# Se estiver usando a rede interna, o host é postgres.railway.internal
+DB_HOST="postgres.railway.internal"
+DB_PORT="5432"
+
+until pg_isready -h "$DB_HOST" -p "$DB_PORT"; do
+  echo "😴 Banco ainda indisponível - dormindo 2 segundos..."
+  sleep 2
+done
+
+echo "✅ Banco de dados detectado e pronto!"
+echo ""
+
+# ==========================================
 # 2. COLETAR ARQUIVOS ESTÁTICOS
 # ==========================================
 echo "📦 Coletando arquivos estáticos..."
