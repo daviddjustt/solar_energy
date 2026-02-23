@@ -46,9 +46,6 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
 fi
 
 # ==========================================
-# 3. LÓGICA DE MIGRAÇÕES ROBUSTA
-# ==========================================
-# ==========================================
 # 1.5 AGUARDAR O BANCO DE DADOS
 # ==========================================
 # ==========================================
@@ -72,6 +69,10 @@ done
 
 echo "✅ Banco de dados detectado! Iniciando operações do Django..."
 echo ""
+
+# ==========================================
+# 3. LÓGICA DE MIGRAÇÕES ROBUSTA
+# ==========================================
 
 echo "⚙️ Verificando e aplicando migrações do Django..."
 
