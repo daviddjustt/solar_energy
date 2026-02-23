@@ -6,8 +6,7 @@ echo ""
 
 # ==========================================
 # 1. GARANTIR PERMISSÕES DO VOLUME
-# ==========================================
-echo "🔐 Configurando permissões do volume /app/media..."
+# =========================================="
 
 # Se o diretório /app/media existe (volume montado)
 if [ -d "/app/media" ]; then
