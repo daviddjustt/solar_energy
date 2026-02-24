@@ -49,41 +49,6 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
     fi
 fi
 
-
-# ==========================================
-# 3. LÓGICA DE MIGRAÇÕES ROBUSTA
-# ==========================================
-
-echo "⚙️ Verificando e aplicando migrações do Django..."
-
-# Primeiro, vamos garantir que todas as migrações de 'contenttypes' sejam marcadas como aplicadas.
-echo "🔍 Corrigindo histórico de migrações para 'contenttypes' (marcando todas como fake)..."
-python manage.py migrate contenttypes --fake --noinput || true
-echo "✅ Todas as migrações de 'contenttypes' foram marcadas como aplicadas (fake)."
-echo ""
-
-# Lidar com os erros 'DuplicateColumn' para 'files'
-echo "🔍 Corrigindo histórico de migrações para 'files' (marcando 0003, 0004 e 0005 como fake)..."
-python manage.py migrate files 0003 --fake --noinput || true
-echo "✅ Migração 'files.0003_documentuser_rejection_reason' marcada como aplicada (fake)."
-python manage.py migrate files 0004 --fake --noinput || true
-echo "✅ Migração 'files.0004_documentuser_related_payment_document' marcada como aplicada (fake)."
-python manage.py migrate files 0005 --fake --noinput || true
-echo "✅ Migração 'files.0005_documentuser_document_name' marcada como aplicada (fake)."
-echo ""
-
-# ✅ LINHAS ALTERADAS/ADICIONADAS AQUI:
-# Agora, aplicar as migrações da app 'documents'.
-# Como a migração para 'documento' foi criada, este comando irá aplicá-la de fato.
-echo "🔍 Aplicando migrações pendentes para 'documents'..."
-python manage.py migrate documents --noinput
-echo "✅ Migrações para 'documents' aplicadas."
-echo ""
-echo "✅ Tabela django_migrations encontrada e com histórico. Aplicando migrações pendentes..."
-python manage.py migrate --noinput
-echo "✅ Migrações aplicadas com sucesso."
-echo ""
-
 # ==========================================
 # 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
 # ==========================================
