@@ -19,17 +19,6 @@ else
     echo "⚠️  Diretório /app/media não encontrado (volume não montado?)"
 fi
 
-# O pg_isready funciona passando a URL completa no parâmetro -d
-until pg_isready -d "$TARGET_DB" > /dev/null 2>&1; do
-    COUNT=$((COUNT + 1))
-    if [ $COUNT -ge $MAX_RETRIES ]; then
-        echo "❌ ERRO: Banco de dados não respondeu após 40 segundos."
-        echo "Verifique se a variável DATABASE_URL está correta no painel."
-        exit 1
-    fi
-    echo "😴 Banco ainda não disponível ($COUNT/$MAX_RETRIES)... aguardando 2s"
-    sleep 2
-done
 
 echo "✅ Banco detectado! Prosseguindo..."
 echo ""
