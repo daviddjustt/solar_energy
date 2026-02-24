@@ -2,35 +2,42 @@ import os
 import logging
 from time import time, sleep
 import psycopg2
-check_timeout = os.getenv("POSTGRES_CHECK_TIMEOUT", 30)
-check_interval = os.getenv("POSTGRES_CHECK_INTERVAL", 1)
-interval_unit = "second" if check_interval == 1 else "seconds"
-config = {
-    "dbname": os.getenv("POSTGRES_DB", "postgres"),
-    "user": os.getenv("POSTGRES_USER", "postgres"),
-    "password": os.getenv("POSTGRES_PASSWORD", ""),
-    "host": os.getenv("DATABASE_URL", "postgres")
-}
 
-start_time = time()
+# Pega a URL completa do Railway
+DATABASE_URL = os.getenv("DATABASE_URL")
+CHECK_TIMEOUT = int(os.getenv("POSTGRES_CHECK_TIMEOUT", 40)) # Aumentei um pouco
+CHECK_INTERVAL = 2
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
+if not logger.handlers:
+    logger.addHandler(logging.StreamHandler())
 
+def pg_isready():
+    start_time = time()
+    logger.info("⏳ Iniciando verificação do banco de dados...")
 
-def pg_isready(host, user, password, dbname):
-    while time() - start_time < check_timeout:
+    while time() - start_time < CHECK_TIMEOUT:
         try:
-            conn = psycopg2.connect(**vars())
-            logger.info("Postgres is ready! ✨ 💅")
+            # Conecta usando a URL completa diretamente
+            conn = psycopg2.connect(DATABASE_URL)
+            logger.info("✅ Postgres está pronto e a senha está correta! ✨ 💅")
             conn.close()
             return True
-        except psycopg2.OperationalError:
-            logger.info(f"Postgres isn't ready. Waiting for {check_interval} {interval_unit}...")
-            sleep(check_interval)
+        except psycopg2.OperationalError as e:
+            error_msg = str(e)
+            # Se o erro for de senha, não adianta esperar, o script deve parar!
+            if "password authentication failed" in error_msg:
+                logger.error("❌ ERRO FATAL: Senha do banco incorreta!")
+                logger.error(f"Detalhes: {error_msg}")
+                return False
+            
+            logger.info(f"😴 Banco ainda não disponível... (Tentando novamente)")
+            sleep(CHECK_INTERVAL)
 
-    logger.error(f"We could not connect to Postgres within {check_timeout} seconds.")
+    logger.error(f"❌ Timeout: Não conseguimos conectar após {CHECK_TIMEOUT}s.")
     return False
 
-
-pg_isready(**config)
+if __name__ == "__main__":
+    if not pg_isready():
+        exit(1) # Para o deploy se o banco não estiver ok
