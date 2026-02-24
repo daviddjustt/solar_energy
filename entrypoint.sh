@@ -19,22 +19,6 @@ else
     echo "⚠️  Diretório /app/media não encontrado (volume não montado?)"
 fi
 
-# ==========================================
-# AGUARDAR O BANCO DE DADOS
-# ==========================================
-echo "⏳ Verificando conexão com o banco de dados..."
-
-# Se PGHOST não existe, tentamos usar a DATABASE_URL para o teste
-if [ -z "$PGHOST" ]; then
-    echo "🔗 Usando DATABASE_URL para checagem..."
-    TARGET_DB="$DATABASE_URL"
-else
-    TARGET_DB="postgresql://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE"
-fi
-
-MAX_RETRIES=20
-COUNT=0
-
 # O pg_isready funciona passando a URL completa no parâmetro -d
 until pg_isready -d "$TARGET_DB" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
