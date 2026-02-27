@@ -94,10 +94,9 @@ class Common(Configuration):
 
     DATABASES = {
         'default': dj_database_url.config(
-            # Se a DATABASE_URL do Railway falhar, ele usa essa montada manualmente
-            default=db_url if db_url else f"postgres://postgres:{os.getenv('POSTGRES_PASSWORD')}@postgres.railway.internal:5432/railway",
+            default=db_url,
             conn_max_age=600,
-            ssl_require=os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None
+            ssl_require=False  # Mude para False temporariamente para testar
         )
     }
 #
