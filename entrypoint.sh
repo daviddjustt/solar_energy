@@ -23,6 +23,14 @@ fi
 echo "✅ Banco detectado! Prosseguindo..."
 echo ""
 
+# Antes do collectstatic
+echo "⏳ Aguardando banco de dados..."
+until PGPASSWORD=$POSTGRES_PASSWORD psql -h "postgres.railway.internal" -U "postgres" -d "railway" -c '\q'; do
+  echo "Postgres ainda indisponível - tentando novamente..."
+  sleep 2
+done
+echo "✅ Conexão estabelecida!"
+
 # ==========================================
 # 2. COLETAR ARQUIVOS ESTÁTICOS
 # ==========================================
