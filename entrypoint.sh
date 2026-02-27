@@ -23,11 +23,11 @@ fi
 echo "✅ Banco detectado! Prosseguindo..."
 echo ""
 
-# Antes do collectstatic
 echo "⏳ Aguardando banco de dados..."
-until PGPASSWORD=$POSTGRES_PASSWORD psql -h "postgres.railway.internal" -U "postgres" -d "railway" -c '\q'; do
-  echo "Postgres ainda indisponível - tentando novamente..."
-  sleep 2
+# Usamos a DATABASE_URL diretamente para o teste de conexão
+until psql "$DATABASE_URL" -c '\q'; do
+  echo "Postgres ainda indisponível ou senha incorreta - tentando novamente..."
+  sleep 5
 done
 echo "✅ Conexão estabelecida!"
 
