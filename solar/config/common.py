@@ -50,8 +50,8 @@ class Common(Configuration):
 
     # CSRF Trusted Origins
     CSRF_TRUSTED_ORIGINS = os.getenv(
-        'https://sn-solar-tech.vercel.app', # Backend 
-        'https://solarenergy-production.up.railway.app', # Frontend
+        'CSRF_TRUSTED_ORIGINS',
+        'https://sn-solar-tech.vercel.app,https://solarenergy-production.up.railway.app'
     ).split(',')
     # Proteger contra clickjacking
     X_FRAME_OPTIONS = 'DENY'
@@ -87,27 +87,17 @@ class Common(Configuration):
     )
 
     # Postgres
-    import dj_database_url
-
     # Verifica se estamos no Railway (geralmente via uma var de ambiente que você define ou a própria DATABASE_URL)
     IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None # Exemplo
 
+    db_url = os.getenv('DATABASE_URL')
+
     DATABASES = {
         'default': dj_database_url.config(
-            # 1. Pega a URL do Railway, se não houver, usa o localhost para sua máquina
-            default=os.getenv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/nome_do_seu_db'),
-            
-            # 2. Reduza para 0 ou um valor baixo para evitar conexões "zumbis"
-            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 0)),
-            
-            # 3. Força SSL em produção, mas desabilita localmente
+            # Se db_url estiver vazio, usa o fallback local
+            default=db_url if db_url else 'postgres://postgres:postgres@localhost:5432/postgres',
+            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600)),
             ssl_require=IS_PRODUCTION
-        )
-    }
-    DATABASES = {
-        'default': dj_database_url.config(
-            default='postgres://postgres:@postgres:5432/postgres',
-            conn_max_age=int(os.getenv('POSTGRES_CONN_MAX_AGE', 600))
         )
     }
 #
