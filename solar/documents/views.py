@@ -41,32 +41,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
     filterset_fields = ['created_by', 'codigoCliente'] # ✅ Mantido para a listagem padrão
 
     def get_queryset(self):
-        """
-        Filtra os projetos com base no tipo de usuário usando as novas flags.
-        """
+        # ✅ CORREÇÃO: Se for o Swagger gerando o esquema, retorne vazio ou o modelo base
+        if getattr(self, "swagger_fake_view", False):
+            return ClientProject.objects.none()
+
         user = self.request.user
-        # Superusuários, Administradores e Técnicos veem tudo
-        if user.is_superuser or user.is_admin or user.is_tecnico:
+        # Adicione 'is_authenticated' antes de checar as flags customizadas
+        if user.is_authenticated and (user.is_superuser or user.is_admin or user.is_tecnico):
             return ClientProject.objects.all().order_by('-created_at')
-        # Clientes veem apenas seus próprios projetos
-        if user.is_cliente:
+        
+        if user.is_authenticated and user.is_cliente:
             return ClientProject.objects.filter(created_by=user).order_by('-created_at')
-        # Para qualquer outro usuário autenticado (que não se encaixe nas categorias acima)
-        return ClientProject.objects.filter(created_by=user).order_by('-created_at')
+            
+        return ClientProject.objects.none()
 
     def get_serializer_class(self):
-        """
-        Retorna o serializer apropriado baseado no tipo de usuário e na ação.
-        """
+        # ✅ CORREÇÃO: Evita erro de AnonymousUser no Swagger
+        if getattr(self, "swagger_fake_view", False):
+            return ProjectInfoSerializer
+
         user = self.request.user
-        # Técnicos e Clientes usam o serializer com campos financeiros read-only
-        if user.is_tecnico or user.is_cliente:
+        if user.is_authenticated and (user.is_tecnico or user.is_cliente):
             return TecnicoClientProjectSerializer
-        # Para outras ações ou usuários, usa serializers específicos
+        
         if self.action == 'list':
             return ProjectListSerializer
-        # Se for 'create', 'retrieve', 'update', 'partial_update', 'destroy'
-        # ou qualquer outra action não listada acima, usa ProjectSerializer
         return ProjectInfoSerializer
 
     def perform_update(self, serializer):
@@ -291,6 +290,9 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         Retorna apenas documentos do projeto especificado na URL.
         """
         project_pk = self.kwargs['project_pk']
+        if getattr(self, "swagger_fake_view", False) or not project_pk:
+            return ProjectDocument.objects.none()
+        
         project = get_object_or_404(ClientProject, pk=project_pk)
         return ProjectDocument.objects.filter(project=project).select_related('project').order_by('-created_at')
 
