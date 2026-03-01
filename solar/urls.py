@@ -13,11 +13,8 @@ from django.views.static import serve
 from solar.documents.views import (
     ProjectViewSet,
     ProjectDocumentListView,
-    ProjectDocumentDetailView,
     ConsumerUnitListView,
-    ConsumerUnitDetailView,
     ListaDeMateriasListView,
-    ListaDeMateriasDetailView,
     PaymentDocumentView,
     ProjectDocumentDownloadView,
     ProjectDocumentDownloadAllView
