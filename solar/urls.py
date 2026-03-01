@@ -69,14 +69,10 @@ urlpatterns = [
     path('api/v1/', include(router.urls)),
 
     # Endpoints para Documentos (aninhados sob o projeto)
-    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
-    path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
-    
+    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),    
     path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-unit-list-create'),
-    path('api/v1/projects/<int:project_pk>/consumer_units/<int:pk>/', ConsumerUnitDetailView.as_view(), name='project-consumer-unit-detail-update-delete'),
     
     path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
-    path('api/v1/projects/<int:project_pk>/lista_materiais/<int:pk>/', ListaDeMateriasDetailView.as_view(), name='project-material_list-detail-update-delete'),
     
     path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
@@ -107,7 +103,6 @@ urlpatterns = [
         name='documentuser-download-all'
     ),
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
-    path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentDetailView.as_view(), name='project-document-detail-update-delete'),
     # ✅ NOVAS URLs para Download de Documentos de Projeto
     path(
         'api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/',
