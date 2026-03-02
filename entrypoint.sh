@@ -46,56 +46,7 @@ if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X
     fi
 fi
 
-# Agora, execute makemigrations e migrate normalmente
-#echo "Executando python manage.py makemigrations --noinput..."
-#python manage.py makemigrations --noinput
-#echo ""
 
-echo "Executando python manage.py migrate --noinput..."
-python manage.py migrate --noinput
-echo ""
-
-# ==========================================
-# 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
-# ==========================================
-echo "👤 Criando superuser..."
-python manage.py shell << EOF
-import os
-from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
-import sys # Importar sys para sys.exit()
-
-User = get_user_model()
-
-# Obter valores das variáveis de ambiente ou usar defaults seguros
-# Certifique-se de definir estas variáveis no Railway (ou no seu ambiente local)
-email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
-password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
-name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
-cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')     # Exemplo de CPF válido e formatado
-celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321') # Exemplo de celular válido (11 dígitos)
-
-try:
-    # Tenta encontrar o usuário pelo email, que é o USERNAME_FIELD
-    if not User.objects.filter(email=email).exists():
-        print(f"Attempting to create superuser {email}...")
-        User.objects.create_superuser(
-            email=email,
-            password=password,
-            name=name,
-            cnpj=cnpj,
-            cpf=cpf,
-            celular=celular
-        )
-        print(f"✅ Superuser {email} criado com sucesso!")
-    else:
-        print(f"ℹ️  Superuser {email} já existe, pulando criação.")
-except Exception as e:
-    print(f"❌ Erro crítico ao criar superuser: {e}", file=sys.stderr)
-    # Se a criação do superusuário falhar, o deploy deve falhar
-    sys.exit(1)
-EOF
 echo ""
 
 # ==========================================
