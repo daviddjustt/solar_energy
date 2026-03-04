@@ -51,15 +51,19 @@ class UserManager(BaseUserManager):
                 cnpj=cnpj,
                 cpf=cpf,
                 celular=celular,
-                is_cliente=False,
+                is_cliente=True,
                 **extra_fields
             )
             user.set_password(password)
             user.save(using=self._db)
             return user
 
-    def create_superuser(self, email, name, cnpj, cpf, celular, password=None):
-            return self.create_user(
+    def create_superuser(self, email, name, cnpj, cpf, celular, password=None, **extra_fields):
+        extra_fields.setdefault('is_admin', True)
+        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('is_superuser', True)
+        
+        return self.create_user(
                 email=email,
                 name=name,
                 cnpj=cnpj,
@@ -107,12 +111,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     
     is_active = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name='Ativo'
     )
     is_admin = models.BooleanField(default=False, verbose_name="É Administrador")
     is_tecnico = models.BooleanField(default=False, verbose_name="É Técnico")
-    is_cliente = models.BooleanField(default=False, verbose_name="É Cliente")
+    is_cliente = models.BooleanField(default=True, verbose_name="É Cliente")
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Criado em'
@@ -153,11 +157,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def save(self, *args, **kwargs):
         """Salva o usuário após normalizar os campos."""
+        self.is_active = True 
         self._normalize_text_fields()
         super().save(*args, **kwargs)
         self._update_groups()
-    
-    # CORREÇÃO PRINCIPAL: is_staff como property
+
     @property
     def is_staff(self):
         """
@@ -174,6 +178,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         self.is_admin = value
 
+    @property
+    def cnpj_or_cpf_do_cliente(self):
+        """Retorna o CNPJ se for PJ, ou o CPF se for PF."""
+        if self.is_pessoa_juridica:
+            return self.cnpj
+        return self.cpf
+    
     def get_full_name(self):
             """Retorna o nome completo do usuário."""
             return self.name.strip()
@@ -202,6 +213,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.groups.add(cliente_group)
         else:
             self.groups.remove(cliente_group)
+        
 
 class Tecnico(User):
     """
@@ -223,6 +235,7 @@ class Tecnico(User):
             self.is_admin = False
             self.is_tecnico = True
             self.is_cliente = False
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
@@ -280,6 +293,7 @@ class Cliente(Tecnico):
             self.is_admin = False
             self.is_tecnico = False
             self.is_cliente = True
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
@@ -318,6 +332,7 @@ class Empresa(Cliente):
             self.is_admin = False
             self.is_tecnico = False
             self.is_cliente = True
+            self.is_active = True 
             super().save(update_fields=['is_staff'])
             super().save(update_fields=['is_admin'])
             super().save(update_fields=['is_tecnico'])
