@@ -278,55 +278,27 @@ class ClientProject(models.Model):
         verbose_name_plural = "Projetos dos Clientes"
 
     def _normalize_text_fields(self):
-        """Normaliza os campos de texto."""
-        if self.name:
-            self.name = self.name.upper()
-        if self.cnpj:
-            self.cnpj = ''.join(filter(str.isdigit, self.cnpj))
+        if self.nomeTitular:
+            self.nomeTitular = self.nomeTitular.upper()
+        if self.documento:
+            self.documento = ''.join(filter(str.isdigit, self.documento))
         if self.telefone:
             self.telefone = ''.join(filter(str.isdigit, self.telefone))
 
     def get_required_documents(self):
-        """Retorna lista de documentos obrigatórios"""
-        base_docs = [
+        return [
             'documento_cliente',
             'unidade_geradora_fatura',
             'unidades_consumidoras_fatura',
             'lista_material',
-            'procuracao_assinada'
+            'procuracao_assinada', # <== Vírgula adicionada
             'cartao_cnpj',
-            'inscricao_estadual_',
+            'inscricao_estadual',  # <== Underline removido
             'contrato_social',
-            'Documentação ART',
-            'Documentação TRT',
-            ]
-        return base_docs
+            'pagamento_art',       # <== Corrigido para bater com os choices
+            'pagamento_trt',       # <== Corrigido para bater com os choices
+        ]
 
-
-    @property
-    def is_payment_complete(self):
-        """Verifica se o pagamento está completo (boleto + comprovante aprovado)"""
-        if self.document_type == 'boleto':
-            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
-            return self.payment_proofs.filter(status=self.STATUS_APPROVED).exists()
-        elif self.document_type == 'comprovante_de_pagamento':
-            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
-            return self.status == self.STATUS_APPROVED and self.related_payment_document is not None
-        return False
-
-    @property
-    def payment_status(self):
-        """Status do pagamento para boletos"""
-        if self.document_type == 'boleto':
-            # ✅ Corrigido: Usar a constante de classe STATUS_APPROVED
-            if self.payment_proofs.filter(status=self.STATUS_APPROVED).exists():
-                return 'PAGO'
-            elif self.payment_proofs.exists():
-                return 'COMPROVANTE_EM_ANALISE'
-            else:
-                return 'PENDENTE'
-        return None
-    
     def check_documetacaoCompleta(self):
         """Verifica se toda documentação obrigatória foi enviada E APROVADA"""
         required_docs = self.get_required_documents() # Este método deve estar no modelo Project
@@ -409,7 +381,7 @@ class ConsumerUnit(models.Model):
     def validate(self):
         super().validate()
         # Garantir unicidade do nível de prioridade dentro do mesmo projeto
-        if self.priodidade_is_porcentagem == True:
+        if self.prioridade_is_porcentagem == True:
             self.priority_level = None
         else:
             self.porcentagem = None
@@ -452,7 +424,7 @@ class ListaDeMateriais(models.Model):
     potencia = models.DecimalField(
         max_digits=20,
         decimal_places=10,
-        verbose_name="Potência nominal em w ou kW",
+        verbose_name="Potência de cada Módulo Fotovoltaico (W)",
         blank=True,
         null=True,
     )
