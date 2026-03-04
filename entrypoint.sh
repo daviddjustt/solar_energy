@@ -1,51 +1,36 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Iniciando aplicação Solar Energy..."
+echo "🚀 Iniciando Solar Energy às $(date)"
 
-# ==========================================
-# 1. PERMISSÕES DE VOLUME
-# ==========================================
+# 1. Ajuste de Permissões (Volume montado pelo Railway)
 if [ -d "/app/media" ]; then
     chown -R 65532:65532 /app/media || true
     chmod -R 755 /app/media || true
-    echo "✅ Permissões de mídia configuradas."
 fi
 
-# ==========================================
-# 2. CONEXÃO COM O BANCO
-# ==========================================
-echo "⏳ Aguardando Postgres em $DATABASE_URL..."
+# 2. Espera pelo Banco
+echo "⏳ Aguardando Postgres..."
 until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
-  echo "Banco ainda indisponível - tentando novamente..."
+  echo "Postgres ainda offline - tentando novamente..."
   sleep 3
 done
-echo "✅ Conexão estabelecida!"
 
-# ==========================================
-# 3. STATIC FILES
-# ==========================================
-echo "📦 Coletando arquivos estáticos..."
+# 3. Coleta de Estáticos
+echo "📦 Coletando estáticos..."
 python manage.py collectstatic --noinput --clear
 
-# ==========================================
-# 4. SINCRONIZAÇÃO DE MIGRAÇÕES (CRUCIAL)
-# ==========================================
-echo "🔄 Gerando migrações faltantes..."
-# Isso resolve o aviso "Your models have changes not reflected in migrations"
-python manage.py makemigrations users --noinput
+# 4. SINCRONIZAÇÃO AUTOMÁTICA (Resolve o aviso do Log)
+echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
+# Forçamos a criação para evitar o aviso "models have changes not reflected"
 python manage.py makemigrations documents --noinput
+python manage.py makemigrations users --noinput
 python manage.py makemigrations --noinput
 
-echo "🔄 Aplicando migrações no banco..."
-# O --noinput evita o travamento de 10 minutos por perguntas do Django
+echo "🔄 Aplicando migrações..."
 python manage.py migrate --noinput
 
-echo "✅ Migrações concluídas!"
-
-# ==========================================
-# 5. SUPERUSER
-# ==========================================
+# 5. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
 python manage.py shell << EOF
 import os
@@ -56,20 +41,18 @@ if not User.objects.filter(email=email).exists():
     User.objects.create_superuser(
         email=email,
         password=os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456'),
-        name=os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar'),
-        cnpj=os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00'),
-        cpf=os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00'),
-        celular=os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
+        name='Admin Solar',
+        cnpj='00.000.000/0001-00',
+        cpf='000.000.000-00',
+        celular='11987654321'
     )
     print(f"✅ Superuser {email} criado!")
 else:
     print(f"ℹ️ Superuser {email} já existe.")
 EOF
 
-# ==========================================
-# 6. START SERVER
-# ==========================================
-echo "🚀 Iniciando Gunicorn..."
+# 6. Execução do Gunicorn
+echo "✅ Tudo pronto! Iniciando Gunicorn..."
 exec gunicorn solar.wsgi:application \
     --bind 0.0.0.0:${PORT:-8080} \
     --workers 2 \
