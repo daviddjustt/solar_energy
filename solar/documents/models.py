@@ -175,7 +175,13 @@ class ClientProject(models.Model):
         return f"{self.codigoCliente} - {self.nomeTitular} (Criado por: {self.created_by_name})"
 
 class ConsumerUnit(models.Model):
-    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='consumer_units', default=0)
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='consumer_units',
+        null=True,   # Mude o default=0 para null=True
+        blank=True
+    )
     codigoCliente = models.CharField(max_length=50, verbose_name="Código único do cliente")
     porcentagem = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True, verbose_name="Porcentagem (%)")
     priority_level = models.PositiveSmallIntegerField(
@@ -238,7 +244,13 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     STATUS_APPROVED = 'APPROVED'
     STATUS_REJECTED = 'REJECTED'
 
-    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='documents')
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='documents',
+        null=True,   # Essencial para destravar
+        blank=True
+    )
     document_name = models.CharField(max_length=80, verbose_name="Nome opcional", blank=True, null=True)
     document_type = models.CharField(max_length=80, choices=DOCUMENT_TYPE_CHOICES, verbose_name="Tipo do documento")
     related_payment_document = models.ForeignKey(
