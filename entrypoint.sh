@@ -40,7 +40,7 @@ python manage.py collectstatic --noinput --clear
 echo "🔄 Verificando e aplicando migrações..."
 
 # Aplica as novas migrações limpas
-python manage.py migrate --noinput
+python manage.py migrate
 
 echo "✅ Migrações concluídas!"
 
