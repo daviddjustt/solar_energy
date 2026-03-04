@@ -1,74 +1,69 @@
 #!/bin/bash
+
+# Interrompe a execução se qualquer comando falhar
 set -e
 
 echo "🚀 Iniciando aplicação Solar Energy..."
-echo ""
 
 # ==========================================
-# 1. GARANTIR PERMISSÕES DO VOLUME
-# =========================================="
-
-# Se o diretório /app/media existe (volume montado)
+# 1. GARANTIR PERMISSÕES DE VOLUME (MEDIA)
+# ==========================================
 if [ -d "/app/media" ]; then
-    # Dar permissões ao usuário nonroot (UID 65532)
-    # Executar como root (o entrypoint começa como root)
-    chown -R 65532:65532 /app/media
-    chmod -R 755 /app/media
-    echo "✅ Permissões configuradas para /app/media"
+    echo "📂 Ajustando permissões em /app/media..."
+    # 65532 é o ID padrão do usuário non-root em muitas imagens distroless/railway
+    chown -R 65532:65532 /app/media || true
+    chmod -R 755 /app/media || true
 else
-    echo "⚠️  Diretório /app/media não encontrado (volume não montado?)"
+    echo "⚠️ Diretório /app/media não encontrado."
 fi
 
-
-echo "✅ Banco detectado! Prosseguindo..."
-echo ""
-
-echo "⏳ Aguardando banco de dados..."
-# Usamos a DATABASE_URL diretamente para o teste de conexão
-until psql "$DATABASE_URL" -c '\q'; do
-  echo "Postgres ainda indisponível ou senha incorreta - tentando novamente..."
-  sleep 5
+# ==========================================
+# 2. AGUARDAR BANCO DE DADOS (POSTGRES)
+# ==========================================
+echo "⏳ Aguardando conexão com o Postgres..."
+until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
+  echo "Postgres ainda indisponível - tentando novamente em 3s..."
+  sleep 3
 done
 echo "✅ Conexão estabelecida!"
 
 # ==========================================
-# 2. COLETAR ARQUIVOS ESTÁTICOS
+# 3. COLETAR ARQUIVOS ESTÁTICOS
 # ==========================================
 echo "📦 Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput --clear
 
+# ==========================================
+# 4. EXECUTAR MIGRAÇÕES (CORREÇÃO DO TRAVAMENTO)
+# ==========================================
 echo "🔄 Verificando e aplicando migrações..."
 
-# Aplica as novas migrações limpas
-python manage.py migrate
+# O --noinput é CRUCIAL para não travar em perguntas sobre "Stale Content Types"
+python manage.py migrate --noinput
 
 echo "✅ Migrações concluídas!"
 
 # ==========================================
-# 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
+# 5. CRIAR SUPERUSER (SE NÃO EXISTIR)
 # ==========================================
-echo "👤 Criando superuser..."
+echo "👤 Verificando Superuser..."
 python manage.py shell << EOF
 import os
+import sys
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
-import sys # Importar sys para sys.exit()
 
 User = get_user_model()
 
-# Obter valores das variáveis de ambiente ou usar defaults seguros
-# Certifique-se de definir estas variáveis no Railway (ou no seu ambiente local)
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
 password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
 name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00') # Exemplo de CNPJ válido e formatado
-cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')     # Exemplo de CPF válido e formatado
-celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321') # Exemplo de celular válido (11 dígitos)
+cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00')
+cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')
+celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
 
 try:
-    # Tenta encontrar o usuário pelo email, que é o USERNAME_FIELD
     if not User.objects.filter(email=email).exists():
-        print(f"Attempting to create superuser {email}...")
+        print(f"DEBUG: Criando superuser {email}...")
         User.objects.create_superuser(
             email=email,
             password=password,
@@ -79,24 +74,18 @@ try:
         )
         print(f"✅ Superuser {email} criado com sucesso!")
     else:
-        print(f"ℹ️  Superuser {email} já existe, pulando criação.")
+        print(f"ℹ️ Superuser {email} já existe.")
 except Exception as e:
-    print(f"❌ Erro crítico ao criar superuser: {e}", file=sys.stderr)
-    # Se a criação do superusuário falhar, o deploy deve falhar
-    sys.exit(1)
+    print(f"❌ Erro na criação do superuser: {e}")
+    # Não interrompemos o boot por erro de superuser já existente/conflito
 EOF
-echo ""
-# ==========================================
-# 5. CRIAR USUÁRIOS CLIENTES DE TESTE
-# ==========================================
-echo "👥 Criando usuários clientes de teste..."
-# python manage.py create_test_clients # ✅ Nova linha aqui!
-echo ""
 
 # ==========================================
 # 6. INICIAR SERVIDOR GUNICORN
 # ==========================================
-echo "✅ Iniciando servidor Gunicorn..."
+echo "🚀 Iniciando servidor Gunicorn na porta ${PORT:-8080}..."
+
+# Usamos exec para que o Gunicorn se torne o processo principal (PID 1)
 exec gunicorn solar.wsgi:application \
     --bind 0.0.0.0:${PORT:-8080} \
     --workers ${GUNICORN_WORKERS:-2} \
