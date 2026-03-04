@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais
-from .utils import VOLTAGEM_MAP
+from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
 from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
 # --- Helpers e Campos Customizados ---
@@ -21,7 +21,7 @@ class VoltageField(serializers.CharField):
         if converted_label:
             return converted_label
             
-        valid_model_choices = [choice[0] for choice in ClientProject.VOLTAGEM_CHOICES]
+        valid_model_choices = [choice[0] for choice in VOLTAGEM_CHOICES]
         if value_str in valid_model_choices:
             return value_str
 
