@@ -39,21 +39,16 @@ python manage.py collectstatic --noinput --clear
 
 echo "🔄 Verificando e aplicando migrações..."
 
-# Tenta aplicar as migrações normalmente
-if ! python manage.py migrate --noinput; then
-    echo "⚠️ Erro detectado nas migrações. Tentando sincronização forçada..."
-    
-    # Se falhar porque a tabela não existe mas o Django acha que sim:
-    # 1. Marcamos o app 'documents' como 'zero' no histórico (limpa o histórico de migração do app)
-    # 2. Tentamos migrar novamente para que ele crie as tabelas do 0001
-    python manage.py migrate --fake documents zero
-    
-    echo "🔄 Reaplicando migrações para o app documents..."
-    python manage.py migrate documents --noinput
-    
-    # Tenta rodar o restante novamente
-    python manage.py migrate --noinput
-fi
+echo "🔄 Recriando esquema de banco de dados..."
+
+# Apaga todo o conteúdo e recria a estrutura
+python manage.py flush --no-input
+
+# Garante que novas migrações baseadas no models.py limpo sejam criadas
+python manage.py makemigrations documents users
+
+# Aplica as novas migrações limpas
+python manage.py migrate --noinput
 
 echo "✅ Migrações concluídas!"
 
