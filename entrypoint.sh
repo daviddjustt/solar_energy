@@ -1,96 +1,79 @@
 #!/bin/bash
-
-# Interrompe a execução se qualquer comando falhar
 set -e
 
 echo "🚀 Iniciando aplicação Solar Energy..."
 
 # ==========================================
-# 1. GARANTIR PERMISSÕES DE VOLUME (MEDIA)
+# 1. PERMISSÕES DE VOLUME
 # ==========================================
 if [ -d "/app/media" ]; then
-    echo "📂 Ajustando permissões em /app/media..."
-    # 65532 é o ID padrão do usuário non-root em muitas imagens distroless/railway
     chown -R 65532:65532 /app/media || true
     chmod -R 755 /app/media || true
-else
-    echo "⚠️ Diretório /app/media não encontrado."
+    echo "✅ Permissões de mídia configuradas."
 fi
 
 # ==========================================
-# 2. AGUARDAR BANCO DE DADOS (POSTGRES)
+# 2. CONEXÃO COM O BANCO
 # ==========================================
-echo "⏳ Aguardando conexão com o Postgres..."
+echo "⏳ Aguardando Postgres em $DATABASE_URL..."
 until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
-  echo "Postgres ainda indisponível - tentando novamente em 3s..."
+  echo "Banco ainda indisponível - tentando novamente..."
   sleep 3
 done
 echo "✅ Conexão estabelecida!"
 
 # ==========================================
-# 3. COLETAR ARQUIVOS ESTÁTICOS
+# 3. STATIC FILES
 # ==========================================
 echo "📦 Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput --clear
 
 # ==========================================
-# 4. EXECUTAR MIGRAÇÕES (CORREÇÃO DO TRAVAMENTO)
+# 4. SINCRONIZAÇÃO DE MIGRAÇÕES (CRUCIAL)
 # ==========================================
-echo "🔄 Verificando e aplicando migrações..."
+echo "🔄 Gerando migrações faltantes..."
+# Isso resolve o aviso "Your models have changes not reflected in migrations"
+python manage.py makemigrations users --noinput
+python manage.py makemigrations documents --noinput
+python manage.py makemigrations --noinput
 
-# O --noinput é CRUCIAL para não travar em perguntas sobre "Stale Content Types"
+echo "🔄 Aplicando migrações no banco..."
+# O --noinput evita o travamento de 10 minutos por perguntas do Django
 python manage.py migrate --noinput
 
 echo "✅ Migrações concluídas!"
 
 # ==========================================
-# 5. CRIAR SUPERUSER (SE NÃO EXISTIR)
+# 5. SUPERUSER
 # ==========================================
 echo "👤 Verificando Superuser..."
 python manage.py shell << EOF
 import os
-import sys
 from django.contrib.auth import get_user_model
-
 User = get_user_model()
-
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@solarenergy.com')
-password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456')
-name = os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar')
-cnpj = os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00')
-cpf = os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00')
-celular = os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
-
-try:
-    if not User.objects.filter(email=email).exists():
-        print(f"DEBUG: Criando superuser {email}...")
-        User.objects.create_superuser(
-            email=email,
-            password=password,
-            name=name,
-            cnpj=cnpj,
-            cpf=cpf,
-            celular=celular
-        )
-        print(f"✅ Superuser {email} criado com sucesso!")
-    else:
-        print(f"ℹ️ Superuser {email} já existe.")
-except Exception as e:
-    print(f"❌ Erro na criação do superuser: {e}")
-    # Não interrompemos o boot por erro de superuser já existente/conflito
+if not User.objects.filter(email=email).exists():
+    User.objects.create_superuser(
+        email=email,
+        password=os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin123456'),
+        name=os.environ.get('DJANGO_SUPERUSER_NAME', 'Admin Solar'),
+        cnpj=os.environ.get('DJANGO_SUPERUSER_CNPJ', '00.000.000/0001-00'),
+        cpf=os.environ.get('DJANGO_SUPERUSER_CPF', '000.000.000-00'),
+        celular=os.environ.get('DJANGO_SUPERUSER_CELULAR', '11987654321')
+    )
+    print(f"✅ Superuser {email} criado!")
+else:
+    print(f"ℹ️ Superuser {email} já existe.")
 EOF
 
 # ==========================================
-# 6. INICIAR SERVIDOR GUNICORN
+# 6. START SERVER
 # ==========================================
-echo "🚀 Iniciando servidor Gunicorn na porta ${PORT:-8080}..."
-
-# Usamos exec para que o Gunicorn se torne o processo principal (PID 1)
+echo "🚀 Iniciando Gunicorn..."
 exec gunicorn solar.wsgi:application \
     --bind 0.0.0.0:${PORT:-8080} \
-    --workers ${GUNICORN_WORKERS:-2} \
-    --threads ${GUNICORN_THREADS:-4} \
-    --timeout ${GUNICORN_TIMEOUT:-120} \
+    --workers 2 \
+    --threads 4 \
+    --timeout 120 \
     --access-logfile - \
-    --error-logfile - \
-    --log-level ${GUNICORN_LOG_LEVEL:-info}
+    --error-logfile -

@@ -7,42 +7,33 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Instalar dependências do sistema
+# Instalar dependências do sistema e utilitários de texto
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar e instalar requirements
+# Copiar e instalar requisitos
 COPY requirements.txt /code/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar aplicação
+# Copiar todo o projeto
 COPY . /code/
 
-# ==========================================
-# CRIAR USUÁRIO NONROOT
-# ==========================================
+# Criar usuário nonroot
 RUN groupadd -r nonroot && \
     useradd -r -g nonroot -u 65532 nonroot
 
-# ==========================================
-# CRIAR DIRETÓRIOS E DAR PERMISSÕES
-# ==========================================
-RUN mkdir -p /code/staticfiles /code/media /app /app/media && \
-    chown -R nonroot:nonroot /code /app && \
-    chmod -R 755 /app/media
+# Criar diretórios necessários e ajustar permissões iniciais
+RUN mkdir -p /code/staticfiles /code/media /app/media && \
+    chown -R nonroot:nonroot /code /app
 
-# Copiar entrypoint e dar permissões
-COPY --chown=nonroot:nonroot entrypoint.sh /code/
-RUN chmod +x /code/entrypoint.sh
-
-# Makemigrations
-# RUN python manage.py makemigrations
-
-# ⚠️ NÃO mudar para usuário nonroot ainda
-# Deixar como root para o entrypoint configurar permissões
-# USER nonroot
+# Corrigir permissões e formato do entrypoint
+RUN dos2unix /code/entrypoint.sh && \
+    chmod +x /code/entrypoint.sh
 
 EXPOSE 8080
 
+# Mantemos como root para o entrypoint configurar o volume /app/media
+# O entrypoint usará 'exec' para rodar o gunicorn
 ENTRYPOINT ["/code/entrypoint.sh"]
