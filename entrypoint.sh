@@ -37,25 +37,25 @@ echo "✅ Conexão estabelecida!"
 echo "📦 Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput --clear
 
-echo ""
-# Define o nome da migração problemática e o app
-PROBLEM_MIGRATION="none"
-APP_LABEL="documents"
-PREVIOUS_MIGRATION="0001_initial" # A migração que deveria vir antes da problemática
+echo "🔄 Verificando e aplicando migrações..."
 
-# Verifica se a migração problemática está registrada como aplicada no DB
-# E se o arquivo correspondente NÃO existe localmente no container.
-# Isso é um hack para lidar com migrações "fantasmas" em ambientes remotos.
-if python manage.py showmigrations "$APP_LABEL" | grep -q "$PROBLEM_MIGRATION [X]"; then
-    if [ ! -f "/code/solar/$APP_LABEL/migrations/$PROBLEM_MIGRATION.py" ]; then
-        echo "⚠️ Detectada migração problemática '$PROBLEM_MIGRATION' no DB do Railway, mas o arquivo não existe localmente."
-        echo "   Marcando a migração '$PROBLEM_MIGRATION' como 'não aplicada' no histórico do DB para resolver a inconsistência."
-        # Este comando marca a migração problemática (e quaisquer outras após ela para este app)
-        # como não aplicadas no banco de dados, ao "fingir" que a migração anterior é a última aplicada.
-        python manage.py migrate --fake "$APP_LABEL" "$PREVIOUS_MIGRATION"
-        echo "✅ Migração '$PROBLEM_MIGRATION' marcada como não aplicada no DB."
-    fi
+# Tenta aplicar as migrações normalmente
+if ! python manage.py migrate --noinput; then
+    echo "⚠️ Erro detectado nas migrações. Tentando sincronização forçada..."
+    
+    # Se falhar porque a tabela não existe mas o Django acha que sim:
+    # 1. Marcamos o app 'documents' como 'zero' no histórico (limpa o histórico de migração do app)
+    # 2. Tentamos migrar novamente para que ele crie as tabelas do 0001
+    python manage.py migrate --fake documents zero
+    
+    echo "🔄 Reaplicando migrações para o app documents..."
+    python manage.py migrate documents --noinput
+    
+    # Tenta rodar o restante novamente
+    python manage.py migrate --noinput
 fi
+
+echo "✅ Migrações concluídas!"
 
 # ==========================================
 # 4. CRIAR SUPERUSER (SE NÃO EXISTIR)
