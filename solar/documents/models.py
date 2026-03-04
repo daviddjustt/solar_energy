@@ -215,7 +215,7 @@ class ConsumerUnit(models.Model):
         return f"UC {self.codigoCliente} - Projeto: {self.project.codigoCliente} (Prioridade: {self.priority_level})"
 
 class ListaDeMateriais(models.Model):
-    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='material_lists')
+    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='material_lists', null=True, blank=True)
     tipo = models.CharField(verbose_name="Tipo do Inversor ou Módulo", max_length=50, blank=True, null=True)
     marca = models.CharField(verbose_name="Marca dos Módulos Fotovoltaicos", max_length=100, blank=True, null=True)
     quantidade = models.PositiveIntegerField(verbose_name="Número de módulos", blank=True, null=True)
@@ -226,6 +226,7 @@ class ListaDeMateriais(models.Model):
     unidade_de_medida = models.CharField(
         max_length=100, choices=WATS_CHOICES, help_text="Unidade de medida", default="wats"
     )
+    
 
 class ProjectDocument(BaseModel, ArquivoMixin):
     STATUS_CHOICES = [
