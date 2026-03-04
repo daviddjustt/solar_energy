@@ -41,15 +41,8 @@ echo "🔄 Verificando e aplicando migrações..."
 
 echo "🔄 Recriando esquema de banco de dados..."
 
-# Apaga todo o conteúdo e recria a estrutura
-python manage.py flush --no-input
-
-# Garante que novas migrações baseadas no models.py limpo sejam criadas
-python manage.py makemigrations users
-python manage.py makemigrations documents
-
 # Aplica as novas migrações limpas
-python manage.py migrate --noinput
+python manage.py migrate
 
 echo "✅ Migrações concluídas!"
 
