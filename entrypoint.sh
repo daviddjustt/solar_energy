@@ -16,10 +16,6 @@ until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
   sleep 3
 done
 
-# 3. Coleta de Estáticos
-echo "📦 Coletando estáticos..."
-python manage.py collectstatic --noinput --clear
-
 # 4. SINCRONIZAÇÃO AUTOMÁTICA (Resolve o aviso do Log)
 echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 # Forçamos a criação para evitar o aviso "models have changes not reflected"
