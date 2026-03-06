@@ -194,7 +194,11 @@ class ProjectListSerializer(ProjectBaseSerializer):
         return obj.consumer_units.count()
 
 class TecnicoClientProjectSerializer(ProjectBaseSerializer):
-    """Campos financeiros são bloqueados via ViewSet, aqui apenas reforçamos a leitura"""
+    """Garante que o Técnico também veja a lista de documentos/materiais sem quebrar o Front"""
+    documents = DocumentUploadSerializer(many=True, read_only=True)
+    lista_materiais = ListaDeMateriaisSerializer(many=True, read_only=True)
+    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+
     class Meta:
         model = ClientProject
         fields = '__all__'
