@@ -184,7 +184,7 @@ class ProjectListSerializer(ProjectBaseSerializer):
 class TecnicoClientProjectSerializer(ProjectBaseSerializer):
     """Garante que o Técnico também veja a lista de documentos/materiais sem quebrar o Front"""
     documents = DocumentUploadSerializer(many=True, read_only=True)
-    lista_materiais = ListaDeMateriaisSerializer(many=True, read_only=True)
+    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
     consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
 
     class Meta:
