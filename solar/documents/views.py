@@ -25,78 +25,31 @@ from .serializers import (
     ListaDeMateriaisSerializer
 )
 
-class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gerenciar projetos com filtragem dinâmica por tipo de usuário.
-    """
-    queryset = ClientProject.objects.all().order_by('-created_at')
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend]
-    pagination_class = None
-    filterset_fields = ['created_by', 'codigoCliente']
+class ProjectDocumentListView(generics.ListCreateAPIView):
+    serializer_class = DocumentUploadSerializer
+    # Adicionado para evitar UnorderedObjectListWarning
+    queryset = ProjectDocument.objects.all().order_by('-created_at')
 
     def get_queryset(self):
-        # Proteção para o Swagger e usuários não autenticados
-        if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
-            return ClientProject.objects.none()
+        project_pk = self.kwargs.get('project_pk')
+        if getattr(self, "swagger_fake_view", False) or not project_pk:
+            return ProjectDocument.objects.none()
+        return ProjectDocument.objects.filter(project_id=project_pk).order_by('-created_at')
 
-        user = self.request.user
-        if user.is_superuser or user.is_admin or user.is_tecnico:
-            return ClientProject.objects.all().order_by('-created_at')
-        
-        return ClientProject.objects.filter(created_by=user).order_by('-created_at')
-
-    def get_serializer_class(self):
-        # Proteção para o Swagger
-        if getattr(self, "swagger_fake_view", False):
-            return ProjectInfoSerializer
-
-        user = self.request.user
-        # Técnicos e Clientes usam visualização restrita para campos financeiros
-        if user.is_authenticated and (user.is_tecnico or user.is_cliente):
-            return TecnicoClientProjectSerializer
-        
-        if self.action == 'list':
-            return ProjectListSerializer
-        
-        return ProjectInfoSerializer
-
+    # CORREÇÃO CRÍTICA: Vincula o documento ao projeto no momento do POST
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        project_pk = self.kwargs.get('project_pk')
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        # Salva o projeto explicitamente para evitar que venha 'null'
+        serializer.save(project=project)
 
-    def _check_financial_permission(self, serializer):
-        user = self.request.user
-        if user.is_authenticated and (user.is_tecnico or user.is_cliente):
-            financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
-            if any(field in serializer.validated_data for field in financial_fields):
-                raise PermissionDenied("Você não tem permissão para modificar campos financeiros.")
-
-    def perform_update(self, serializer):
-        self._check_financial_permission(serializer)
-        serializer.save()
-
-    @action(detail=False, methods=['get'])
-    def resumo_financeiro(self, request):
-        user = request.user
-        if not (user.is_superuser or user.is_admin):
-            return Response({
-                'message': 'Acesso negado ao resumo financeiro.',
-                'total_projetos': self.get_queryset().count()
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        projetos = self.get_queryset()
-        # Lógica de soma otimizada pode ser feita aqui
-        return Response({'status': 'dados calculados'})
-
-    @extend_schema(operation_id="projects_by_email")
-    @action(detail=False, methods=['get'], url_path='by_email')
-    def by_email(self, request):
-        email = request.query_params.get('email')
-        if not email:
-            return Response({"detail": "Email obrigatório."}, status=400)
-        queryset = self.get_queryset().filter(email=email)
-        serializer = ProjectListSerializer(queryset, many=True)
-        return Response(serializer.data)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if not getattr(self, "swagger_fake_view", False):
+            project_pk = self.kwargs.get('project_pk')
+            # Mantemos o contexto caso o Serializer precise para validações extras
+            context['project'] = get_object_or_404(ClientProject, pk=project_pk)
+        return context
 
 # --- Views de Documentos e Unidades com Proteção de project_pk ---
 
@@ -118,12 +71,15 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
 
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
+    # Adicionado para ordenação consistente
+    queryset = ConsumerUnit.objects.all().order_by('id')
     
     def get_queryset(self):
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ConsumerUnit.objects.none()
-        return ConsumerUnit.objects.filter(project_id=project_pk)
+        # Garante ordenação no filtro
+        return ConsumerUnit.objects.filter(project_id=project_pk).order_by('id')
 
     def perform_create(self, serializer):
         project = get_object_or_404(ClientProject, pk=self.kwargs.get('project_pk'))
