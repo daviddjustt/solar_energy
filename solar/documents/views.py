@@ -147,25 +147,28 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
 
 class ListaDeMateriasListView(generics.ListCreateAPIView):
     serializer_class = ListaDeMateriaisSerializer
-    # Adicionar o queryset base ajuda o Swagger e evita avisos de ordenação global
+    # Define um queryset base ordenado para evitar Warnings e ajudar o Swagger
     queryset = ListaDeMateriais.objects.all().order_by('id')
 
     def get_queryset(self):
-        # 1. Tratamento para o Swagger (evita erros de inspeção)
         if getattr(self, "swagger_fake_view", False):
             return ListaDeMateriais.objects.none()
 
         project_pk = self.kwargs.get('project_pk')
-        
-        # 2. Se não houver project_pk, retorna vazio para evitar erros de lógica
         if not project_pk:
             return ListaDeMateriais.objects.none()
 
-        # 3. CORREÇÃO DO ERRO: Adicionado .order_by('id')
-        # Isso garante que a paginação seja consistente e remove o Warning do log
+        # Filtra e garante a ordenação para a paginação não quebrar
         return ListaDeMateriais.objects.filter(project_id=project_pk).order_by('id')
 
-# --- Views de Download (Corrigindo "unable to guess serializer") ---
+    # --- ADICIONE ESTE MÉTODO PARA CORRIGIR O POST ---
+    def perform_create(self, serializer):
+        # Captura o ID do projeto que veio na URL (/projects/2/lista_materiais/)
+        project_pk = self.kwargs.get('project_pk')
+        # Busca o projeto ou retorna 404 se não existir
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        # Salva o material vinculado a esse projeto específico
+        serializer.save(project=project)
 
 class ProjectDocumentDownloadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
