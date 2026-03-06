@@ -62,10 +62,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return ProjectInfoSerializer
 
     def perform_create(self, serializer):
-        project_pk = self.kwargs.get('project_pk')
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        # Salva o projeto explicitamente para evitar que venha 'null'
-        serializer.save(project=project)
+        # Aqui o projeto está sendo criado, o dono é o usuário logado
+        serializer.save(created_by=self.request.user)
 
     def _check_financial_permission(self, serializer):
         user = self.request.user

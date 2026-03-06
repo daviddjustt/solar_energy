@@ -146,26 +146,18 @@ class ProjectBaseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'client_document': 'CNPJ inválido (00.000.000/0000-00).'})
 
 class ProjectInfoSerializer(ProjectBaseSerializer):
-    # Usamos o SerializerMethodField para garantir que o retorno seja SEMPRE uma lista
-    documents = serializers.SerializerMethodField()
-    lista_materiais = serializers.SerializerMethodField()
+    # Declaramos explicitamente para o DRF não usar a paginação global nestes campos
+    documents = DocumentUploadSerializer(many=True, read_only=True)
+    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
+    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
 
     class Meta:
         model = ClientProject
         fields = "__all__"
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
 
-    @extend_schema_field(DocumentUploadSerializer(many=True))
-    def get_documents(self, obj):
-        # Busca os documentos relacionados. Tente 'documents' ou 'projectdocument_set'
-        # O .all() aqui garante que retornamos um QuerySet que o Serializer converte em LISTA []
-        docs = obj.documents.all() 
-        return DocumentUploadSerializer(docs, many=True, context=self.context).data
-
-    @extend_schema_field(ListaDeMateriaisSerializer(many=True))
-    def get_lista_materiais(self, obj):
-        materiais = obj.lista_materiais.all()
-        return ListaDeMateriaisSerializer(materiais, many=True, context=self.context).data
+    # Remova os métodos get_documents e get_lista_materiais antigos
+    # O DRF agora usará os nomes acima automaticamente
 
 class ProjectListSerializer(ProjectBaseSerializer):
     tipoDocumento_label = serializers.SerializerMethodField()
