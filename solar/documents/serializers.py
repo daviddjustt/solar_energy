@@ -146,9 +146,16 @@ class ProjectBaseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'client_document': 'CNPJ inválido (00.000.000/0000-00).'})
 
 class ProjectInfoSerializer(ProjectBaseSerializer):
+    # ADICIONE ESTA LINHA: 
+    # Ela traz a lista real de objetos, não apenas IDs ou nada.
+    documents = DocumentUploadSerializer(many=True, read_only=True)
+    
+    # Se você também usa lista de materiais no front dentro do projeto:
+    lista_materiais = ListaDeMateriaisSerializer(many=True, read_only=True)
+
     class Meta:
         model = ClientProject
-        fields = "__all__"
+        fields = "__all__" # O __all__ agora vai incluir os campos declarados acima
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
 
     def validate(self, data):
