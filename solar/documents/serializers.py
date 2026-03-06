@@ -146,30 +146,26 @@ class ProjectBaseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'client_document': 'CNPJ inválido (00.000.000/0000-00).'})
 
 class ProjectInfoSerializer(ProjectBaseSerializer):
-    # Relacionamentos aninhados para evitar o erro .filter() no Front-end
-    documents = DocumentUploadSerializer(many=True, read_only=True)
-    lista_materiais = ListaDeMateriaisSerializer(many=True, read_only=True)
-    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+    # Usamos o SerializerMethodField para garantir que o retorno seja SEMPRE uma lista
+    documents = serializers.SerializerMethodField()
+    lista_materiais = serializers.SerializerMethodField()
 
     class Meta:
         model = ClientProject
         fields = "__all__"
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
 
-    def validate(self, data):
-        self.validate_coordinates(data)
-        self.validate_cpf_cnpj(data)
-        return data
+    @extend_schema_field(DocumentUploadSerializer(many=True))
+    def get_documents(self, obj):
+        # Busca os documentos relacionados. Tente 'documents' ou 'projectdocument_set'
+        # O .all() aqui garante que retornamos um QuerySet que o Serializer converte em LISTA []
+        docs = obj.documents.all() 
+        return DocumentUploadSerializer(docs, many=True, context=self.context).data
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if instance.created_by:
-            data['created_by_info'] = {
-                'uuid': str(instance.created_by.uuid),
-                'name': instance.created_by.name,
-                'email': instance.created_by.email
-            }
-        return data
+    @extend_schema_field(ListaDeMateriaisSerializer(many=True))
+    def get_lista_materiais(self, obj):
+        materiais = obj.lista_materiais.all()
+        return ListaDeMateriaisSerializer(materiais, many=True, context=self.context).data
 
 class ProjectListSerializer(ProjectBaseSerializer):
     tipoDocumento_label = serializers.SerializerMethodField()
