@@ -165,10 +165,11 @@ class ProjectListSerializer(ProjectBaseSerializer):
     consumer_units_count = serializers.SerializerMethodField()
 
     # --- ADICIONE ESTAS 3 LINHAS ---
-    # Isso garante que a página de Listagem também envie os arrays e o Front-end não quebre
+    # Isso injeta os arrays vazios/cheios na listagem principal, impedindo o erro "undefined"
     documents = DocumentUploadSerializer(many=True, read_only=True)
     lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
     consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+    # -------------------------------
 
     class Meta:
         model = ClientProject
