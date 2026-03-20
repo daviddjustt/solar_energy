@@ -103,8 +103,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class ProjectDocumentListView(generics.ListCreateAPIView):
     serializer_class = DocumentUploadSerializer
-    # Adicionado para evitar UnorderedObjectListWarning
     queryset = ProjectDocument.objects.all().order_by('-created_at')
+    
+    # ADICIONADO: Desativa a paginação para o Front-end não quebrar
+    pagination_class = None
 
     def get_queryset(self):
         project_pk = self.kwargs.get('project_pk')
@@ -112,31 +114,29 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             return ProjectDocument.objects.none()
         return ProjectDocument.objects.filter(project_id=project_pk).order_by('-created_at')
 
-    # CORREÇÃO CRÍTICA: Vincula o documento ao projeto no momento do POST
     def perform_create(self, serializer):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
-        # Salva o projeto explicitamente para evitar que venha 'null'
         serializer.save(project=project)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if not getattr(self, "swagger_fake_view", False):
             project_pk = self.kwargs.get('project_pk')
-            # Mantemos o contexto caso o Serializer precise para validações extras
             context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
 
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
-    # Adicionado para ordenação consistente
     queryset = ConsumerUnit.objects.all().order_by('id')
+    
+    # ADICIONADO: Desativa a paginação para o Front-end não quebrar
+    pagination_class = None
     
     def get_queryset(self):
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ConsumerUnit.objects.none()
-        # Garante ordenação no filtro
         return ConsumerUnit.objects.filter(project_id=project_pk).order_by('id')
 
     def perform_create(self, serializer):
@@ -145,8 +145,10 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
 
 class ListaDeMateriasListView(generics.ListCreateAPIView):
     serializer_class = ListaDeMateriaisSerializer
-    # Define um queryset base ordenado para evitar Warnings e ajudar o Swagger
     queryset = ListaDeMateriais.objects.all().order_by('id')
+    
+    # ADICIONADO: Desativa a paginação para o Front-end não quebrar
+    pagination_class = None
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -155,17 +157,11 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         project_pk = self.kwargs.get('project_pk')
         if not project_pk:
             return ListaDeMateriais.objects.none()
-
-        # Filtra e garante a ordenação para a paginação não quebrar
         return ListaDeMateriais.objects.filter(project_id=project_pk).order_by('id')
 
-    # --- ADICIONE ESTE MÉTODO PARA CORRIGIR O POST ---
     def perform_create(self, serializer):
-        # Captura o ID do projeto que veio na URL (/projects/2/lista_materiais/)
         project_pk = self.kwargs.get('project_pk')
-        # Busca o projeto ou retorna 404 se não existir
         project = get_object_or_404(ClientProject, pk=project_pk)
-        # Salva o material vinculado a esse projeto específico
         serializer.save(project=project)
 
 class ProjectDocumentDownloadView(APIView):
