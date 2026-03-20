@@ -164,6 +164,12 @@ class ProjectListSerializer(ProjectBaseSerializer):
     documents_count = serializers.SerializerMethodField()
     consumer_units_count = serializers.SerializerMethodField()
 
+    # --- ADICIONE ESTAS 3 LINHAS ---
+    # Isso garante que a página de Listagem também envie os arrays e o Front-end não quebre
+    documents = DocumentUploadSerializer(many=True, read_only=True)
+    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
+    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+
     class Meta:
         model = ClientProject
         fields = "__all__"
