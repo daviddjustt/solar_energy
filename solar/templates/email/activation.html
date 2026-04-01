@@ -2,15 +2,18 @@
 {% block subject %}
 {% trans "Ativação de usuário" %} - {{ site_name }}
 {% endblock subject %}
+
 {% block text_body %}
 {% trans "Olá" %} {{ user.get_full_name }},
-{% trans "Você recebeu este e-mail liberando seu acesso ao SN Tech Solar" %} {{ site_name }}.
-{% trans "Por favor, acesse o seguinte link para entrar no site:" %}
-{{ protocol }}://{{ domain }}/{{ url }}
+{% trans "Você recebeu este e-mail liberando seu acesso ao sistema" %} {{ site_name }}.
+{% trans "Por favor, acesse o seguinte link para ativar sua conta:" %}
+{{ url }}
+
 {% trans "Se você não solicitou esta ativação, por favor ignore este e-mail." %}
 {% trans "Atenciosamente" %},
 {{ site_name }}
 {% endblock text_body %}
+
 {% block html_body %}
 <!DOCTYPE html>
 <html>
@@ -33,10 +36,10 @@
             border-bottom: 1px solid #eee;
             margin-bottom: 30px;
         }
-        .header img { /* Estilo para a logo */
-            max-width: 180px; /* Ajuste o tamanho máximo da sua logo */
+        .header img {
+            max-width: 180px;
             height: auto;
-            margin-bottom: 10px; /* Espaçamento entre a logo e o título */
+            margin-bottom: 10px;
         }
         .content {
             margin-bottom: 30px;
@@ -48,7 +51,10 @@
             margin: 20px 0;
             border-radius: 4px;
             font-family: monospace;
-            word-break: break-all;
+            text-align: center;
+            text-decoration: none;
+            color: #000;
+            font-weight: bold;
         }
         .footer {
             border-top: 1px solid #eee;
@@ -61,24 +67,23 @@
 </head>
 <body>
     <div class="header">
-        <!-- AQUI É ONDE A LOGO SERÁ ADICIONADA -->
-        <img src="{{ protocol }}://{{ domain }}{{ STATIC_URL }}images/logo-com-nome.png" alt="Logo SNTEC SOLAR" style="max-width: 180px; height: auto; margin-bottom: 10px;">
-    <h1>{% trans "Ativação de usuário" %}</h1>
-</div>
+        <img src="{{ protocol }}://{{ domain }}{{ STATIC_URL }}images/logo-com-nome.png" alt="Logo {{ site_name }}">
         <h1>{% trans "Ativação de usuário" %}</h1>
     </div>
+    
     <div class="content">
-        <p>{% trans "Olá" %} {{ user.get_full_name }},</p>
-        <p>{% trans "Você recebeu este e-mail liberando seu acesso ao SN Tech Solar" %} {{ site_name }}.</p>
-        <p>{% trans "Por favor, acesse o seguinte link para entrar no site:" %}</p>
-        <div class="link">
-            <a href="{{ frontend_base_url }}{{ url }}">Ativar conta</a>
-        </div>
+        <p>{% trans "Olá" %} <strong>{{ user.get_full_name }}</strong>,</p>
+        <p>{% trans "Você recebeu este e-mail liberando seu acesso ao sistema" %} {{ site_name }}.</p>
+        <p>{% trans "Por favor, acesse o botão abaixo para entrar no site:" %}</p>
+        
+        <a href="{{ url }}" class="link">Ativar minha conta</a>
+        
         <p>{% trans "Se você não solicitou esta ativação, por favor ignore este e-mail." %}</p>
     </div>
+    
     <div class="footer">
-        <p>{% trans "Obrigado por usar nosso site!" %}</p>
-        <p>{% trans "Atenciosamente," %} {{ site_name }}</p>
+        <p>{% trans "Obrigado por usar nosso sistema!" %}</p>
+        <p>{% trans "Atenciosamente," %}<br>{{ site_name }}</p>
     </div>
 </body>
 </html>

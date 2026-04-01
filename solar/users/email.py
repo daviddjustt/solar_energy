@@ -7,34 +7,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class ActivationEmail(BaseActivationEmail):
     template_name = 'email/activation.html'
     
     def get_context_data(self):
         context = super().get_context_data()
         
-        # Obter configurações do Django settings
-        frontend_url = getattr(settings, 'FRONTEND_URL')
+        # Variáveis necessárias para a logo e textos
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
+        _static_url = settings.STATIC_URL
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
         
-        # Construir URL de ativação personalizada
-        user = context.get('user')
-        uuid = context.get('uuid')
-        token = context.get('token')
-        
-        # URL personalizada que aponta para nossa view customizada
-        activation_url = f"{settings.BASE_URL}/activate/{uuid}/{token}/"
-        
         context.update({
-            'frontend_url': frontend_url,
             'site_name': site_name,
-            # 'activation_url': activation_url,  # URL personalizada
-            'user': user,
-            'uuid': uuid,
-            'token': token,
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': _static_url,
+            # A variável 'url' já é injetada nativamente pelo Djoser aqui
         })
         
+        user = context.get('user')
         logger.info(f"Email de ativação preparado para usuário: {user.email if user else 'N/A'}")
         return context
 
@@ -47,33 +40,29 @@ class PasswordResetEmail(BasePasswordResetEmail):
         frontend_url = getattr(settings, 'FRONTEND_URL')
         site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
 
-        # --- ADICIONE ESTAS LINHAS ---
-        _protocol = "http" 
-                          
-        _domain = getattr(settings, 'DOMAIN', 'localhost:8080') # Pega do settings.DOMAIN que configuramos no docker-compose
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
         _static_url = settings.STATIC_URL
         
         # Construir URL de reset de senha para o frontend
         uid = context.get('uid')
         token = context.get('token')
-        password_reset_url = f"{frontend_url}/password/reset/confirm/{uid}/{token}/"
+        password_reset_url = f"{frontend_url}/resetPassword/{uid}/{token}/"
         
         context.update({
             'frontend_url': frontend_url,
             'site_name': site_name,
             'password_reset_url': password_reset_url,
-            'uid': uid,
-            'token': token,
             'protocol': _protocol,
             'domain': _domain,
             'STATIC_URL': _static_url,
         })
         
         logger.info("Email de reset de senha preparado")
-        generated_logo_url = f"{_protocol}://{_domain}{_static_url}images/logo-com-nome.png"
-        logger.info(f"DEBUG: URL da logo gerada para o e-mail: {generated_logo_url}")
         return context
 
+# As classes de Confirmação podem se manter como estavam,
+# mas se elas tiverem logo no HTML delas, você precisará injetar protocol, domain e STATIC_URL lá também.
 class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
     template_name = 'email/password_changed_confirmation.html'
     
@@ -89,7 +78,6 @@ class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
             'login_url': f"{frontend_url}/login/",
         })
         
-        logger.info("Email de confirmação de mudança de senha preparado")
         return context
 
 class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
@@ -107,5 +95,4 @@ class UsernameChangedConfirmationEmail(BaseUsernameChangedConfirmationEmail):
             'login_url': f"{frontend_url}/login/",
         })
         
-        logger.info("Email de confirmação de mudança de username preparado")
         return context

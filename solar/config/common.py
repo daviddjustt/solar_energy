@@ -70,7 +70,7 @@ class Common(Configuration):
     WSGI_APPLICATION = 'solar.wsgi.application'
 
     # Email
-    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailhog.railway.internal')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))
