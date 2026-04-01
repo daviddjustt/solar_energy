@@ -27,7 +27,7 @@ class Common(Configuration):
         'simple_history',
 
         # SMTP
-        'sendgrid_backend',
+        'anymail',
         
         # Your apps
         'solar.users',
@@ -70,7 +70,7 @@ class Common(Configuration):
     WSGI_APPLICATION = 'solar.wsgi.application'
 
     # Email
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailhog.railway.internal')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '1025'))
@@ -78,9 +78,12 @@ class Common(Configuration):
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'daviddjustt@gmail.com')
+    DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "suporte@sntecsolar.com.br")
     SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 
+    ANYMAIL = {
+        "BREVO_API_KEY": os.getenv("BREVO_API_KEY"),
+    }
     
     ADMINS = (
         ('Author', 'daviddjustt@gmail.com'),
@@ -392,7 +395,7 @@ class Production(Common):
     """
     Configuração para ambiente de produção
     """
-    DEBUG = False
+    DEBUG = True
     
     # Configurações de segurança para produção
     SECURE_BROWSER_XSS_FILTER = True
