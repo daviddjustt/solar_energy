@@ -60,6 +60,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return ProjectListSerializer
         
         return ProjectInfoSerializer
+    
+    @action(detail=False, methods=['get'])
+    def meus_projetos(self, request):
+        """Endpoint explícito para contornar requisições do Front-end"""
+        # Como o get_queryset já filtra por usuário, basta reutilizá-lo
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         # Aqui o projeto está sendo criado, o dono é o usuário logado
