@@ -1,15 +1,19 @@
-from django.urls import path, include, re_path
 from django.contrib import admin
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularRedocView,
-    SpectacularSwaggerView,
-)
-from rest_framework.routers import DefaultRouter
-from solar.users.views import CustomUserViewSet, ActivateAccountView, FilteredUserListView, ClientListView
 from django.views.static import serve
+
+# --- DRF & Swagger ---
+from rest_framework.routers import DefaultRouter
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+# --- Apps: Users ---
+from solar.users.views import CustomUserViewSet, ActivateAccountView, FilteredUserListView, ClientListView
+from .users.permissions import AuthenticationThrottle
+
+# --- Apps: Documents / Projects ---
 from solar.documents.views import (
     ProjectViewSet,
     ProjectDocumentListView,
@@ -18,118 +22,105 @@ from solar.documents.views import (
     PaymentDocumentView,
     ProjectDocumentDownloadView,
     ProjectDocumentDownloadAllView
-
 )
+
+# --- Apps: Files ---
 from solar.files.views import (
     DocumentUserListCreateView,
     DocumentUserRetrieveUpdateDestroyView,
     DocumentUserDownloadView,
     DocumentUserDownloadAllView,
 )
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .users.permissions import AuthenticationThrottle
-from rest_framework.decorators import throttle_classes
 
-router = DefaultRouter()
-router.register("users", CustomUserViewSet)
-router.register("projects", ProjectViewSet, basename="project") # Registra o ProjectViewSet
-
+# ==========================================
+# CUSTOM VIEWS JWT
+# ==========================================
 class ThrottledTokenObtainPairView(TokenObtainPairView):
     throttle_classes = [AuthenticationThrottle]
 
 class ThrottledTokenRefreshView(TokenRefreshView):
     throttle_classes = [AuthenticationThrottle]
 
+# ==========================================
+# ROUTERS GERAIS
+# ==========================================
+router = DefaultRouter()
+router.register(r"users", CustomUserViewSet, basename="users")
+router.register(r"projects", ProjectViewSet, basename="project")
+
+# ==========================================
+# URL PATTERNS
+# ==========================================
 urlpatterns = [
-    # Admin
+    # --- Painel de Controle ---
     path('admin/', admin.site.urls),
 
-    # API Docs - Schema
+    # --- Documentação da API (Swagger UI / Redoc) ---
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
-    # API Docs - Interface UI
     path('api/v1/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/v1/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-    # Adiciona a rota para /api/docs/ que aponta para o Swagger UI
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='api-docs'),
 
-    # Djoser URLs para gerenciamento de usuários (inclui rotas de reset de senha, ativação, etc.)
-    # O Djoser já define as URLs para reset_password_confirm, então não precisamos de uma re_path explícita.
+    # --- Autenticação e Gestão de Usuários ---
     path('api/v1/', include('djoser.urls')),
-    path('api/v1/auth/', include('djoser.urls.jwt')), # Endpoints de autenticação JWT
+    path('api/v1/auth/', include('djoser.urls.jwt')),
+    path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
+    path('activate/<str:uuid>/<str:token>/', ActivateAccountView.as_view(), name='custom-user-activation'),
 
-    # Rota de ativação de conta personalizada (fora dos caminhos padrão do Djoser)
-    # Certifique-se de que esta rota não entre em conflito com a rota de ativação do Djoser,
-    # caso você esteja usando ambas. Se a ativação do Djoser for suficiente, esta pode ser removida.
-    path('activate/<str:uuid>/<str:token>', ActivateAccountView.as_view(), name='custom-user-activation'),
+    # --- Filtros Customizados de Usuários ---
+    path('api/v1/filter/clients/', ClientListView.as_view(), name='filtered-user-client-list'),
+    path('api/v1/filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
 
-    # Inclui todas as rotas registradas pelo router (users, projects)
-    # Cuidado: Se CustomUserViewSet sobrepõe funcionalidades de usuário do Djoser,
-    # pode haver conflitos. O ideal é que CustomUserViewSet estenda as views do Djoser
-    # ou seja configurado para não conflitar com as URLs padrão do Djoser.
+    # --- Inclusão do Router Principal (Engloba as rotas base de Users e Projects) ---
     path('api/v1/', include(router.urls)),
 
-    # Endpoints para Documentos (aninhados sob o projeto)
-    # Rota para LISTAR e CRIAR documentos
+    # ==========================================
+    # ROTAS ANINHADAS DE PROJETOS (A Ordem Importa!)
+    # ==========================================
+    # 1. Unidades Consumidoras
+    path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-units'),
+
+    # 2. Lista de Materiais
+    path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
+
+    # 3. Documentos do Projeto (CRUD)
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view({
         'get': 'list', 
         'post': 'create'
     }), name='project-document-list-create'),
 
-    # Rota para ATUALIZAR (PATCH), DELETAR ou VER um documento específico (o que conserta o seu 404!)
     path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentListView.as_view({
         'get': 'retrieve', 
         'patch': 'partial_update', 
         'delete': 'destroy'
     }), name='project-document-detail'),
 
-    path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
-    
-    path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/v1/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
-    path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(),name='payment-document-detail'),
-     path(
-        'users/<uuid:user_pk>/documents/',
-        DocumentUserListCreateView.as_view(),
-        name='documentuser-list-create'
-    ),
-    path(
-        'users/<uuid:user_pk>/documents/<int:document_pk>/',
-        DocumentUserRetrieveUpdateDestroyView.as_view(),
-        name='documentuser-detail'
-    ),
-    path('filter/clients/', ClientListView.as_view(), name='filtered-user-client-list'),
-    path('filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
+    # 4. Downloads de Documentos (Projeto)
+    path('api/v1/projects/<int:project_pk>/documents/download-all/', ProjectDocumentDownloadAllView.as_view(), name='project-document-download-all'),
+    path('api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/', ProjectDocumentDownloadView.as_view(), name='project-document-download'),
 
-    # Views de download dos documentos
-    # Usuários :
-    path(
-        'api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/',
-        DocumentUserDownloadView.as_view(),
-        name='documentuser-download'
-    ),
-    path(
-        'api/v1/users/<uuid:user_pk>/documents/download-all/',
-        DocumentUserDownloadAllView.as_view(),
-        name='documentuser-download-all'
-    ),
-    # ✅ NOVAS URLs para Download de Documentos de Projeto
-    path(
-        'api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/',
-        ProjectDocumentDownloadView.as_view(),
-        name='project-document-download'
-    ),
-    path(
-        'api/v1/projects/<int:project_pk>/documents/download-all/',
-        ProjectDocumentDownloadAllView.as_view(),
-        name='project-document-download-all'
-    ),
+    # 5. Pagamentos (⚠️ Rota Dinâmica '<str:...>' SEMPRE POR ÚLTIMO)
+    path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(), name='payment-document-detail'),
+
+
+    # ==========================================
+    # ROTAS ANINHADAS DE DOCUMENTOS DE USUÁRIOS
+    # ==========================================
+    path('api/v1/users/<uuid:user_pk>/documents/', DocumentUserListCreateView.as_view(), name='documentuser-list-create'),
+    path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/', DocumentUserRetrieveUpdateDestroyView.as_view(), name='documentuser-detail'),
+    
+    # Downloads de Documentos (Usuário)
+    path('api/v1/users/<uuid:user_pk>/documents/download-all/', DocumentUserDownloadAllView.as_view(), name='documentuser-download-all'),
+    path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/', DocumentUserDownloadView.as_view(), name='documentuser-download'),
 ]
 
-# Servir arquivos estáticos e de mídia em ambiente de desenvolvimento
+# ==========================================
+# ARQUIVOS ESTÁTICOS / MEDIA FILES
+# ==========================================
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
 else:
     urlpatterns += [
         re_path(
