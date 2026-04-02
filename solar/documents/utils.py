@@ -124,11 +124,18 @@ def validate_file_size(file):
     Valida o tamanho do arquivo (máximo 10 MB para LGPD e performance).
     """
     max_size_mb = 10
-    if file.size > max_size_mb * 1024 * 1024:
-        raise ValidationError(
-            f'O arquivo não pode ter mais de {max_size_mb} MB. '
-            f'Tamanho atual: {file.size / (1024 * 1024):.2f} MB'
-        )
+    
+    try:
+        # Tenta ler o tamanho do arquivo físico no servidor
+        if file.size > max_size_mb * 1024 * 1024:
+            raise ValidationError(
+                f'O arquivo não pode ter mais de {max_size_mb} MB. '
+                f'Tamanho atual: {file.size / (1024 * 1024):.2f} MB'
+            )
+    except (FileNotFoundError, OSError, ValueError):
+        # Se o arquivo físico não for encontrado (ex: Railway resetou o disco),
+        # nós simplesmente ignoramos a validação, permitindo que o PATCH de status funcione.
+        pass
 
 def validate_file_extension(file):
     """
