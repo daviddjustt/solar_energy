@@ -103,7 +103,6 @@ urlpatterns = [
         DocumentUserDownloadAllView.as_view(),
         name='documentuser-download-all'
     ),
-    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),
     # ✅ NOVAS URLs para Download de Documentos de Projeto
     path(
         'api/v1/projects/<int:project_pk>/documents/<int:document_pk>/download/',
