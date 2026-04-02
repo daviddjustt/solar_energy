@@ -79,7 +79,6 @@ class Common(Configuration):
     EMAIL_USE_TLS = strtobool(os.getenv('EMAIL_USE_TLS', 'no'))
     EMAIL_USE_SSL = strtobool(os.getenv('EMAIL_USE_SSL', 'no'))
     DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "suporte@sntecsolar.com.br")
-    SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 
     ANYMAIL = {
         "BREVO_API_KEY": os.getenv("BREVO_API_KEY"),
