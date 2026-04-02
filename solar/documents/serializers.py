@@ -67,7 +67,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
         fields = "__all__"
-        read_only_fields = ['created_at', 'updated_at', 'approved_at', 'status']
+        read_only_fields = ['created_at', 'updated_at', 'approved_at']
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_download_url(self, obj):
