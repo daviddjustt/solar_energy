@@ -168,13 +168,12 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
     queryset = ListaDeMateriais.objects.all().order_by('id')
     pagination_class = None
 
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return ListaDeMateriais.objects.none()
-        project_pk = self.kwargs.get('project_pk')
-        if not project_pk:
-            return ListaDeMateriais.objects.none()
-        return ListaDeMateriais.objects.filter(project_id=project_pk).order_by('id')
+    def get_serializer(self, *args, **kwargs):
+        """Resolve o erro 400 permitindo que o Django aceite uma lista [] de materiais"""
+        if isinstance(kwargs.get('data', {}), list):
+            kwargs['many'] = True
+        return super().get_serializer(*args, **kwargs)
+
 
     # --- ADICIONE ESTE BLOCO ---
     def list(self, request, *args, **kwargs):
