@@ -69,9 +69,18 @@ urlpatterns = [
     path('api/v1/', include(router.urls)),
 
     # Endpoints para Documentos (aninhados sob o projeto)
-    # No seu urls.py
-    path('projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view({'get': 'list', 'post': 'create'})),
-    path('projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentListView.as_view({'get': 'retrieve', 'patch': 'partial_update', 'delete': 'destroy'})),
+    # Rota para LISTAR e CRIAR documentos
+    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view({
+        'get': 'list', 
+        'post': 'create'
+    }), name='project-document-list-create'),
+
+    # Rota para ATUALIZAR (PATCH), DELETAR ou VER um documento específico (o que conserta o seu 404!)
+    path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentListView.as_view({
+        'get': 'retrieve', 
+        'patch': 'partial_update', 
+        'delete': 'destroy'
+    }), name='project-document-detail'),
 
     path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
     
