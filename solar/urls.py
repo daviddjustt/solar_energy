@@ -69,9 +69,10 @@ urlpatterns = [
     path('api/v1/', include(router.urls)),
 
     # Endpoints para Documentos (aninhados sob o projeto)
-    path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view(), name='project-document-list-create'),    
-    path('api/v1/projects/<int:project_pk>/consumer_units/', ConsumerUnitListView.as_view(), name='project-consumer-unit-list-create'),
-    
+    # No seu urls.py
+    path('projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view({'get': 'list', 'post': 'create'})),
+    path('projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentListView.as_view({'get': 'retrieve', 'patch': 'partial_update', 'delete': 'destroy'})),
+
     path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
     
     path('api/v1/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),

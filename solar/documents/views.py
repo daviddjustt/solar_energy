@@ -109,7 +109,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 # --- Views de Documentos e Unidades com Proteção de project_pk ---
 
-class ProjectDocumentListView(generics.ListCreateAPIView):
+class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.ListCreateAPIView
     serializer_class = DocumentUploadSerializer
     queryset = ProjectDocument.objects.all().order_by('-created_at')
     pagination_class = None
@@ -118,19 +118,27 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ProjectDocument.objects.none()
+        # Filtra documentos pertencentes ao projeto da URL
         return ProjectDocument.objects.filter(project_id=project_pk).order_by('-created_at')
 
-    # --- ADICIONE ESTE BLOCO (Força Bruta para Retornar Array Puro) ---
     def list(self, request, *args, **kwargs):
+        # Mantém o formato de resposta em array [] esperado pelo front-end
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data) # Garante que o retorno é uma lista []
-    # ------------------------------------------------------------------
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         serializer.save(project=project)
+
+    def perform_update(self, serializer):
+        # Se o status for alterado para 'APPROVED', registra a data de aprovação
+        if serializer.validated_data.get('status') == 'APPROVED':
+            from django.utils import timezone
+            serializer.save(approved_at=timezone.now())
+        else:
+            serializer.save()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -138,7 +146,6 @@ class ProjectDocumentListView(generics.ListCreateAPIView):
             project_pk = self.kwargs.get('project_pk')
             context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
-
 
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
