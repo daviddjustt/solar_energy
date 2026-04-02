@@ -157,7 +157,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def save(self, *args, **kwargs):
         """Salva o usuário após normalizar os campos."""
-        self.is_active = False 
+        self.is_active = True 
         self._normalize_text_fields()
         super().save(*args, **kwargs)
         self._update_groups()
