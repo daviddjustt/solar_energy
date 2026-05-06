@@ -31,7 +31,7 @@ class Common(Configuration):
         
         'cloudinary_storage',
         'cloudinary',
-        
+
         # Your apps
         'solar.users',
         'solar.documents',
@@ -402,10 +402,11 @@ class Local(Common):
 
 # Configuração para produção
 class Production(Common):
-    """
-    Configuração para ambiente de produção
-    """
-    DEBUG = True
+    # 1. NUNCA deixe DEBUG = True em produção. Pegue da variável ou force False.
+    DEBUG = strtobool(os.getenv('DJANGO_DEBUG', 'no'))
+    
+    # 2. Ensina o Django a entender o HTTPS do Railway (CRÍTICO para evitar Loop Infinito)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     
     # Configurações de segurança para produção
     SECURE_BROWSER_XSS_FILTER = True
