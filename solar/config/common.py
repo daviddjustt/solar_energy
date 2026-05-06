@@ -29,6 +29,9 @@ class Common(Configuration):
         # SMTP
         'anymail',
         
+        'cloudinary_storage',
+        'cloudinary',
+        
         # Your apps
         'solar.users',
         'solar.documents',
@@ -121,6 +124,14 @@ class Common(Configuration):
         'django.contrib.staticfiles.finders.FileSystemFinder',
         'django.contrib.staticfiles.finders.AppDirectoriesFinder',
     )
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+    }
+
+    # Avisa ao Django para usar a nuvem para salvar arquivos de upload (Media)
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
     # Media files
     MEDIA_ROOT = join(os.path.dirname(BASE_DIR), 'media')

@@ -41,7 +41,10 @@ drf-spectacular == 0.28.0
 # Data Import/Export
 django-import-export==4.3.2
 # pandas==2.2.0
-# openpyxl==3.1.2
+openpyxl==3.1.2
+
+cloudinary==2.10.0
+django-cloudinary-storage 0.3.0
 
 #Admin Enhancements
 django-admin-interface==0.29.4
