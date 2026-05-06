@@ -135,7 +135,8 @@ class Common(Configuration):
 
     # Media files
     MEDIA_ROOT = join(os.path.dirname(BASE_DIR), 'media')
-    MEDIA_URL = '/media/'
+    # ADICIONE ESTA NOVA LINHA NO LUGAR DA ANTIGA:
+    MEDIA_URL = 'https://res.cloudinary.com/dydkwutx2/image/upload/'
 
     TEMPLATES = [
         {
