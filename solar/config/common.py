@@ -133,7 +133,7 @@ class Common(Configuration):
     # Avisa ao Django para usar a nuvem para salvar arquivos de upload (Media)
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-    # Media files
+    # Media files.
     MEDIA_ROOT = join(os.path.dirname(BASE_DIR), 'media')
     # ADICIONE ESTA NOVA LINHA NO LUGAR DA ANTIGA:
     MEDIA_URL = 'https://res.cloudinary.com/dydkwutx2/image/upload/'
