@@ -101,6 +101,18 @@ class Common(Configuration):
             ssl_require=False  # Mude para False temporariamente para testar
         )
     }
+
+    # ---------------------------------------------------------
+    # Configuração do Cloudinary (Substitui a pasta /media/)
+    # ---------------------------------------------------------
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', 'dydkwutx2'),
+        'API_KEY': os.getenv('CLOUDINARY_API_KEY', '424272452591978'),
+        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'), 
+    }
+
+    # Diz ao Django: "Toda vez que alguém fizer upload de um FileField ou ImageField, mande para a nuvem!"
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 #
     # General
     APPEND_SLASH = False
