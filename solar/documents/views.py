@@ -6,6 +6,7 @@ import openpyxl
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
 from django.utils.timezone import localtime
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework import generics, status, viewsets, permissions
@@ -71,6 +72,61 @@ class ProjectViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='exportar-excel')
+    def exportar_excel(self, request):
+        """
+        Exporta a lista de projetos cruzando dados com a tabela de usuários.
+        """
+        # 1. Cria o Workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Relatório de Projetos"
+
+        # 2. Cabeçalhos conforme solicitado
+        headers = [
+            "Titular do Projeto", 
+            "Classe", 
+            "Status", 
+            "Código do Cliente", 
+            "Data Ingresso Cliente (Sistema)", 
+            "Data Ingresso Projeto (Sistema)"
+        ]
+        ws.append(headers)
+
+        # 3. Busca os dados otimizada (trazendo o cliente junto)
+        # O 'select_related' evita que o Django faça uma nova consulta para cada linha
+        projetos = self.get_queryset().select_related('client')
+
+        # 4. Preenche as linhas
+        for p in projetos:
+            # Dados do Usuário (Tabela de Usuário)
+            # Verificamos se o cliente existe para evitar erros de NoneType
+            data_ingresso_cliente = p.client.date_joined.strftime('%d/%m/%Y') if p.client else "N/A"
+            codigo_cliente = str(p.client.uuid) if p.client else "N/A" # Ou p.client.id
+            
+            # Dados do Projeto (Tabela Projeto)
+            data_ingresso_projeto = p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
+            
+            linha = [
+                p.titular_nome if hasattr(p, 'titular_nome') else "N/A", # Verifique o nome do campo
+                p.classe if hasattr(p, 'classe') else "N/A",
+                p.status,
+                codigo_cliente,
+                data_ingresso_cliente,
+                data_ingresso_projeto
+            ]
+            ws.append(linha)
+
+        # 5. Configuração da Resposta para Download
+        filename = f"projetos_solar_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb.save(response)
+        return response
 
     def perform_create(self, serializer):
         # Aqui o projeto está sendo criado, o dono é o usuário logado
