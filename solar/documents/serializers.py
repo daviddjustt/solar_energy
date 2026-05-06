@@ -199,6 +199,37 @@ class TecnicoClientProjectSerializer(ProjectBaseSerializer):
         fields = '__all__'
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'tipo_financeiro', 'valor_financeiro', 'parcelas')
 
+class ClientProjectSerializer(serializers.ModelSerializer):
+    """Serializer padrão para Listar e Criar."""
+    # Se você tiver serializers aninhados, eles ficariam aqui. Ex:
+    # consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ClientProject
+        fields = '__all__'
+
+class ClientProjectUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer exclusivo para Atualização (PUT/PATCH).
+    Bloqueia estritamente a edição das relações de imagem e unidades.
+    """
+    class Meta:
+        model = ClientProject
+        fields = '__all__'
+        
+        # Aqui trancamos os campos que não podem ser alterados nesta rota
+        read_only_fields = (
+            'id', 
+            'created_at', 
+            'created_by', # O autor do projeto não deve mudar
+            'codigoCliente', # Geralmente é um identificador imutável
+            
+            # Bloqueamos qualquer tentativa de alterar as relações inversas (related_names)
+            'documents', 
+            'consumer_units', 
+            'material_lists',
+        )
+
 class PaymentDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument

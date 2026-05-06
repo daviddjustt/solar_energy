@@ -31,32 +31,49 @@ from .serializers import (
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """
-    ViewSet para gerenciar projetos com filtragem dinâmica por tipo de usuário.
+    ViewSet para gerenciar projetos com filtragem dinâmica por tipo de usuário e controle de acesso robusto.
     """
     queryset = ClientProject.objects.all().order_by('-created_at')
-    permission_classes = [permissions.IsAuthenticated]
+    # get_permissions cuidará do detalhamento das permissões, mas o padrão será IsAuthenticated
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
     filterset_fields = ['created_by', 'codigoCliente']
 
+    def get_permissions(self):
+        """
+        Define as permissões com base na ação.
+        Apenas Admins ou Técnicos podem realizar PUT/PATCH em projetos.
+        """
+        # Se for uma ação de alteração
+        if self.action in ['update', 'partial_update']:
+            return [permissions.IsAuthenticated()]
+            
+        return [permissions.IsAuthenticated()]
+    
     def get_queryset(self):
-        # Proteção para o Swagger e usuários não autenticados
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
             return ClientProject.objects.none()
 
         user = self.request.user
         if user.is_superuser or user.is_admin or user.is_tecnico:
-            return ClientProject.objects.all().order_by('-created_at')
+            # select_related adicionado para otimizar a exportação do excel que usa o self.get_queryset()
+            return ClientProject.objects.select_related('created_by').order_by('-created_at')
         
-        return ClientProject.objects.filter(created_by=user).order_by('-created_at')
+        return ClientProject.objects.filter(created_by=user).select_related('created_by').order_by('-created_at')
 
     def get_serializer_class(self):
-        # Proteção para o Swagger
         if getattr(self, "swagger_fake_view", False):
             return ProjectInfoSerializer
 
         user = self.request.user
-        # Técnicos e Clientes usam visualização restrita para campos financeiros
+        
+        if self.action in ['update', 'partial_update']:
+             # Para atualizações, você já tem o 'TecnicoClientProjectSerializer' que trava campos financeiros.
+             # Você deve garantir que dentro da classe Meta dele (no serializers.py), 
+             # o 'read_only_fields' contém as imagens e unidades geradoras.
+             return TecnicoClientProjectSerializer
+             
+        # Se não for update, segue o fluxo normal de leitura:
         if user.is_authenticated and (user.is_tecnico or user.is_cliente):
             return TecnicoClientProjectSerializer
         
@@ -132,14 +149,37 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # Aqui o projeto está sendo criado, o dono é o usuário logado
         serializer.save(created_by=self.request.user)
 
-    def _check_financial_permission(self, serializer):
+
+    # ==========================================
+    # BLINDAGEM DE AÇÕES (UPDATE)
+    # ==========================================
+    def _check_update_permission(self):
+        """Verifica se o usuário tem cargo suficiente para editar o projeto."""
         user = self.request.user
-        if user.is_authenticated and (user.is_tecnico or user.is_cliente):
+        if not (user.is_superuser or user.is_admin or user.is_tecnico):
+             raise PermissionDenied("Apenas Administradores e Técnicos podem atualizar projetos.")
+
+    def _check_financial_permission(self, serializer):
+        """Bloqueia a alteração de campos financeiros para técnicos."""
+        user = self.request.user
+        if user.is_authenticated and user.is_tecnico:
+            # Confirme os nomes reais dos campos financeiros do seu model aqui:
             financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
             if any(field in serializer.validated_data for field in financial_fields):
                 raise PermissionDenied("Você não tem permissão para modificar campos financeiros.")
 
+    def update(self, request, *args, **kwargs):
+         # O Segurança da Porta
+         self._check_update_permission()
+         return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+         # O Segurança da Porta
+         self._check_update_permission()
+         return super().partial_update(request, *args, **kwargs)
+
     def perform_update(self, serializer):
+        # O Segurança das Finanças
         self._check_financial_permission(serializer)
         serializer.save()
 
@@ -153,8 +193,71 @@ class ProjectViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_403_FORBIDDEN)
 
         projetos = self.get_queryset()
-        # Lógica de soma otimizada pode ser feita aqui
         return Response({'status': 'dados calculados'})
+
+    @extend_schema(operation_id="projects_by_email")
+    @action(detail=False, methods=['get'], url_path='by_email')
+    def by_email(self, request):
+        email = request.query_params.get('email')
+        if not email:
+            return Response({"detail": "Email obrigatório."}, status=400)
+        queryset = self.get_queryset().filter(email=email)
+        serializer = ProjectListSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
+    @action(detail=True, methods=['get'], url_path='exportar-excel-individual')
+    def exportar_excel_individual(self, request, pk=None):
+        # Renomeei o url_path para evitar conflito com a action da lista
+        project = self.get_object()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Dados do Projeto"
+
+        headers = [
+            "Titular do Projeto",
+            "Classe do Projeto",
+            "Status",
+            "Código do Cliente",
+            "Data de Ingresso do Cliente"
+        ]
+        ws.append(headers)
+
+        data_ingresso = "Não registrado"
+        if project.created_by and project.created_by.created_at:
+            data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
+
+        row = [
+            project.nomeTitular,
+            project.classe,
+            project.get_status_display(), 
+            project.codigoCliente,
+            data_ingresso
+        ]
+        ws.append(row)
+
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column].width = adjusted_width
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+
+        wb.save(response)
+        
+        return response
 
     @extend_schema(operation_id="projects_by_email")
     @action(detail=False, methods=['get'], url_path='by_email')
@@ -234,7 +337,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         
         return response
 
-# --- Views de Documentos e Unidades com Proteção de project_pk ---
 
 class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.ListCreateAPIView
     serializer_class = DocumentUploadSerializer
@@ -296,7 +398,6 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
         project = get_object_or_404(ClientProject, pk=self.kwargs.get('project_pk'))
         serializer.save(project=project)
 
-
 class ListaDeMateriasListView(generics.ListCreateAPIView):
     serializer_class = ListaDeMateriaisSerializer
     queryset = ListaDeMateriais.objects.all().order_by('id')
@@ -325,8 +426,7 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         serializer.save(project=project)
-
-        
+     
 class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     serializer_class = PaymentDocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
