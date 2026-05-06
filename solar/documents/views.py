@@ -205,6 +205,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = ProjectListSerializer(queryset, many=True)
         return Response(serializer.data)
     
+    @extend_schema(operation_id="delete_project")
+    def destroy(self, request, *args, **kwargs):
+        """
+        Intercepta a requisição DELETE. 
+        Garante que apenas o Administrador possa apagar projetos.
+        """
+        user = request.user
+        
+        # Verifica se o usuário tem a flag de admin ou superuser
+        if not (user.is_superuser or user.is_admin):
+            raise PermissionDenied("Ação bloqueada: Apenas Administradores podem excluir projetos do sistema.")
+            
+        # Se passou pela segurança, executa o delete normal (que vai acionar o Efeito Cascata)
+        return super().destroy(request, *args, **kwargs)
+    
     @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
     @action(detail=True, methods=['get'], url_path='exportar-excel-individual')
     def exportar_excel_individual(self, request, pk=None):
