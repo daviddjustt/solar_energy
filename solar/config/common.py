@@ -103,7 +103,7 @@ class Common(Configuration):
     }
 
     # ---------------------------------------------------------
-    # Configuração do Cloudinary (Substitui a pasta /media/).
+    # Configuração do Cloudinary(Substitui a pasta /media/).
     # ---------------------------------------------------------
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', 'dydkwutx2'),
