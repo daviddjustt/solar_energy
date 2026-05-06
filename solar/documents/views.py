@@ -1,10 +1,13 @@
 import os
 import zipfile
 from io import BytesIO
+import openpyxl
 
 from django.shortcuts import get_object_or_404
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
+from django.utils.timezone import localtime
 from django_filters.rest_framework import DjangoFilterBackend
+
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
@@ -106,6 +109,74 @@ class ProjectViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(email=email)
         serializer = ProjectListSerializer(queryset, many=True)
         return Response(serializer.data)
+    
+    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
+    @action(detail=True, methods=['get'], url_path='exportar-excel')
+    def exportar_excel(self, request, pk=None):
+        """
+        Gera e faz o download de um arquivo Excel (.xlsx) contendo 
+        os detalhes específicos do projeto.
+        """
+        # 1. Recupera o projeto pelo ID (pk) passado na URL
+        # O get_object() já garante que o usuário tem permissão para ver este projeto
+        project = self.get_object()
+
+        # 2. Cria o arquivo Excel (Workbook) em memória
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Dados do Projeto"
+
+        # 3. Adiciona a linha de Cabeçalhos
+        headers = [
+            "Titular do Projeto",
+            "Classe do Projeto",
+            "Status",
+            "Código do Cliente",
+            "Data de Ingresso do Cliente"
+        ]
+        ws.append(headers)
+
+        # 4. Extrai a data de ingresso (created_at) da tabela users_user
+        # Fazemos um fallback seguro caso o projeto não tenha um criador associado
+        data_ingresso = "Não registrado"
+        if project.created_by and project.created_by.created_at:
+            data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
+
+        # 5. Adiciona a linha com os Dados reais
+        row = [
+            project.nomeTitular,
+            project.classe,
+            project.get_status_display(), # Usa get_status_display() para pegar "Em Análise" em vez de "IN_ANALYSIS"
+            project.codigoCliente,
+            data_ingresso
+        ]
+        ws.append(row)
+
+        # Opcional: Ajustar a largura das colunas para o Excel ficar bonito
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws.column_dimensions[column].width = adjusted_width
+
+        # 6. Prepara a resposta HTTP informando que é um arquivo de planilha
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        # Configura o nome do arquivo que será baixado
+        nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+
+        # 7. Salva o Excel gerado na resposta e retorna
+        wb.save(response)
+        
+        return response
 
 # --- Views de Documentos e Unidades com Proteção de project_pk ---
 
