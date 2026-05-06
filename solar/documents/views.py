@@ -205,7 +205,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = ProjectListSerializer(queryset, many=True)
         return Response(serializer.data)
     
-    @extend_schema(operation_id="delete_project")
+    # ==========================================
+    # BLINDAGEM DA ROTA: DELETE /api/v1/projects/{id}/
+    # ==========================================
+    @extend_schema(operation_id="projects_destroy") # Força o nome exato no Swagger
     def destroy(self, request, *args, **kwargs):
         """
         Intercepta a requisição DELETE. 
@@ -217,7 +220,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if not (user.is_superuser or user.is_admin):
             raise PermissionDenied("Ação bloqueada: Apenas Administradores podem excluir projetos do sistema.")
             
-        # Se passou pela segurança, executa o delete normal (que vai acionar o Efeito Cascata)
+        # Se passou pela segurança, executa o delete normal
         return super().destroy(request, *args, **kwargs)
     
     @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
