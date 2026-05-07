@@ -69,7 +69,7 @@ urlpatterns = [
     path('activate/<str:uuid>/<str:token>/', ActivateAccountView.as_view(), name='custom-user-activation'),
 
     # --- Filtros Customizados de Usuários ---
-    path('api/v1/filter/clients/', ClientListView.as_view(), name='filtered-user-client-list'),
+    path('filter/clients/', ClientListView.as_view(), name='filter-clients'),
     path('api/v1/filter/<str:user_type>/', FilteredUserListView.as_view(), name='filtered-user-list'),
 
     # --- Inclusão do Router Principal (Engloba as rotas base de Users e Projects) ---
