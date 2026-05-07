@@ -81,7 +81,7 @@ class Migration(migrations.Migration):
                 ('modelo', models.CharField(blank=True, max_length=100, null=True, verbose_name='Modelo dos módulos')),
                 ('potencia', models.DecimalField(blank=True, decimal_places=10, max_digits=20, null=True, verbose_name='Potência de cada Módulo Fotovoltaico (W)')),
                 ('unidade_de_medida', models.CharField(choices=[('W', 'Wats'), ('kW', 'KiloWats')], default='wats', help_text='Unidade de medida', max_length=100)),
-                ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='materiais', to='documents.clientproject')),
+                ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='material_lists', to='documents.clientproject')),
             ],
         ),
         migrations.CreateModel(
