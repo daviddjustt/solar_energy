@@ -19,9 +19,6 @@ done
 # 4. SINCRONIZAÇÃO AUTOMÁTICA (Resolve o aviso do Log)
 echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 # Forçamos a criação para evitar o aviso "models have changes not reflected"
-python manage.py makemigrations documents --noinput
-python manage.py makemigrations users --noinput
-python manage.py makemigrations files --noinput
 
 echo "🔄 Aplicando migrações..."
 python manage.py migrate --noinput
