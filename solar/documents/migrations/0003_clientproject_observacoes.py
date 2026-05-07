@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
     dependencies = [
         # ATENÇÃO: Coloque aqui o nome exato do arquivo da migração que você me enviou 
         # (exemplo: '0001_initial' ou '0015_alguma_coisa'), sempre sem o ".py"
-        ('documents', '0001_initial'), 
+        ('documents', '0002_initial'), 
     ]
 
     operations = [
