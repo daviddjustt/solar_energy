@@ -4,15 +4,14 @@ import django.core.validators
 import django.db.models.deletion
 import solar.files.utils
 from django.db import migrations, models
-
+from django.conf import settings
 
 class Migration(migrations.Migration):
 
     initial = True
 
     dependencies = [
-        # Se houver dependência de usuários, adicione aqui, ex:
-        # migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
@@ -27,6 +26,8 @@ class Migration(migrations.Migration):
                 ('documento', models.CharField(blank=True, max_length=18, null=True, verbose_name='Documento do Cliente (CPF/CNPJ)')),
                 ('voltagem', models.CharField(choices=[('Monofásico - 127V', 'Monofásico - 127V'), ('Monofásico - 220V', 'Monofásico - 220V'), ('Bifásico - 127/220V', 'Bifásico - 127/220V'), ('Bifásico - 220/380V', 'Bifásico - 220/380V'), ('Trifásico - 127/220V', 'Trifásico - 127/220V'), ('Trifásico - 220/380V', 'Trifásico - 220/380V')], help_text='Voltagem do consumidor', max_length=100)),
                 ('email', models.EmailField(max_length=255, verbose_name='Email')),
+                # Enganando as migrações
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_projects', to=settings.AUTH_USER_MODEL, verbose_name='Criado por')),
                 ('telefone', models.CharField(max_length=11, validators=[django.core.validators.RegexValidator(message='Celular inválido', regex='^\\d{11}$')], verbose_name='Telefone')),
                 ('cep', models.CharField(max_length=9, validators=[django.core.validators.RegexValidator(message='CEP deve estar no formato XXXXX-XXX', regex='^\\d{5}-?\\d{3}$')], verbose_name='CEP')),
                 ('rua', models.CharField(max_length=200, verbose_name='Logradouro')),
