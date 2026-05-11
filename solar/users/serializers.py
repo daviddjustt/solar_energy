@@ -191,7 +191,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class CustomUserDeleteSerializer(UserDeleteSerializer):
     # O campo current_password já é definido no UserDeleteSerializer base.
     # Precisamos sobrescrevê-lo para modificar seu comportamento.
-    current_password = serializers.CharField(required=True, write_only=True)
+    current_password = serializers.CharField(required=False, write_only=True)
 
     def validate(self, attrs):
         request = self.context.get('request')

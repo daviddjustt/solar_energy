@@ -337,7 +337,7 @@ class CustomUserViewSet(UserViewSet):
                 {'error': 'Erro ao resetar senha'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
+    
 class ActivateAccountView(View):
     
     def get(self, request, uuid, token):
