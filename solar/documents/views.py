@@ -429,21 +429,32 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         if not project_pk:
             return ListaDeMateriais.objects.none()
         
-        # O FILTRO CRÍTICO ESTÁ AQUI: Só retorna materiais do projeto da URL
         return ListaDeMateriais.objects.filter(project_id=project_pk).order_by('id')
 
-
-    # --- ADICIONE ESTE BLOCO ---
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    # ---------------------------
+    # --- SOBRESCREVA O MÉTODO CREATE AQUI ---
+    def create(self, request, *args, **kwargs):
+        # Verifica se o dado enviado é uma lista
+        is_many = isinstance(request.data, list)
+        
+        # Instancia o serializer com many=True se for uma lista
+        serializer = self.get_serializer(data=request.data, many=is_many)
+        serializer.is_valid(raise_exception=True)
+        
+        self.perform_create(serializer)
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
+        # O DRF lida automaticamente com o save em massa quando many=True
         serializer.save(project=project)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
      
 class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     serializer_class = PaymentDocumentSerializer
