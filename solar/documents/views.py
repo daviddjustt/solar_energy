@@ -93,14 +93,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='exportar-excel')
     def exportar_excel(self, request):
         """
-        Exporta a lista de projetos cruzando dados com a tabela de usuários.
+        Exporta projetos para Excel com filtros opcionais de clientes e projetos.
+        Filtra primeiro por cliente e depois por projeto, se ambos existirem.
         """
-        # 1. Cria o Workbook
+        # 1. Captura os filtros das query params (listas de IDs)
+        # Exemplo de URL: /api/v1/projects/exportar-excel/?client_ids=1&client_ids=2&project_ids=10
+        client_ids = request.query_params.getlist('client_ids')
+        project_ids = request.query_params.getlist('project_ids')
+
+        # 2. Inicia o Queryset base (que já possui a lógica de permissão de quem pode ver o quê)
+        # O select_related('client') evita o problema de N+1 consultas no loop do Excel
+        queryset = self.get_queryset().select_related('client')
+
+        # 3. Aplica os filtros sequencialmente conforme solicitado
+        if client_ids:
+            queryset = queryset.filter(client_id__in=client_ids)
+        
+        if project_ids:
+            queryset = queryset.filter(id__in=project_ids)
+
+        # 4. Configuração do Workbook do Excel
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Relatório de Projetos"
 
-        # 2. Cabeçalhos conforme solicitado
+        # Cabeçalhos
         headers = [
             "Titular do Projeto", 
             "Classe", 
@@ -111,31 +128,39 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ]
         ws.append(headers)
 
-        # 3. Busca os dados otimizada (trazendo o cliente junto)
-        # O 'select_related' evita que o Django faça uma nova consulta para cada linha
-        projetos = self.get_queryset().select_related('client')
-
-        # 4. Preenche as linhas
-        for p in projetos:
-            # Dados do Usuário (Tabela de Usuário)
-            # Verificamos se o cliente existe para evitar erros de NoneType
-            data_ingresso_cliente = p.client.date_joined.strftime('%d/%m/%Y') if p.client else "N/A"
-            codigo_cliente = str(p.client.uuid) if p.client else "N/A" # Ou p.client.id
+        # 5. Preenchimento das linhas com os dados filtrados
+        for p in queryset:
+            # Dados do Cliente
+            data_ingresso_cliente = p.client.date_joined.strftime('%d/%m/%Y') if p.client and p.client.date_joined else "N/A"
+            codigo_cliente = str(p.client.uuid) if p.client else "N/A"
             
-            # Dados do Projeto (Tabela Projeto)
+            # Dados do Projeto
             data_ingresso_projeto = p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
             
+            # Nota: usei 'nomeTitular' e 'classe' baseando-me no seu método individual acima
             linha = [
-                p.titular_nome if hasattr(p, 'titular_nome') else "N/A", # Verifique o nome do campo
-                p.classe if hasattr(p, 'classe') else "N/A",
-                p.status,
+                getattr(p, 'nomeTitular', "N/A"), 
+                getattr(p, 'classe', "N/A"),
+                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
                 codigo_cliente,
                 data_ingresso_cliente,
                 data_ingresso_projeto
             ]
             ws.append(linha)
 
-        # 5. Configuração da Resposta para Download
+        # 6. Ajuste automático da largura das colunas
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            ws.column_dimensions[column].width = max_length + 2
+
+        # 7. Resposta HTTP para download
         filename = f"projetos_solar_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
