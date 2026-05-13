@@ -47,11 +47,26 @@ class ProjectExportExcelView(APIView):
     @extend_schema(
         operation_id="export_projects_bulk_excel",
         parameters=[
-            OpenApiParameter("client_ids", OpenApiTypes.INT, many=True, description="Lista de IDs de clientes"),
-            OpenApiParameter("project_ids", OpenApiTypes.INT, many=True, description="Lista de IDs de projetos"),
+            # O segredo está no 'explode=True' e no tipo do item
+            OpenApiParameter(
+                name="client_ids",
+                type={'type': 'array', 'items': {'type': 'integer'}},
+                location=OpenApiParameter.QUERY,
+                description="Lista de IDs de clientes",
+                explode=True  # Isso faz com que o Swagger gere ?client_ids=1&client_ids=2
+            ),
+            OpenApiParameter(
+                name="project_ids",
+                type={'type': 'array', 'items': {'type': 'integer'}},
+                location=OpenApiParameter.QUERY,
+                description="Lista de IDs de projetos",
+                explode=True
+            ),
         ],
-        responses={200: OpenApiTypes.BINARY},
-        description="Exporta projetos filtrados por clientes e/ou projetos para Excel."
+        # Corrigindo a resposta para aparecer como Download no Swagger
+        responses={
+            200: OpenApiTypes.BINARY,
+        },
     )
     def get(self, request):
         # 1. Filtros
