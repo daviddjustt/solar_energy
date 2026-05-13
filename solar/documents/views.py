@@ -374,7 +374,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         # Configura o nome do arquivo que será baixado
-        filename = f"export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
         response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
 
