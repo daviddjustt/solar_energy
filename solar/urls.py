@@ -21,7 +21,8 @@ from solar.documents.views import (
     ListaDeMateriasListView,
     PaymentDocumentView,
     ProjectDocumentDownloadView,
-    ProjectDocumentDownloadAllView
+    ProjectDocumentDownloadAllView,
+    ProjectExportExcelView
 )
 
 # --- Apps: Files ---
@@ -109,7 +110,7 @@ urlpatterns = [
     # ==========================================
     path('api/v1/users/<uuid:user_pk>/documents/', DocumentUserListCreateView.as_view(), name='documentuser-list-create'),
     path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/', DocumentUserRetrieveUpdateDestroyView.as_view(), name='documentuser-detail'),
-    
+    path('projects/exportar-excel/', ProjectExportExcelView.as_view(), name='project-export-excel'),
     # Downloads de Documentos (Usuário)
     path('api/v1/users/<uuid:user_pk>/documents/download-all/', DocumentUserDownloadAllView.as_view(), name='documentuser-download-all'),
     path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/', DocumentUserDownloadView.as_view(), name='documentuser-download'),

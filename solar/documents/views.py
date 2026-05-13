@@ -29,6 +29,75 @@ from .serializers import (
     ListaDeMateriaisSerializer
 )
 
+import openpyxl
+from django.http import HttpResponse
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+
+from .models import ClientProject
+from .permissions import IsAdminGroup # Aquela que criamos no início
+
+class ProjectExportExcelView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminGroup]
+
+    @extend_schema(
+        operation_id="export_projects_bulk_excel",
+        parameters=[
+            OpenApiParameter("client_ids", OpenApiTypes.INT, many=True, description="Lista de IDs de clientes"),
+            OpenApiParameter("project_ids", OpenApiTypes.INT, many=True, description="Lista de IDs de projetos"),
+        ],
+        responses={200: OpenApiTypes.BINARY},
+        description="Exporta projetos filtrados por clientes e/ou projetos para Excel."
+    )
+    def get(self, request):
+        # 1. Filtros
+        client_ids = request.query_params.getlist('client_ids')
+        project_ids = request.query_params.getlist('project_ids')
+
+        # 2. Queryset Base (respeitando a hierarquia que você já usa)
+        queryset = ClientProject.objects.all().select_related('client')
+
+        if client_ids:
+            queryset = queryset.filter(client_id__in=client_ids)
+        
+        if project_ids:
+            queryset = queryset.filter(id__in=project_ids)
+
+        # 3. Geração do Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Exportação de Projetos"
+
+        headers = [
+            "Titular", "Classe", "Status", "Código Cliente", 
+            "Ingresso Cliente", "Ingresso Projeto"
+        ]
+        ws.append(headers)
+
+        for p in queryset:
+            ws.append([
+                getattr(p, 'nomeTitular', "N/A"),
+                getattr(p, 'classe', "N/A"),
+                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
+                str(p.client.uuid) if p.client else "N/A",
+                p.client.date_joined.strftime('%d/%m/%Y') if p.client and p.client.date_joined else "N/A",
+                p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
+            ])
+
+        # 4. Resposta
+        filename = f"projetos_solar_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        
+        return response
+    
 class ProjectViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gerenciar projetos com filtragem dinâmica por tipo de usuário e controle de acesso robusto.
@@ -90,86 +159,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], url_path='exportar-excel')
-    def exportar_excel(self, request):
-        """
-        Exporta projetos para Excel com filtros opcionais de clientes e projetos.
-        Filtra primeiro por cliente e depois por projeto, se ambos existirem.
-        """
-        # 1. Captura os filtros das query params (listas de IDs)
-        # Exemplo de URL: /api/v1/projects/exportar-excel/?client_ids=1&client_ids=2&project_ids=10
-        client_ids = request.query_params.getlist('client_ids')
-        project_ids = request.query_params.getlist('project_ids')
-
-        # 2. Inicia o Queryset base (que já possui a lógica de permissão de quem pode ver o quê)
-        # O select_related('client') evita o problema de N+1 consultas no loop do Excel
-        queryset = self.get_queryset().select_related('client')
-
-        # 3. Aplica os filtros sequencialmente conforme solicitado
-        if client_ids:
-            queryset = queryset.filter(client_id__in=client_ids)
-        
-        if project_ids:
-            queryset = queryset.filter(id__in=project_ids)
-
-        # 4. Configuração do Workbook do Excel
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Relatório de Projetos"
-
-        # Cabeçalhos
-        headers = [
-            "Titular do Projeto", 
-            "Classe", 
-            "Status", 
-            "Código do Cliente", 
-            "Data Ingresso Cliente (Sistema)", 
-            "Data Ingresso Projeto (Sistema)"
-        ]
-        ws.append(headers)
-
-        # 5. Preenchimento das linhas com os dados filtrados
-        for p in queryset:
-            # Dados do Cliente
-            data_ingresso_cliente = p.client.date_joined.strftime('%d/%m/%Y') if p.client and p.client.date_joined else "N/A"
-            codigo_cliente = str(p.client.uuid) if p.client else "N/A"
-            
-            # Dados do Projeto
-            data_ingresso_projeto = p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
-            
-            # Nota: usei 'nomeTitular' e 'classe' baseando-me no seu método individual acima
-            linha = [
-                getattr(p, 'nomeTitular', "N/A"), 
-                getattr(p, 'classe', "N/A"),
-                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
-                codigo_cliente,
-                data_ingresso_cliente,
-                data_ingresso_projeto
-            ]
-            ws.append(linha)
-
-        # 6. Ajuste automático da largura das colunas
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            ws.column_dimensions[column].width = max_length + 2
-
-        # 7. Resposta HTTP para download
-        filename = f"projetos_solar_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-        wb.save(response)
-        return response
-
     def perform_create(self, serializer):
         # Aqui o projeto está sendo criado, o dono é o usuário logado
         serializer.save(created_by=self.request.user)
