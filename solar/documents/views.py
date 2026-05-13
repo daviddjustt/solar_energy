@@ -39,10 +39,10 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject
-from .permissions import IsAdminGroup # Aquela que criamos no início
+from .permissions import IsAdminOrTechnician # Aquela que criamos no início
 
 class ProjectExportExcelView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminGroup]
+    permission_classes = [IsAuthenticated, IsAdminOrTechnician]
 
     @extend_schema(
         operation_id="export_projects_bulk_excel",
