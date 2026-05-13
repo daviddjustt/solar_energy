@@ -43,12 +43,11 @@ from .permissions import IsAdminOrTechnician # Aquela que criamos no início
 
 
 class ProjectExportExcelView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrTechnician]
+    permission_classes = [IsAuthenticated] # Adicione IsAdminGroup se necessário
 
     @extend_schema(
         operation_id="export_projects_bulk_excel_v2",
         parameters=[
-            # Filtro de Clientes via Query Param (agora como UUID)
             OpenApiParameter(
                 name="client_uuids",
                 type={'type': 'array', 'items': {'type': 'string', 'format': 'uuid'}},
@@ -56,7 +55,6 @@ class ProjectExportExcelView(APIView):
                 description="Lista de UUIDs de clientes",
                 explode=True
             ),
-            # Filtro de Projetos via Query Param (mantido como Inteiro)
             OpenApiParameter(
                 name="project_ids",
                 type={'type': 'array', 'items': {'type': 'integer'}},
@@ -68,35 +66,48 @@ class ProjectExportExcelView(APIView):
         responses={200: OpenApiTypes.BINARY},
     )
     def get(self, request, user_pk=None):
-        # 1. Coleta os filtros
-        # Prioriza o user_pk do path se ele existir, senão usa a lista da query
+        # 1. Filtros de UUID e ID
         client_uuids = request.query_params.getlist('client_uuids')
         if user_pk:
             client_uuids.append(str(user_pk))
             
         project_ids = request.query_params.getlist('project_ids')
 
-        # 2. Queryset Base
+        # 2. Queryset com otimização
         queryset = ClientProject.objects.all().select_related('client')
 
-        # 3. Aplica os filtros (Usando o campo uuid do seu modelo de cliente)
         if client_uuids:
             queryset = queryset.filter(client__uuid__in=client_uuids)
         
         if project_ids:
             queryset = queryset.filter(id__in=project_ids)
 
-        # --- Lógica de geração do Excel (igual à anterior) ---
+        # 3. Geração do Excel
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Relatório Solar"
         
-        # ... (Headers e loop de preenchimento) ...
-        
+        headers = ["Titular", "Classe", "Status", "Código Cliente", "Data Projeto"]
+        ws.append(headers)
+
+        for p in queryset:
+            ws.append([
+                getattr(p, 'nomeTitular', "N/A"),
+                getattr(p, 'classe', "N/A"),
+                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
+                str(p.client.uuid) if p.client else "N/A",
+                p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
+            ])
+
+        # 4. Resposta HTTP (CORREÇÃO DO FILENAME AQUI)
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = f'attachment; filename="export_{timezone.now().hex}.xlsx"'
+        
+        # Opção 1: strftime para gerar um nome como export_20260513_105833.xlsx
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response['Content-Disposition'] = f'attachment; filename="export_{timestamp}.xlsx"'
+        
         wb.save(response)
         return response
     
