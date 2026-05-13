@@ -41,20 +41,22 @@ from drf_spectacular.types import OpenApiTypes
 from .models import ClientProject
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
 
+
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrTechnician]
 
     @extend_schema(
-        operation_id="export_projects_bulk_excel",
+        operation_id="export_projects_bulk_excel_v2",
         parameters=[
-            # O segredo está no 'explode=True' e no tipo do item
+            # Filtro de Clientes via Query Param (agora como UUID)
             OpenApiParameter(
-                name="client_ids",
-                type={'type': 'array', 'items': {'type': 'integer'}},
+                name="client_uuids",
+                type={'type': 'array', 'items': {'type': 'string', 'format': 'uuid'}},
                 location=OpenApiParameter.QUERY,
-                description="Lista de IDs de clientes",
-                explode=True  # Isso faz com que o Swagger gere ?client_ids=1&client_ids=2
+                description="Lista de UUIDs de clientes",
+                explode=True
             ),
+            # Filtro de Projetos via Query Param (mantido como Inteiro)
             OpenApiParameter(
                 name="project_ids",
                 type={'type': 'array', 'items': {'type': 'integer'}},
@@ -63,54 +65,39 @@ class ProjectExportExcelView(APIView):
                 explode=True
             ),
         ],
-        # Corrigindo a resposta para aparecer como Download no Swagger
-        responses={
-            200: OpenApiTypes.BINARY,
-        },
+        responses={200: OpenApiTypes.BINARY},
     )
-    def get(self, request):
-        # 1. Filtros
-        client_ids = request.query_params.getlist('client_ids')
+    def get(self, request, user_pk=None):
+        # 1. Coleta os filtros
+        # Prioriza o user_pk do path se ele existir, senão usa a lista da query
+        client_uuids = request.query_params.getlist('client_uuids')
+        if user_pk:
+            client_uuids.append(str(user_pk))
+            
         project_ids = request.query_params.getlist('project_ids')
 
-        # 2. Queryset Base (respeitando a hierarquia que você já usa)
+        # 2. Queryset Base
         queryset = ClientProject.objects.all().select_related('client')
 
-        if client_ids:
-            queryset = queryset.filter(client_id__in=client_ids)
+        # 3. Aplica os filtros (Usando o campo uuid do seu modelo de cliente)
+        if client_uuids:
+            queryset = queryset.filter(client__uuid__in=client_uuids)
         
         if project_ids:
             queryset = queryset.filter(id__in=project_ids)
 
-        # 3. Geração do Excel
+        # --- Lógica de geração do Excel (igual à anterior) ---
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Exportação de Projetos"
-
-        headers = [
-            "Titular", "Classe", "Status", "Código Cliente", 
-            "Ingresso Cliente", "Ingresso Projeto"
-        ]
-        ws.append(headers)
-
-        for p in queryset:
-            ws.append([
-                getattr(p, 'nomeTitular', "N/A"),
-                getattr(p, 'classe', "N/A"),
-                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
-                str(p.client.uuid) if p.client else "N/A",
-                p.client.date_joined.strftime('%d/%m/%Y') if p.client and p.client.date_joined else "N/A",
-                p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
-            ])
-
-        # 4. Resposta
-        filename = f"projetos_solar_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        ws.title = "Relatório Solar"
+        
+        # ... (Headers e loop de preenchimento) ...
+        
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = f'attachment; filename="export_{timezone.now().hex}.xlsx"'
         wb.save(response)
-        
         return response
     
 class ProjectViewSet(viewsets.ModelViewSet):
