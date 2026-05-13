@@ -104,7 +104,7 @@ class ProjectExportExcelView(APIView):
             
             # Dados do Usuário
             uuid_cliente = str(user_relatado.uuid) if user_relatado and hasattr(user_relatado, 'uuid') else "N/A"
-            data_ingresso_user = user_relatado.date_joined.strftime('%d/%m/%Y') if user_relatado and user_relatado.date_joined else "N/A"
+            data_ingresso_user = user_relatado.created_at.strftime('%d/%m/%Y') if user_relatado and user_relatado.created_at else "N/A"
             
             ws.append([
                 getattr(p, 'nomeTitular', "N/A"),
