@@ -287,7 +287,7 @@ class Common(Configuration):
         'SET_PASSWORD_RETYPE': True,
         'SET_USERNAME_RETYPE': True,
         # ATENÇÃO: Mude esta linha para o caminho completo e absoluto
-        'PASSWORD_RESET_CONFIRM_URL': FRONTEND_URL + '/resetPassaword/{uid}/{token}',
+        'PASSWORD_RESET_CONFIRM_URL': FRONTEND_URL + '/reset_password_confirm/{uid}/{token}',
         'ACTIVATION_URL': FRONTEND_URL + '/activate/{uid}/{token}',
         'SEND_ACTIVATION_EMAIL': True,
         'SERIALIZERS': {
