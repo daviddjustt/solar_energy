@@ -111,35 +111,46 @@ class ProjectExportExcelView(APIView):
         ws.title = "Relatório Solar"
         
         headers = [
-            "Titular", 
-            "Classe", 
+            "Nome do Titular", 
             "Status", 
-            "Código do Cliente (Model)",
-            "UUID do Cliente", 
+            "Código do Cliente", 
             "Data de Ingresso",
-            "Data do Projeto"
+            "Criado Por",
+            "Observações"
         ]
         ws.append(headers)
 
         for p in queryset:
             user_relatado = p.created_by
             
-            uuid_cliente = str(user_relatado.uuid) if user_relatado and hasattr(user_relatado, 'uuid') else "N/A"
-            
+            # Tratamento da Data de Ingresso do Usuário
             data_ingresso_user = "N/A"
             if user_relatado:
                 data_user = getattr(user_relatado, 'date_joined', getattr(user_relatado, 'created_at', None))
                 if data_user:
                     data_ingresso_user = data_user.strftime('%d/%m/%Y')
             
+            # Tratamento do campo "Criado Por" (exibe nome completo ou e-mail como fallback)
+            criado_por = "N/A"
+            if user_relatado:
+                if hasattr(user_relatado, 'get_full_name') and user_relatado.get_full_name():
+                    criado_por = user_relatado.get_full_name()
+                else:
+                    criado_por = getattr(user_relatado, 'email', getattr(user_relatado, 'username', str(user_relatado)))
+
+            # Coleta de strings seguras para evitar quebras com valores nulos
+            nome_titular = getattr(p, 'nomeTitular', "N/A")
+            status_display = p.get_status_display() if hasattr(p, 'get_status_display') else getattr(p, 'status', "N/A")
+            codigo_cliente = getattr(p, 'codigoCliente', "N/A")
+            observacoes = getattr(p, 'observacoes', "")  # Deixa em branco no Excel se for nulo
+
             ws.append([
-                getattr(p, 'nomeTitular', "N/A"),
-                getattr(p, 'classe', "N/A"),
-                p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
-                getattr(p, 'codigoCliente', "N/A"),
-                uuid_cliente,
+                nome_titular,
+                status_display,
+                codigo_cliente,
                 data_ingresso_user,
-                p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
+                criado_por,
+                observacoes
             ])
 
         # 7. Resposta HTTP
