@@ -46,13 +46,13 @@ class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        operation_id="export_projects_bulk_excel_v3",
+        operation_id="export_projects_bulk_excel_v5",
         parameters=[
             OpenApiParameter(
                 name="client_uuids",
                 type={'type': 'array', 'items': {'type': 'string', 'format': 'uuid'}},
                 location=OpenApiParameter.QUERY,
-                description="Lista de UUIDs de clientes (campo created_by)",
+                description="Lista de UUIDs de clientes (filtra por created_by)",
                 explode=True
             ),
             OpenApiParameter(
@@ -62,38 +62,60 @@ class ProjectExportExcelView(APIView):
                 description="Lista de IDs de projetos",
                 explode=True
             ),
+            OpenApiParameter(
+                name="data_1",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Data inicial do projeto (Formato: AAAA-MM-DD)"
+            ),
+            OpenApiParameter(
+                name="data_2",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Data final do projeto (Formato: AAAA-MM-DD)"
+            ),
         ],
         responses={200: OpenApiTypes.BINARY},
     )
     def get(self, request, user_pk=None):
-        # 1. Captura dos Filtros (Mudou de client_uuids para client_codes)
-        client_codes = request.query_params.getlist('client_codes')
-        
-        # Se a rota ainda passar um parâmetro na URL (ex: /users/<codigo>/exportar-excel/)
+        # 1. Captura dos parâmetros antigos
+        client_uuids = request.query_params.getlist('client_uuids')
         if user_pk:
-            client_codes.append(str(user_pk))
+            client_uuids.append(str(user_pk))
             
         project_ids = request.query_params.getlist('project_ids')
 
-        # 2. Queryset (Mantemos o select_related apenas para trazer a data de ingresso do usuário criador)
+        # 2. Captura dos novos parâmetros de data
+        data_inicial = request.query_params.get('data_1')
+        data_final = request.query_params.get('data_2')
+
+        # 3. Queryset base otimizado
         queryset = ClientProject.objects.all().select_related('created_by')
 
-        # 3. Aplicação dos Filtros usando o novo campo string 'codigoCliente'
-        if client_codes:
-            queryset = queryset.filter(codigoCliente__in=client_codes)
+        # 4. Aplicação dos filtros tradicionais
+        if client_uuids:
+            queryset = queryset.filter(created_by__uuid__in=client_uuids)
         
         if project_ids:
             queryset = queryset.filter(id__in=project_ids)
 
-        # 4. Geração do Excel
+        # 5. Aplicação do filtro por intervalo de datas (created_at)
+        if data_inicial:
+            queryset = queryset.filter(created_at__date__gte=data_inicial)
+        if data_final:
+            queryset = queryset.filter(created_at__date__lte=data_final)
+
+        # 6. Geração do Excel
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Relatório Solar"
+        
         headers = [
             "Titular", 
             "Classe", 
             "Status", 
-            "Código do Cliente", 
+            "Código do Cliente (Model)",
+            "UUID do Cliente", 
             "Data de Ingresso",
             "Data do Projeto"
         ]
@@ -102,27 +124,25 @@ class ProjectExportExcelView(APIView):
         for p in queryset:
             user_relatado = p.created_by
             
-            # Buscando de forma segura os dados do usuário que criou o registro
+            uuid_cliente = str(user_relatado.uuid) if user_relatado and hasattr(user_relatado, 'uuid') else "N/A"
+            
             data_ingresso_user = "N/A"
             if user_relatado:
-                # Caso o campo seja date_joined (padrão do Django) ou created_at customizado
                 data_user = getattr(user_relatado, 'date_joined', getattr(user_relatado, 'created_at', None))
                 if data_user:
                     data_ingresso_user = data_user.strftime('%d/%m/%Y')
-            
-            # Pegando o código do cliente diretamente do modelo ClientProject
-            codigo_cliente_excel = getattr(p, 'codigoCliente', "N/A")
             
             ws.append([
                 getattr(p, 'nomeTitular', "N/A"),
                 getattr(p, 'classe', "N/A"),
                 p.get_status_display() if hasattr(p, 'get_status_display') else p.status,
-                codigo_cliente_excel, # Exibe o código string (ex: "CLI-2026-001") no Excel
+                getattr(p, 'codigoCliente', "N/A"),
+                uuid_cliente,
                 data_ingresso_user,
                 p.created_at.strftime('%d/%m/%Y') if p.created_at else "N/A"
             ])
 
-        # 5. Resposta HTTP
+        # 7. Resposta HTTP
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
