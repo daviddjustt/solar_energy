@@ -17,7 +17,9 @@ from .utils import (
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
-    PAGAMENTOS = 'Pagamento da TRT/ART e pagamento do projeto'
+    ANALISE_DE_PAGAMENTOS = "Analisando pagamento da TRT/ART"
+    PAGAMENTO_TRT_ART = 'Analisando pagamento da TRT/ART'
+    PAGAMENTO_DO_PROJETO = 'Pagamento do projeto'
     ANALISE_TECNICA = 'Projeto em análise técnica'
     APROVADO = 'Projeto aprovado'
     REPROVADO = 'Projeto reprovado'
