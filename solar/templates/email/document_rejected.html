@@ -1,0 +1,69 @@
+{% load i18n %}
+{% block subject %}
+⚠️ Atenção: Problema com documento enviado - {{ site_name }}
+{% endblock subject %}
+
+{% block text_body %}
+{% trans "Olá" %} {{ nome_titular }},
+
+{% trans "Houve um problema com um dos documentos enviados para o seu projeto" %} ({{ codigo_cliente }}).
+
+{% trans "Documento rejeitado:" %} {{ tipo_documento }}
+{% trans "Motivo:" %} {{ motivo_rejeicao }}
+
+{% trans "Por favor, acesse o sistema e reenvie o documento corrigido para darmos andamento ao seu projeto." %}
+
+{% trans "Atenciosamente," %}
+{{ site_name }}
+{% endblock text_body %}
+
+{% block html_body %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Documento Rejeitado</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 30px; }
+        .header img { max-width: 180px; height: auto; }
+        .alert-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .doc-info { margin-bottom: 10px; }
+        .reason { color: #856404; font-weight: bold; margin-top: 10px; }
+        .btn { display: inline-block; background-color: #333; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="{{ protocol }}://{{ domain }}{{ STATIC_URL }}images/logo-com-nome.png" alt="Logo {{ site_name }}">
+    </div>
+    
+    <div>
+        <p>{% trans "Olá" %} <strong>{{ nome_titular }}</strong>,</p>
+        <p>{% trans "Nossa equipe analisou a documentação do projeto" %} <strong>{{ codigo_cliente }}</strong> {% trans "e identificou uma pendência." %}</p>
+        
+        <div class="alert-box">
+            <div class="doc-info">
+                <strong>{% trans "Documento com problema:" %}</strong><br>
+                {{ tipo_documento }} <span style="color: #666; font-size: 0.9em;">({{ nome_arquivo }})</span>
+            </div>
+            
+            <div class="reason">
+                📝 {% trans "Motivo apontado pela equipe:" %}<br>
+                <span style="font-weight: normal;">{{ motivo_rejeicao }}</span>
+            </div>
+        </div>
+        
+        <p>{% trans "Para que possamos dar andamento ao seu processo sem atrasos, por favor, acesse o painel e envie um novo arquivo corrigido." %}</p>
+        
+        <div style="text-align: center;">
+            <a href="{{ frontend_url }}" class="btn">Acessar Painel e Reenviar</a>
+        </div>
+        
+        <p style="margin-top: 30px; font-size: 0.9em; color: #777;">
+            {% trans "Caso tenha dúvidas sobre como corrigir o documento, responda este e-mail para falar com nosso suporte." %}
+        </p>
+    </div>
+</body>
+</html>
+{% endblock html_body %}

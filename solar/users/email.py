@@ -133,8 +133,40 @@ class PasswordResetEmail(BasePasswordResetEmail):
         logger.info("Email de reset de senha preparado")
         return context
 
-# As classes de Confirmação podem se manter como estavam,
-# mas se elas tiverem logo no HTML delas, você precisará injetar protocol, domain e STATIC_URL lá também.
+class DocumentRejectedEmail(BaseEmailMessage):
+    """
+    Email disparado para o cliente quando um documento do projeto é rejeitado.
+    """
+    template_name = 'email/document_rejected.html'
+
+    def get_context_data(self):
+        context = super().get_context_data()
+        
+        documento = context.get('documento')
+        projeto = context.get('projeto')
+        motivo = context.get('motivo', 'Motivo não especificado.')
+        
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
+        _static_url = settings.STATIC_URL
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
+        
+        context.update({
+            'site_name': site_name,
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': _static_url,
+            'nome_titular': getattr(projeto, 'nomeTitular', 'Cliente'),
+            'codigo_cliente': getattr(projeto, 'codigoCliente', 'N/A'),
+            'tipo_documento': documento.get_document_type_display() if documento else 'Documento',
+            'nome_arquivo': documento.document_name or 'Sem nome',
+            'motivo_rejeicao': motivo,
+            'frontend_url': getattr(settings, 'FRONTEND_URL', f"{_protocol}://{_domain}")
+        })
+        
+        logger.info(f"Email de documento rejeitado preparado para o projeto ID: {projeto.id if projeto else 'N/A'}")
+        return context
+    
 class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
     template_name = 'email/password_changed_confirmation.html'
     

@@ -34,7 +34,7 @@ class Common(Configuration):
 
         # Your apps
         'solar.users',
-        'solar.documents',
+        'solar.documents.apps.DocumentsConfig', # AGORA A PASTA EM QUESTÃO PRECISA DOS APPS
         'solar.files',
     )
     DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
