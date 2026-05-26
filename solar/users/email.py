@@ -11,6 +11,40 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class StatusProjetoChangedEmail(BaseEmailMessage):
+    """
+    Email disparado para o cliente quando o status do projeto dele muda.
+    """
+    template_name = 'email/status_projeto_changed.html'
+
+    def get_context_data(self):
+        context = super().get_context_data()
+        
+        projeto = context.get('projeto')
+        status_antigo = context.get('status_antigo')
+        status_novo = context.get('status_novo')
+        
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
+        _static_url = settings.STATIC_URL
+        site_name = getattr(settings, 'SITE_NAME', 'SN Tech Solar')
+        
+        context.update({
+            'site_name': site_name,
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': _static_url,
+            'nome_titular': getattr(projeto, 'nomeTitular', 'Cliente'),
+            'codigo_cliente': getattr(projeto, 'codigoCliente', 'N/A'),
+            'status_novo_display': status_novo,
+            'status_antigo_display': status_antigo,
+            'data_mudanca': timezone.now().strftime('%d/%m/%Y às %H:%M'),
+            'frontend_url': getattr(settings, 'FRONTEND_URL', f"{_protocol}://{_domain}")
+        })
+        
+        logger.info(f"Email de mudança de status ({status_novo}) preparado para o projeto ID: {projeto.id if projeto else 'N/A'}")
+        return context
+    
 class VistoriaRequestEmail(BaseEmailMessage):
     """
     Email disparado para a administração quando um cliente solicita uma vistoria.
