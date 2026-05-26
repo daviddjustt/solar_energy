@@ -29,6 +29,8 @@ from .serializers import (
     ListaDeMateriaisSerializer
 )
 
+from users.email import VistoriaRequestEmail
+
 import openpyxl
 from django.http import HttpResponse
 from django.utils import timezone
@@ -434,6 +436,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
         
         return response
 
+class SolicitarVistoriaView(APIView):
+    def post(self, request, project_id):
+        # 1. Busca o projeto associado ao cliente logado
+        projeto = get_object_or_404(ClientProject, id=project_id, created_by=request.user)
+
+        # 2. Dispara o email utilizando o padrão de classes do Djoser
+        try:
+            VistoriaRequestEmail(
+                context={'projeto': projeto, 'user': request.user}
+            ).send(to=['sntecsolar.ba@gmail.com'])
+            
+            return Response(
+                {"message": "Vistoria solicitada com sucesso!"}, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Erro ao enviar a notificação para a equipe técnica."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.ListCreateAPIView
     serializer_class = DocumentUploadSerializer
