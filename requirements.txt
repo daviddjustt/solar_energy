@@ -8,6 +8,9 @@ djoser==2.3.1
 djangorestframework-simplejwt==5.5.0
 django-cors-headers==4.7.0
 
+# Emails 
+django-templated-mail==1.1.1
+
 # For the persistence stores
 psycopg2-binary==2.9.10
 dj-database-url==2.3.0
