@@ -1,4 +1,4 @@
-from django.admin import site as admin_site
+from django.contrib.admin import site as admin_site
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
