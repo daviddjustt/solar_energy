@@ -29,7 +29,7 @@ from .serializers import (
     ListaDeMateriaisSerializer
 )
 
-from users.email import VistoriaRequestEmail
+from solar.users.email import VistoriaRequestEmail
 
 import openpyxl
 from django.http import HttpResponse
