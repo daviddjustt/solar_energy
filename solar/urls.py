@@ -102,7 +102,7 @@ urlpatterns = [
     # --------------------------------------------------------------------------
     # PROJECTS: GENERAL ACTIONS
     # --------------------------------------------------------------------------
-    path('api/v1/projects/exportar-excel/', ProjectExportExcelView.as_view(), name='project-export-excel'),
+    path('projects/exportar-excel/', ProjectExportExcelView.as_view(), name='project-export-excel'),
     path('api/v1/projects/<int:project_id>/solicitar-vistoria/', SolicitarVistoriaView.as_view(), name='solicitar-vistoria'),
 
     # --------------------------------------------------------------------------
