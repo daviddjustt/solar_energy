@@ -464,7 +464,7 @@ class SolicitarVistoriaView(APIView):
             )
         
         except Exception as e:
-            # Captura falhas de rede no envio do e-mail ou problemas de escrita no banco do Railway
+            # Captura falhass de rede no envio do e-mail ou problemas de escrita no banco do Railway
             return Response(
                 {
                     "error": "Erro ao processar a solicitação de vistoria com a equipe técnica.",
