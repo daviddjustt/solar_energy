@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.http import StreamingHttpResponse
 
 from .models import Notification
-from .serializers import NotificationSerializer  # Crie um ModelSerializer padrão para o modelo
+from .serializers import NotificationSerializer  
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -22,38 +22,6 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         # O usuário só pode listar as notificações que ELE recebeu
         return Notification.objects.filter(recipient=self.request.user)
-
-    def event_stream(user_id):
-        """
-        Gerador assíncrono conceitual. À posteriori, podemos integrar com Redis, 
-        Postgres LISTEN/NOTIFY ou simplesmente checar o banco.
-        """
-        last_checked = timezone.now()
-        while True:
-            # Busca notificações novas criadas após o último ciclo
-            new_notifications = Notification.objects.filter(
-                recipient_id=user_id, 
-                is_read=False, 
-                created_at__gt=last_checked
-            )
-            
-            if new_notifications.exists():
-                for notif in new_notifications:
-                    yield f"data: {{'id': {notif.id}, 'title': '{notif.title}', 'project_id': {notif.project_id}}}\n\n"
-                last_checked = timezone.now()
-                
-            time.sleep(3) # Aguarda 3 segundos para a próxima checagem ativa (Streaming Polling)
-
-    @api_view(['GET'])
-    @permission_classes([IsAuthenticated])
-    def stream_notifications(request):
-        """
-        Endpoint que o Front-end vai abrir usando `new EventSource('/api/v1/notifications/stream/')`
-        """
-        response = StreamingHttpResponse(event_stream(request.user.id), content_type="text/event-stream")
-        response['Cache-Control'] = 'no-cache'
-        response['X-Accel-Buffering'] = 'no' # Crucial se você usar Nginx como Proxy reverso
-        return response
         
     @action(detail=True, methods=['post'], url_path='mark-as-read')
     def mark_as_read(self, request, pk=None):
@@ -73,8 +41,43 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             notification.is_read = True
             notification.read_at = timezone.now()
             notification.save(update_fields=['is_read', 'read_at'])
-            
-            # Espaço para injetar regras de negócio à posteriori através de hooks/signals
-            # ex: dispatch_notification_read_event(notification)
 
         return Response({"status": "Notificação marcada como lida."}, status=status.HTTP_200_OK)
+
+
+# =====================================================================
+# FUNÇÕES DO STREAM (SSE) - FORA DA CLASSE
+# =====================================================================
+
+def event_stream(user_id):
+    """
+    Gerador assíncrono conceitual.
+    """
+    last_checked = timezone.now()
+    while True:
+        # Busca notificações novas criadas após o último ciclo
+        new_notifications = Notification.objects.filter(
+            recipient_id=user_id, 
+            is_read=False, 
+            created_at__gt=last_checked
+        )
+        
+        if new_notifications.exists():
+            for notif in new_notifications:
+                yield f"data: {{'id': {notif.id}, 'title': '{notif.title}', 'project_id': {notif.project_id}}}\n\n"
+            last_checked = timezone.now()
+            
+        time.sleep(3) # Aguarda 3 segundos para a próxima checagem ativa
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def stream_notifications(request):
+    """
+    Endpoint que o Front-end vai abrir usando `new EventSource('/api/v1/notifications/stream/')`
+    """
+    # Agora a chamada abaixo funciona perfeitamente porque a função está no mesmo escopo local!
+    response = StreamingHttpResponse(event_stream(request.user.id), content_type="text/event-stream")
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no' # Crucial para o Proxy Reverso (Nginx/Railway)
+    return response
