@@ -42,7 +42,7 @@ from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-
+from solar.notifications.services import criar_notificacao_vistoria_admins
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -437,23 +437,39 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return response
 
 class SolicitarVistoriaView(APIView):
+    # Garante que apenas usuários autenticados (clientes) acessem o endpoint
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, project_id):
         # 1. Busca o projeto associado ao cliente logado
         projeto = get_object_or_404(ClientProject, id=project_id, created_by=request.user)
 
-        # 2. Dispara o email utilizando o padrão de classes do Djoser
+        # 2. Processa o envio do e-mail e as notificações internas
         try:
+            # Dispara o e-mail utilizando o padrão de classes do Djoser
             VistoriaRequestEmail(
                 context={'projeto': projeto, 'user': request.user}
             ).send(to=['sntecsolar.ba@gmail.com'])
             
+            # Dispara a criação das notificações em lote (bulk_create) para os administradores
+            criar_notificacao_vistoria_admins(
+                projeto=projeto, 
+                cliente_solicitante=request.user
+            )
+            
+            # Se ambos os passos passarem, retorna o sucesso para o front-end
             return Response(
                 {"message": "Vistoria solicitada com sucesso!"}, 
                 status=status.HTTP_200_OK
             )
+        
         except Exception as e:
+            # Captura falhas de rede no envio do e-mail ou problemas de escrita no banco do Railway
             return Response(
-                {"error": "Erro ao enviar a notificação para a equipe técnica."}, 
+                {
+                    "error": "Erro ao processar a solicitação de vistoria com a equipe técnica.",
+                    "details": str(e)  # Útil para debugar nos logs do Railway se necessário
+                }, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
