@@ -76,8 +76,8 @@ def stream_notifications(request):
     """
     Endpoint que o Front-end vai abrir usando `new EventSource('/api/v1/notifications/stream/')`
     """
-    # Agora a chamada abaixo funciona perfeitamente porque a função está no mesmo escopo local!
-    response = StreamingHttpResponse(event_stream(request.user.id), content_type="text/event-stream")
+    # Trocado .id por .pk para suportar o Modelo Customizado de Usuário
+    response = StreamingHttpResponse(event_stream(request.user.pk), content_type="text/event-stream")
     response['Cache-Control'] = 'no-cache'
-    response['X-Accel-Buffering'] = 'no' # Crucial para o Proxy Reverso (Nginx/Railway)
+    response['X-Accel-Buffering'] = 'no' 
     return response
