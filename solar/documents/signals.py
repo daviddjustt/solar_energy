@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 # Lista de status que devem disparar o e-mail
 STATUS_QUE_GERAM_EMAIL = [
-    AndamentoDoProjeto.ANALISE_DE_PAGAMENTOS,
     AndamentoDoProjeto.PAGAMENTO_TRT_ART,
     AndamentoDoProjeto.PAGAMENTO_DO_PROJETO,
     AndamentoDoProjeto.ANALISE_TECNICA,
