@@ -19,8 +19,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Notification',
             fields=[
-                ('id', models.BigAutoField(auto_auto_field=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=150, verbose_name='Título')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),                ('title', models.CharField(max_length=150, verbose_name='Título')),
                 ('message', models.TextField(verbose_name='Conteúdo/Mensagem')),
                 ('category', models.CharField(default='GENERAL', max_length=50, verbose_name='Categoria')),
                 ('is_read', models.BooleanField(default=False, verbose_name='Lida?')),
