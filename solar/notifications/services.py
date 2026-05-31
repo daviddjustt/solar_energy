@@ -13,7 +13,7 @@ def processar_solicitacao_vistoria(projeto, cliente_solicitante):
     
     # ─── 2. NOTIFICAÇÃO EM LOTE PARA OS ADMINS ───
     # Buscamos todos os usuários que possuem flags de administração ativa
-    admins = User.objects.filter(is_staff=True) # ou use um grupo específico como Group.objects.get(name='Admin')
+    admins = User.objects.filter(is_admin=True) # ou use um grupo específico como Group.objects.get(name='Admin')
     
     # Criamos uma lista de objetos na memória para inserir de uma vez só (Bulk Create)
     notificacoes_para_criar = []

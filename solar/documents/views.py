@@ -42,7 +42,7 @@ from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-from solar.notifications.services import criar_notificacao_vistoria_admins
+from solar.notifications.services import processar_solicitacao_vistoria
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -452,7 +452,7 @@ class SolicitarVistoriaView(APIView):
             ).send(to=['sntecsolar.ba@gmail.com'])
             
             # Dispara a criação das notificações em lote (bulk_create) para os administradores
-            criar_notificacao_vistoria_admins(
+            processar_solicitacao_vistoria(
                 projeto=projeto, 
                 cliente_solicitante=request.user
             )
