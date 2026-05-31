@@ -44,6 +44,11 @@ from solar.files.views import (
     DocumentUserRetrieveUpdateDestroyView,
 )
 
+from solar.notifications.views import (
+    NotificationViewSet, 
+    stream_notifications,
+)
+
 # ==============================================================================
 # CUSTOM MIDDLEWARE / VIEWS OVERRIDES
 # ==============================================================================
@@ -63,7 +68,7 @@ class ThrottledTokenRefreshView(TokenRefreshView):
 router = DefaultRouter()
 router.register(r"users", CustomUserViewSet, basename="users")
 router.register(r"projects", ProjectViewSet, basename="project")
-
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 # ==============================================================================
 # URL PATTERNS
@@ -132,6 +137,18 @@ urlpatterns = [
     path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/', DocumentUserRetrieveUpdateDestroyView.as_view(), name='documentuser-detail'),
     path('api/v1/users/<uuid:user_pk>/documents/download-all/', DocumentUserDownloadAllView.as_view(), name='documentuser-download-all'),
     path('api/v1/users/<uuid:user_pk>/documents/<int:document_pk>/download/', DocumentUserDownloadView.as_view(), name='documentuser-download'),
+
+    # --------------------------------------------------------------------------
+    # NOTIFICATIONS : STREAM
+    # --------------------------------------------------------------------------
+    # Rota para o Front-end escutar em tempo real via Server-Sent Events (SSE)
+    path('stream/', stream_notifications, name='notifications-stream'),
+    
+    # --------------------------------------------------------------------------
+    # ÚLTIMAS ROTAS DEVEM SER COLOCADAS AQUI
+    # --------------------------------------------------------------------------
+    # Inclui as rotas geradas pelo Router (deve ficar por último para não dar conflito)
+    path('', include(router.urls)),
 ]
 
 

@@ -34,6 +34,7 @@ class Common(Configuration):
 
         # Your apps
         'solar.users',
+        'solar.notifications'
         'solar.documents.apps.DocumentsConfig', # AGORA A PASTA EM QUESTÃO PRECISA DOS APPS
         'solar.files',
     )
