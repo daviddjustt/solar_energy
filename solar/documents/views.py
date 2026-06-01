@@ -30,7 +30,8 @@ from .serializers import (
 )
 
 from solar.users.email import VistoriaRequestEmail
-
+from django.contrib.auth import get_user_model
+User = get_user_model()
 import openpyxl
 from django.http import HttpResponse
 from django.utils import timezone
@@ -446,10 +447,22 @@ class SolicitarVistoriaView(APIView):
 
         # 2. Processa o envio do e-mail e as notificações internas
         try:
-            # Dispara o e-mail utilizando o padrão de classes do Djoser
+            # ─── ACTION 1: COLETAR DESTINATÁRIOS (CAIXA GERAL + ADMINS) ───
+            # Começamos a lista com o e-mail padrão da empresa
+            destinatarios = ['sntecsolar.ba@gmail.com']
+            
+            # Busca todos os administradores e adiciona os e-mails deles na lista
+            admins = User.objects.filter(is_admin=True)
+            
+            for admin in admins:
+                if admin.email and admin.email not in destinatarios:
+                    destinatarios.append(admin.email)
+
+            # ─── ACTION 2: ENVIAR O MESMO EMAIL PARA TODO MUNDO ───
+            # Dispara o e-mail utilizando o padrão de classes do Djoser para toda a lista
             VistoriaRequestEmail(
                 context={'projeto': projeto, 'user': request.user}
-            ).send(to=['sntecsolar.ba@gmail.com'])
+            ).send(to=destinatarios)
             
             # Dispara a criação das notificações em lote (bulk_create) para os administradores
             processar_solicitacao_vistoria(
