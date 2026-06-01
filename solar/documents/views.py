@@ -521,7 +521,7 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
             instance = serializer.save()
 
         # 3. Executa a sua lógica de serviço caso tenha sido rejeitado
-        if novo_status == "REJECTED":  # Certifique-se de usar a constante correta ('REJECTED')
+        if novo_status == 'REJECTED':  # Certifique-se de usar a constante correta ('REJECTED')
             processar_documento_rejeitado(
                 projeto=instance.project,
                 documento=instance
