@@ -43,7 +43,7 @@ from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-from solar.notifications.services import processar_solicitacao_vistoria
+from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -510,12 +510,22 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
         serializer.save(project=project)
 
     def perform_update(self, serializer):
-        # Se o status for alterado para 'APPROVED', registra a data de aprovação
-        if serializer.validated_data.get('status') == 'APPROVED':
+        # 1. Captura o status antes de salvar
+        novo_status = serializer.validated_data.get('status')
+        
+        # 2. Executa o salvamento padrão do serializer
+        if novo_status == 'APPROVED':
             from django.utils import timezone
-            serializer.save(approved_at=timezone.now())
+            instance = serializer.save(approved_at=timezone.now())
         else:
-            serializer.save()
+            instance = serializer.save()
+
+        # 3. Executa a sua lógica de serviço caso tenha sido rejeitado
+        if novo_status == "REJECTED":  # Certifique-se de usar a constante correta ('REJECTED')
+            processar_documento_rejeitado(
+                projeto=instance.project,
+                documento=instance
+            )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
