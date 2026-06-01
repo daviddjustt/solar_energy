@@ -520,7 +520,6 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
         else:
             instance = serializer.save()
 
-        # 3. Agora o escopo está protegido e a função vai rodar com sucesso
         if novo_status == ProjectDocument.STATUS_REJECTED:
             processar_documento_rejeitado(
                 projeto=instance.project,

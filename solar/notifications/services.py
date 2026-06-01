@@ -8,7 +8,6 @@ User = get_user_model()
 # solar/notifications/services.py
 import logging
 from django.contrib.auth import get_user_model
-from solar.users.email import DocumentRejectedEmail
 from solar.notifications.models import Notification
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ def processar_documento_rejeitado(projeto, documento):
             project=projeto,
             sender=None,  # Fica nulo pois foi uma ação automatizada do sistema/analista
             recipient=cliente,
-            title=f"❌ Documento Recusado: {documento.nome or 'Verificar arquivo'}",
+            title=f"❌ Documento Recusado: {'Verificar arquivo'}",
             message=f"O documento do seu projeto {projeto.codigoCliente} foi recusado. Motivo: {motivo_rejeicao}",
             category="DOCUMENTO_RECUSADO"
         )
