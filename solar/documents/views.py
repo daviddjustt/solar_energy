@@ -513,20 +513,19 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
         # 1. Captura o status antes de salvar
         novo_status = serializer.validated_data.get('status')
         
-        # 2. Executa o salvamento padrão do serializer
+        # 2. Garante que 'instance' receba o objeto salvo em qualquer um dos caminhos
         if novo_status == 'APPROVED':
             from django.utils import timezone
             instance = serializer.save(approved_at=timezone.now())
+        else:
+            instance = serializer.save()
 
-
-        # 3. Executa a sua lógica de serviço caso tenha sido rejeitado
-        elif novo_status == 'REJECTED':  # Certifique-se de usar a constante correta ('REJECTED')
+        # 3. Agora o escopo está protegido e a função vai rodar com sucesso
+        if novo_status == ProjectDocument.STATUS_REJECTED:
             processar_documento_rejeitado(
                 projeto=instance.project,
                 documento=instance
             )
-        else:
-            instance = serializer.save()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
