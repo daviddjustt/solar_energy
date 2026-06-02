@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Operação 1: Campo de Observações
+        # Operação 1: Campo de Observações.
         migrations.AddField(
             model_name='clientproject',
             name='observacoes',
