@@ -5,7 +5,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Ancora rigidamente na sua última migração segura
+        # Ancora  rigidamente na sua última migração segura
         ('documents', '0002_clientproject_observacoes'),
     ]
 
