@@ -12,8 +12,7 @@ class Migration(migrations.Migration):
     # antes da tabela de notificações ser criada.
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        # Ancorado rigidamente na migração 0001 do documents
-        ('documents', '0001_initial'), 
+        ('documents', '__latest__'), # Pega a última migração existente do app documents
     ]
 
     operations = [
