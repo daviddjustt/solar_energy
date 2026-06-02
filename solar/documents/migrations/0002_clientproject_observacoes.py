@@ -11,10 +11,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Operação 1: Campo de Observações.
+        # Operação 1: Campo de Observações
         migrations.AddField(
             model_name='clientproject',
             name='observacoes',
             field=models.TextField(blank=True, null=True, verbose_name='Observações'),
+        ),
+        # Operação 2: Campo Pedido de Vistoria (Faltava isso!)
+        migrations.AddField(
+            model_name='clientproject',
+            name='pedido_vistoria',
+            field=models.BooleanField(default=False, verbose_name='Pedido de Vistoria Ativo?'),
         ),
     ]
