@@ -6,9 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Substitua '0002_clientproject_observacoes' pelo nome EXATO do arquivo anterior 
-        # que adicionou o campo de observações, sem a extensão .py
-        ('documents', '0002_clientproject_observacoes'), 
+        ('documents', '0001_initial'), 
     ]
 
     operations = [
