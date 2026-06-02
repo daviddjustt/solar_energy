@@ -132,7 +132,8 @@ urlpatterns = [
     path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(), name='payment-document-detail'),
     
     # 6. Protocol
-    router.register(r'protocols', ProjectProtocolViewSet, basename='protocol'),
+    path('api/v1/protocols/', ProjectProtocolViewSet.as_view({'get': 'list', 'post': 'create'}), name='protocol-list-create'),
+    path('api/v1/protocols/<int:pk>/', ProjectProtocolViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='protocol-detail'),
 
     # --------------------------------------------------------------------------
     # USERS: NESTED RESOURCES
