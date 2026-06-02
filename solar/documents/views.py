@@ -27,7 +27,8 @@ from .serializers import (
     TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
     ListaDeMateriaisSerializer,
-    ProjectStatusHistorySerializer
+    ProjectStatusHistorySerializer,
+    ProjectProtocolSerializer
 )
 
 from solar.users.email import VistoriaRequestEmail
@@ -42,7 +43,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import ClientProject
+from .models import ClientProject, ProjectProtocol
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
 from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado
 
@@ -166,6 +167,23 @@ class ProjectExportExcelView(APIView):
         
         wb.save(response)
         return response
+
+class ProjectProtocolViewSet(viewsets.ModelViewSet):
+    """
+    CRUD completo para Protocolos adicionais do Projeto.
+    Suporta GET, POST, PUT, PATCH e DELETE.
+    """
+    queryset = ProjectProtocol.objects.all()
+    serializer_class = ProjectProtocolSerializer
+    
+    # Se você quiser filtrar automaticamente os protocolos por projeto na listagem:
+    # Ex: GET /api/v1/protocols/?project_id=48
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        project_id = self.request.query_params.get('project_id')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        return queryset
     
 class ProjectViewSet(viewsets.ModelViewSet):
     """

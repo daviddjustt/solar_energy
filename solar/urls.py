@@ -34,6 +34,7 @@ from solar.documents.views import (
     ProjectExportExcelView,
     ProjectViewSet,
     SolicitarVistoriaView,
+    ProjectProtocolViewSet
 )
 
 # --- Apps: Files ---
@@ -129,6 +130,9 @@ urlpatterns = [
 
     # 5. Payments (⚠️ Dynamic trailing path, keep last!)
     path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(), name='payment-document-detail'),
+    
+    # 6. Protocol
+    router.register(r'protocols', ProjectProtocolViewSet, basename='protocol')
 
     # --------------------------------------------------------------------------
     # USERS: NESTED RESOURCES

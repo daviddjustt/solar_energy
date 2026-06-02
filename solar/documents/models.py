@@ -255,6 +255,35 @@ class ListaDeMateriais(models.Model):
         max_length=100, choices=WATS_CHOICES, help_text="Unidade de medida", default="wats"
     )
     
+class ProjectProtocol(models.Model):
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='protocolos',
+        verbose_name="Projeto"
+    )
+    numero_protocolo = models.CharField(
+        max_length=100, 
+        verbose_name="Número do Protocolo", 
+        null=True, 
+        blank=True
+    )
+    data_limite = models.DateField(
+        verbose_name="Data Limite", 
+        null=True, 
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última Atualização")
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Protocolo do Projeto"
+        verbose_name_plural = "Protocolos dos Projetos"
+
+    def __str__(self):
+        protocolo_str = self.numero_protocolo if self.numero_protocolo else "Sem protocolo"
+        return f"Protocolo {protocolo_str} - Projeto {self.project.codigoCliente}"
 
 class ProjectDocument(BaseModel, ArquivoMixin):
     STATUS_CHOICES = [

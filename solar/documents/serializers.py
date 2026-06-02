@@ -3,7 +3,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
-from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory
+from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory, ProjectProtocol
 from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
 from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
@@ -13,7 +13,14 @@ class ProjectStatusHistorySerializer(serializers.ModelSerializer):
         model = ProjectStatusHistory
         fields = ['id', 'project', 'changed_by_uuid', 'old_status', 'new_status', 'changed_at']
         read_only_fields = fields # Isso garante que TODO o endpoint é somente leitura
-        
+
+class ProjectProtocolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectProtocol
+        fields = ['id', 'project', 'numero_protocolo', 'data_limite', 'created_at', 'updated_at']
+        # Aqui NÃO usamos read_only_fields para o protocolo e data, pois o CRUD será completo.
+        read_only_fields = ['id', 'created_at', 'updated_at']
+              
 class VoltageField(serializers.CharField):
     """Campo que aceita valores curtos (127) e salva o label completo."""
     def to_internal_value(self, data):
