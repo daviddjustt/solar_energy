@@ -24,7 +24,7 @@ echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 echo "🔄 Sincronizando histórico das notificações..."
 # Essa linha abaixo é o antídoto! Ela avisa o Django que a tabela já existe antes do erro acontecer.
 python manage.py migrate notifications --fake
-
+python manage.py migrate documents --fake
 echo "🔄 Aplicando demais migrações..."
 python manage.py migrate --noinput
 echo "✅ Banco de dados atualizado com sucesso!"
