@@ -17,10 +17,4 @@ class Migration(migrations.Migration):
             name='observacoes',
             field=models.TextField(blank=True, null=True, verbose_name='Observações'),
         ),
-        # Operação 2: Novo campo pedido_vistoria unificado aqui
-        migrations.AddField(
-            model_name='clientproject',
-            name='pedido_vistoria',
-            field=models.BooleanField(default=False, verbose_name='Pedido de Vistoria Ativo?'),
-        ),
     ]

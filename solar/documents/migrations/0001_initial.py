@@ -30,6 +30,7 @@ class Migration(migrations.Migration):
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_projects', to=settings.AUTH_USER_MODEL, verbose_name='Criado por')),
                 ('related_payment_document', models.ForeignKey(blank=True, help_text='Boleto relacionado', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='payment_proofs', to='documents.projectdocument')),
                 #
+                ('pedido_vistoria',models.BooleanField(default=False, verbose_name='Pedido de Vistoria Ativo?')),
                 ('telefone', models.CharField(max_length=11, validators=[django.core.validators.RegexValidator(message='Celular inválido', regex='^\\d{11}$')], verbose_name='Telefone')),
                 ('cep', models.CharField(max_length=9, validators=[django.core.validators.RegexValidator(message='CEP deve estar no formato XXXXX-XXX', regex='^\\d{5}-?\\d{3}$')], verbose_name='CEP')),
                 ('rua', models.CharField(max_length=200, verbose_name='Logradouro')),
