@@ -469,8 +469,11 @@ class SolicitarVistoriaView(APIView):
                 projeto=projeto, 
                 cliente_solicitante=request.user
             )
+            # ─── ACTION 3 : ATUALIZAR O CAMPO DO MODELO ───
+            projeto.pedido_vistoria = True
+            projeto.save()
             
-            # Se ambos os passos passarem, retorna o sucesso para o front-end
+            # Se todos os passos passarem, retorna o sucesso para o front-end
             return Response(
                 {"message": "Vistoria solicitada com sucesso!"}, 
                 status=status.HTTP_200_OK
