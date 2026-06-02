@@ -31,6 +31,24 @@ class AndamentoDoProjeto(models.TextChoices):
                    return status.value
            return None
 
+class ProjectStatusHistory(models.Model):
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='status_history'
+    )
+    changed_by_uuid = models.CharField(max_length=255, verbose_name="UUID do Usuário", null=True, blank=True)
+    old_status = models.CharField(max_length=100, verbose_name="Status Antigo")
+    new_status = models.CharField(max_length=100, verbose_name="Status Novo")
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name="Data e Hora da Mudança")
+
+    class Meta:
+        ordering = ['-changed_at'] # Traz os mais recentes primeiro
+        verbose_name = "Histórico de Status"
+        verbose_name_plural = "Históricos de Status"
+
+    def __str__(self):
+        return f"Projeto {self.project.codigoCliente}: {self.old_status} -> {self.new_status}"
 
 class ClientProject(models.Model):
     codigoCliente = models.CharField(max_length=50, verbose_name="Código único do cliente")

@@ -18,7 +18,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
 from solar.users.models import User
-from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit
+from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit, ProjectStatusHistory
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -26,7 +26,8 @@ from .serializers import (
     ConsumerUnitSerializer,
     TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
-    ListaDeMateriaisSerializer
+    ListaDeMateriaisSerializer,
+    ProjectStatusHistorySerializer
 )
 
 from solar.users.email import VistoriaRequestEmail
@@ -261,9 +262,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
          return super().partial_update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
-        # O Segurança das Finanças
-        self._check_financial_permission(serializer)
-        serializer.save()
+        # Pegamos o projeto ANTES de salvar a mudança
+        instance = self.get_object()
+        old_status = instance.status
+        
+        # Salvamos o projeto com os novos dados
+        updated_instance = serializer.save()
+        new_status = updated_instance.status
+
+        # Se o status mudou, criamos o registro de auditoria automaticamente
+        if old_status != new_status:
+            ProjectStatusHistory.objects.create(
+                project=updated_instance,
+                changed_by_uuid=str(self.request.user.uuid), # Captura quem fez o request
+                old_status=old_status,
+                new_status=new_status
+            )
+
+    # 2. O ENDPOINT GET ESPECÍFICO (Somente Leitura)
+    @action(detail=True, methods=['get'], url_path='status-history')
+    def status_history(self, request, pk=None):
+        """
+        Retorna o histórico de mudanças de status de um projeto específico.
+        Exemplo: GET /api/v1/projects/<id>/status-history/
+        """
+        project = self.get_object()
+        history = ProjectStatusHistory.objects.filter(project=project)
+        serializer = ProjectStatusHistorySerializer(history, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def resumo_financeiro(self, request):
