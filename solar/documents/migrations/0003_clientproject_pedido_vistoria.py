@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
 
     # ESSA É A MÁGICA: Avisa o Django para injetar este campo antes do app de notificações rodar
     run_before = [
-        ('documents', '0001_initial'),
+        ('notifications', '0001_initial'),
     ]
 
     operations = [
