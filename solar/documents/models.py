@@ -31,6 +31,7 @@ class AndamentoDoProjeto(models.TextChoices):
                    return status.value
            return None
 
+
 class ClientProject(models.Model):
     codigoCliente = models.CharField(max_length=50, verbose_name="Código único do cliente")
     created_by = models.ForeignKey(
