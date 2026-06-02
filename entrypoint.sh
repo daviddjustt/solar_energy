@@ -21,7 +21,6 @@ echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 # Forçamos a criação para evitar o aviso "models have changes not reflected"
 
 echo "🔄 Aplicando migrações..."
-python manage.py migrate documents --fake
 python manage.py migrate
 echo "✅ Banco de dados atualizado com sucesso!"
 
