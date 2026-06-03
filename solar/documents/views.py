@@ -30,8 +30,8 @@ from .serializers import (
     ProjectStatusHistorySerializer,
     ProjectProtocolSerializer
 )
-
-from solar.users.email import VistoriaRequestEmail
+import logging
+from solar.users.email import VistoriaRequestEmail, ProtocoloChangedEmail
 from django.contrib.auth import get_user_model
 User = get_user_model()
 import openpyxl
@@ -42,10 +42,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-
+logger = logging.getLogger(__name__)
 from .models import ClientProject, ProjectProtocol
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado
+from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado, disparar_avisos_protocolo
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -169,21 +169,43 @@ class ProjectExportExcelView(APIView):
         return response
 
 class ProjectProtocolViewSet(viewsets.ModelViewSet):
-    """
-    CRUD completo para Protocolos adicionais do Projeto.
-    Suporta GET, POST, PUT, PATCH e DELETE.
-    """
     queryset = ProjectProtocol.objects.all()
     serializer_class = ProjectProtocolSerializer
-    
-    # Se você quiser filtrar automaticamente os protocolos por projeto na listagem:
-    # Ex: GET /api/v1/protocols/?project_id=48
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        project_id = self.request.query_params.get('project_id')
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-        return queryset
+
+    def perform_create(self, serializer):
+        # 1. Salva o protocolo no banco
+        protocolo = serializer.save()
+        
+        # 2. Dispara o e-mail
+        self._enviar_email_protocolo(protocolo, "criado")
+
+    def perform_update(self, serializer):
+        # 1. Salva a alteração no banco
+        protocolo = serializer.save()
+        
+        # 2. Dispara o e-mail
+        self._enviar_email_protocolo(protocolo, "atualizado")
+
+    def _enviar_email_protocolo(self, protocolo, acao):
+        """
+        Método helper para enviar o e-mail de notificação.
+        """
+        try:
+            projeto = protocolo.project
+            if projeto and projeto.created_by and projeto.created_by.email:
+                
+                ProtocoloChangedEmail(
+                    context={
+                        'protocolo': protocolo,
+                        'projeto': projeto,
+                        'acao': acao
+                    }
+                ).send(to=[projeto.created_by.email])
+                
+                logger.info(f"Email de protocolo ({acao}) enviado para {projeto.created_by.email}.")
+                
+        except Exception as e:
+            logger.error(f"Erro ao disparar email de protocolo na ViewSet: {str(e)}")
     
 class ProjectViewSet(viewsets.ModelViewSet):
     """

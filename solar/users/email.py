@@ -44,7 +44,17 @@ class StatusProjetoChangedEmail(BaseEmailMessage):
         
         logger.info(f"Email de mudança de status ({status_novo}) preparado para o projeto ID: {projeto.id if projeto else 'N/A'}")
         return context
+
+class ProtocoloChangedEmail(BaseEmailMessage): # Supondo que você tenha uma BaseEmail
+    template_name = 'emails/protocolo_changed.html' # Você criará esse template
     
+    def get_context_data(self):
+        return {
+            'protocolo': self.context.get('protocolo'),
+            'projeto': self.context.get('projeto'),
+            'acao': self.context.get('acao')
+        }
+  
 class VistoriaRequestEmail(BaseEmailMessage):
     """
     Email disparado para a administração quando um cliente solicita uma vistoria.

@@ -34,7 +34,28 @@ def processar_documento_rejeitado(projeto, documento):
         logger.info(f"Notificação de documento rejeitado salva no banco para o cliente {cliente.id}.")
     except Exception as e:
         logger.error(f"Erro ao criar notificação de documento rejeitado no banco: {str(e)}")
-        
+   
+def disparar_avisos_protocolo(protocol, action):
+    User = get_user_model()
+    # 1. Busca os administradores
+    admins = User.objects.filter(is_admin=True)
+    
+    if not admins.exists():
+        return
+
+    # --- PARTE A: NOTIFICAÇÃO INTERNA (BULK CREATE) ---
+    notificacoes_para_criar = []
+    for admin in admins:
+        notificacoes_para_criar.append(
+            Notification(
+                project=protocol.project,
+                recipient=admin,
+                title=f"📋 Protocolo {action.capitalize()}",
+                message=f"O protocolo {protocol.numero_protocolo or 'sem número'} do projeto {protocol.project.codigoCliente} foi {action}.",
+                category="PROTOCOLO"
+            )
+        )
+     
 def processar_solicitacao_vistoria(projeto, cliente_solicitante):
     """
     Orquestra as regras de negócio quando uma vistoria é solicitada:
