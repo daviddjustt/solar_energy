@@ -50,12 +50,6 @@ else:
     print(f"ℹ️ Superuser {email} já existe.")
 EOF
 
-# 6. Execução do Gunicorn
-echo "✅ Tudo pronto! Iniciando Gunicorn..."
-exec gunicorn solar.asgi:application \
-    --bind 0.0.0.0:${PORT:-8080} \
-    --workers 2 \
-    --threads 4 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile -
+# 6. Execução do Servidor ASGI (Daphne)
+echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne)..."
+exec daphne -b 0.0.0.0 -p ${PORT:-8080} solar.asgi:application
