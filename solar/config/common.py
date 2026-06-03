@@ -9,6 +9,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Common(Configuration):
     INSTALLED_APPS = (
+        'daphne',
         'django.contrib.admin',
         'django.contrib.auth',
         'django.contrib.contenttypes',
@@ -37,6 +38,8 @@ class Common(Configuration):
         'solar.notifications',
         'solar.documents.apps.DocumentsConfig', # AGORA A PASTA EM QUESTÃO PRECISA DOS APPS
         'solar.files',
+        
+        'channels',
     )
     DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
     MIDDLEWARE = (
@@ -71,8 +74,9 @@ class Common(Configuration):
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-    WSGI_APPLICATION = 'solar.wsgi.application'
-
+    # WSGI_APPLICATION = 'solar.wsgi.application'
+    ASGI_APPLICATION = 'solar.asgi.application'
+    
     # Email
     EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
@@ -373,9 +377,19 @@ class Common(Configuration):
             'login': '5/hour',            # Login (mais restritivo)
             'activation': '10/hour',      # Ativação de conta
         },
+        
         'EXCEPTION_HANDLER': 'solar.users.exceptions.custom_exception_handler',
         'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
         'PAGE_SIZE': 20,
+    }
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                # Lê a URL do Railway, ou usa o localhost se estiver a rodar na sua máquina
+                "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
+            },
+        },
     }
 
 
