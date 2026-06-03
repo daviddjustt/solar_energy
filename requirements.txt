@@ -63,3 +63,11 @@ whitenoise==6.7.0
 django-anymail[brevo]
 python-dotenv==1.2.1
 django-sendgrid-v5 == 1.3.0
+
+# Servidor ASGI e Websockets
+daphne==4.1.2
+channels==4.1.0
+
+# Redis e comunicação de canais
+redis==5.0.4
+channels-redis==4.2.0
