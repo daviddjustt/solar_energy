@@ -52,7 +52,7 @@ EOF
 
 # 6. Execução do Gunicorn
 echo "✅ Tudo pronto! Iniciando Gunicorn..."
-exec gunicorn solar.wsgi:application \
+exec gunicorn solar.asgi:application \
     --bind 0.0.0.0:${PORT:-8080} \
     --workers 2 \
     --threads 4 \
