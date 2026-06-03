@@ -1,40 +1,84 @@
+{% load i18n %}
+
+{% block subject %}
+{% if acao == 'criado' %}🆕{% else %}🔄{% endif %} {% trans "Atualização de Protocolo" %} - {{ projeto.codigoCliente }}
+{% endblock subject %}
+
+{% block text_body %}
+{% trans "Olá," %}
+
+{% trans "Houve uma atualização no protocolo do projeto." %}
+
+{% trans "Dados do Protocolo:" %}
+- {% trans "Ação" %}: {{ acao|capfirst }}
+- {% trans "Código do Cliente" %}: {{ projeto.codigoCliente }}
+- {% trans "Número do Protocolo" %}: {{ protocolo.numero_protocolo|default:"N/A" }}
+- {% trans "Data Limite" %}: {{ protocolo.data_limite|date:"d/m/Y"|default:"N/A" }}
+
+{% trans "Acesse o sistema para mais detalhes." %}
+
+{% trans "Atenciosamente," %}
+{{ site_name }}
+{% endblock text_body %}
+
+{% block html_body %}
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Atualização de Protocolo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% trans "Atualização de Protocolo" %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 30px; }
+        .header h1 { color: #007bff; font-size: 24px; margin: 10px 0 0 0; }
+        .content { margin-bottom: 30px; }
+        .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #f9f9f9; border-radius: 4px; overflow: hidden; }
+        .info-table td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .info-table td.label { font-weight: bold; color: #555; width: 40%; }
+        .footer { border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px; font-size: 0.8em; color: #777; }
+        .btn { display: inline-block; padding: 10px 20px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; }
+    </style>
 </head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px;">
-    <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #f4f4f4; padding: 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 20px; color: #2c3e50;">Solar Energy - Notificação</h1>
+<body>
+    <div class="header">
+        <h1>{% trans "Atualização de Protocolo" %}</h1>
+    </div>
+    
+    <div class="content">
+        <p>{% trans "Olá," %}</p>
+        <p>{% trans "Informamos que houve uma atualização recente no protocolo do seu projeto." %}</p>
+        
+        <table class="info-table">
+            <tr>
+                <td class="label">{% trans "Ação" %}:</td>
+                <td><strong>{{ acao|capfirst }}</strong></td>
+            </tr>
+            <tr>
+                <td class="label">{% trans "Código do Cliente" %}:</td>
+                <td>{{ projeto.codigoCliente }}</td>
+            </tr>
+            <tr>
+                <td class="label">{% trans "Número do Protocolo" %}:</td>
+                <td>{{ protocolo.numero_protocolo|default:"-" }}</td>
+            </tr>
+            <tr>
+                <td class="label">{% trans "Data Limite" %}:</td>
+                <td>{{ protocolo.data_limite|date:"d/m/Y"|default:"-" }}</td>
+            </tr>
+        </table>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="https://solarenergy-production.up.railway.app/projects/{{ projeto.id }}/" class="btn">
+                {% trans "Acessar Projeto" %}
+            </a>
         </div>
-
-        <div style="padding: 20px;">
-            <p>Olá,</p>
-            <p>Informamos que houve uma atualização no protocolo do seu projeto.</p>
-            
-            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <p style="margin: 5px 0;"><strong>Ação:</strong> Protocolo {{ acao }}</p>
-                <p style="margin: 5px 0;"><strong>Projeto:</strong> {{ projeto.codigoCliente }}</p>
-                <p style="margin: 5px 0;"><strong>Número do Protocolo:</strong> {{ protocolo.numero_protocolo|default:"Não definido" }}</p>
-                <p style="margin: 5px 0;"><strong>Data Limite:</strong> {{ protocolo.data_limite|date:"d/m/Y"|default:"Não definida" }}</p>
-            </div>
-
-            <p>Você pode acessar o sistema para visualizar os detalhes completos do seu projeto.</p>
-
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="https://solarenergy-production.up.railway.app/projects/{{ projeto.id }}/" 
-                   style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                   Acessar Projeto
-                </a>
-            </div>
-        </div>
-
-        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 12px; color: #777;">
-            <p>Esta é uma notificação automática. Por favor, não responda este e-mail.</p>
-            <p>&copy; Solar Energy. Todos os direitos reservados.</p>
-        </div>
+    </div>
+    
+    <div class="footer">
+        <p>{% trans "Este é um e-mail automático." %}</p>
+        <p>{% trans "Atenciosamente," %}<br>{{ site_name }}</p>
     </div>
 </body>
 </html>
+{% endblock html_body %}
