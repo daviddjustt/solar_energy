@@ -336,6 +336,8 @@ class Common(Configuration):
         "http://127.0.0.1:8080",
         "http://localhost:8080",
         "https://sn-solar-tech.vercel.app",
+        "https://www.sntecsolar.com.br",
+        "https://sntecsolar.com.br",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOWED_HEADERS = [
