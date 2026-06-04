@@ -45,7 +45,7 @@ from drf_spectacular.types import OpenApiTypes
 logger = logging.getLogger(__name__)
 from .models import ClientProject, ProjectProtocol
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado, disparar_avisos_protocolo
+from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
