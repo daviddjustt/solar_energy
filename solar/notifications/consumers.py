@@ -53,3 +53,4 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             'type': 'new_notification',
             'payload': data
         }))
+        
