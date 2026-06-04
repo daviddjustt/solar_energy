@@ -1,20 +1,32 @@
 import json
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # O user_id vem da URL configurada no asgi.py
-        self.user_id = self.scope['url_route']['kwargs']['user_id']
-        self.group_name = f'user_notifications_{self.user_id}'
-
-        # Adiciona o canal ao grupo específico do usuário no Redis
-        await self.channel_layer.group_add(
-            self.group_name,
-            self.channel_name
-        )
+        # O usuário já está autenticado pelo AuthMiddlewareStack no asgi.py
+        user = self.scope['user']
         
-        await self.accept()
-        print(f"✅ Conexão WebSocket estabelecida para usuário: {self.user_id}")
+        if user.is_authenticated:
+            # 1. Sempre adiciona o usuário ao seu grupo pessoal (para mensagens diretas)
+            await self.channel_layer.group_add(
+                f'user_{user.id}', 
+                self.channel_name
+            )
+
+            # 2. Adiciona automaticamente aos grupos baseados nos Groups do Django
+            # Isso usa a lógica que você já tem no _update_groups!
+            user_groups = await database_sync_to_async(list)(user.groups.values_list('name', flat=True))
+            
+            for group_name in user_groups:
+                await self.channel_layer.group_add(
+                    group_name,  # Ex: 'Administradores', 'Tecnicos', 'Clientes'
+                    self.channel_name
+                )
+            
+            await self.accept()
+        else:
+            await self.close()
 
     async def disconnect(self, close_code):
         # Remove a conexão do grupo ao fechar a aba
