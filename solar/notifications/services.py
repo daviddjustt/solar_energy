@@ -38,22 +38,38 @@ def processar_documento_rejeitado(projeto, documento):
         logger.error(f"Erro: {str(e)}")
 
 def processar_solicitacao_vistoria(projeto, cliente_solicitante):
+    """
+    Cria notificações em lote para administradores e dispara um alerta WebSocket.
+    """
     admins = User.objects.filter(is_admin=True)
-    notificacoes_para_criar = []
     
-    for admin in admins:
-        notificacoes_para_criar.append(
-            Notification(
-                project=projeto, sender=cliente_solicitante, recipient=admin,
-                title="📋 Nova Vistoria Solicitada",
-                message=f"Cliente {projeto.nomeTitular} solicitou vistoria.",
-                category="SOLICITACAO_VISTORIA"
-            )
+    # 1. Preparar a lista de notificações para criação em lote
+    notificacoes_para_criar = [
+        Notification(
+            project=projeto,
+            sender=cliente_solicitante,
+            recipient=admin,
+            title="📋 Nova Vistoria Solicitada",
+            message=f"Cliente {projeto.nomeTitular} solicitou vistoria.",
+            category="SOLICITACAO_VISTORIA"
         )
+        for admin in admins
+    ]
     
     if notificacoes_para_criar:
+        # 2. Persistência no Banco de Dados
         Notification.objects.bulk_create(notificacoes_para_criar)
         
-        # Dispara aviso para o grupo de admins
-        # Nota: Você precisaria que os admins estivessem conectados a um grupo chamado 'admin_notifications'
-        enviar_notificacao_websocket("Administradores", "Nova Vistoria", "Uma nova vistoria foi solicitada.")
+        # 3. Disparo WebSocket (Notifica o grupo de Administradores no Redis)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "Administradores",  # Nome do grupo registrado no seu Consumer
+            {
+                "type": "send_notification",
+                "data": {
+                    "title": "📋 Nova Vistoria Solicitada",
+                    "message": f"O cliente {projeto.nomeTitular} solicitou uma vistoria para o projeto {projeto.codigoCliente}.",
+                    "url": f"/admin/projetos/{projeto.pk}/" # Link para o admin verificar
+                }
+            }
+        )
