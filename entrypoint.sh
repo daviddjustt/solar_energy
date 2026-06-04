@@ -2,7 +2,7 @@
 set -e
 
 echo "🚀 Iniciando Solar Energy às $(date)"
-fuser -k 8080/tcp || true
+fuser -k ${PORT:-8080}/tcp || true
 # 1. Ajuste de Permissões (Volume montado pelo Railway)
 if [ -d "/app/media" ]; then
     chown -R 65532:65532 /app/media || true
