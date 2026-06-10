@@ -102,12 +102,25 @@ class Common(Configuration):
 
     db_url = os.getenv('DATABASE_URL')
 
+    # 1. Obter a configuração básica
+    db_config = dj_database_url.config(
+        default=db_url,
+        conn_max_age=30,
+        ssl_require=False
+    )
+
+    # 2. Adicionar as opções de SO (Keepalives) manualmente ao dicionário
+    db_config['OPTIONS'] = {
+        'connect_timeout': 10,
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
+
+    # 3. Atribuir ao dicionário DATABASES
     DATABASES = {
-        'default': dj_database_url.config(
-            default=db_url,
-            conn_max_age=20,
-            ssl_require=False  # Mude para False temporariamente para testar
-        )
+        'default': db_config
     }
 #
     # General
