@@ -101,14 +101,14 @@ class Common(Configuration):
     IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None # Exemplo
 
     db_url = os.getenv('DATABASE_URL')
-
     
     DATABASES = {
         'default': dj_database_url.config(
             default=db_url,
-            # Defina CONN_MAX_AGE como 0. Isso desativa o pooling de conexão.
-            # O Django abrirá uma nova conexão para cada requisição e a fechará ao terminar.
+            # conn_max_age=0 é OBRIGATÓRIO quando se usa Daphne com psycopg2 
+            # para evitar o erro NO_SOCKET e o colapso das conexões.
             conn_max_age=0, 
+            # Como você usa a rede interna (.railway.internal), SSL não é necessário
             ssl_require=False
         )
     }
