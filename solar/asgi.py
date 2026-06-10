@@ -1,6 +1,6 @@
 import os
 import configurations
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'solar.config.production') # Use o seu config correto
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'solar.config') # Remova o .production se ele não existir como arquivo separado
 os.environ.setdefault('DJANGO_CONFIGURATION', 'Production')
 configurations.setup()
 
