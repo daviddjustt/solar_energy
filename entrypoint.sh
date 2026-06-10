@@ -52,4 +52,4 @@ EOF
 
 # 6. Execução do Servidor ASGI (Daphne)
 echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne)..."
-exec daphne -b 0.0.0.0 -p ${PORT:-8080} solar.asgi:application
+exec daphne -b 0.0.0.0 -p $PORT solar.asgi:application
