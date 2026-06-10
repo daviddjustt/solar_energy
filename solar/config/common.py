@@ -105,7 +105,7 @@ class Common(Configuration):
     DATABASES = {
         'default': dj_database_url.config(
             default=db_url,
-            conn_max_age=600,
+            conn_max_age=20,
             ssl_require=False  # Mude para False temporariamente para testar
         )
     }
