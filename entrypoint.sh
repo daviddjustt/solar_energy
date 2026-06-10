@@ -50,6 +50,6 @@ else:
     print(f"ℹ️ Superuser {email} já existe.")
 EOF
 
-# 6. Execução do Servidor ASGI (Daphne)
-echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne)..."
-exec daphne -b 0.0.0.0 -p $PORT solar.asgi:application
+# 6. Execução do Servidor ASGI (Daphne) com Debug Ativado
+echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne) em modo Verboso... 🛠️"
+exec daphne -v 3 -b 0.0.0.0 -p ${PORT:-8080} solar.asgi:application
