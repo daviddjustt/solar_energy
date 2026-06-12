@@ -3,12 +3,27 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print(f"DEBUG: Tentando conectar...")
-        print(f"DEBUG: Usuário no escopo: {self.scope.get('user')}")
-        
-        # Aceita a conexão incondicionalmente
+        # Todo mundo que conectar entra na mesma sala pública
+        self.room_group_name = 'sala_de_teste'
+
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
         await self.accept()
-        print("✅ Conexão WebSocket aceita!")
+        print("✅ [WebSocket] Cliente conectado na sala de teste!")
 
     async def disconnect(self, close_code):
-        print(f"❌ Conexão encerrada.")
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Função que recebe a mensagem do Redis e manda pro Navegador
+    async def send_notification(self, event):
+        message = event['message']
+        
+        await self.send(text_data=json.dumps({
+            'message': message
+        }))
