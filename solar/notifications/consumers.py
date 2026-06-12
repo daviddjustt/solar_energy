@@ -13,15 +13,15 @@ def get_user_from_token(token_string):
     """Abre o Token JWT e busca o usuário no banco de dados."""
     try:
         access_token = AccessToken(token_string)
-        # Atenção: Dependendo de como seu JWT foi configurado, access_token['user_id'] 
-        # pode ser o 'id' numérico ou o 'uuid'.
-        user_identifier = access_token['user_id']
+        # O SimpleJWT usa 'user_id' no payload, que mapeia para o campo que 
+        # está definido como USERNAME_FIELD ou a chave primária do seu modelo.
+        user_uuid = access_token.get('user_id') 
         
-        # Como no seu exemplo você usou cliente.id, estamos buscando pelo ID padrão (ou UUID)
-        return User.objects.get(id=user_identifier) 
+        # CORREÇÃO AQUI: Busque pelo campo 'uuid' conforme o erro apontou
+        return User.objects.get(uuid=user_uuid) 
+        
     except (TokenError, InvalidToken, User.DoesNotExist):
         return None
-
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # 1. Pega os parâmetros da URL para encontrar o ?token=...
