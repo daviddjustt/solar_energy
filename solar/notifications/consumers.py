@@ -22,6 +22,7 @@ def get_user_from_token(token_string):
         
     except (TokenError, InvalidToken, User.DoesNotExist):
         return None
+    
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # 1. Pega os parâmetros da URL para encontrar o ?token=...
@@ -40,10 +41,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         if user and user.is_authenticated:
             self.user = user
             
-            # 3. 🔒 MÁGICA DA PRIVACIDADE: 
-            # O nome da sala FICA EXATAMENTE IGUAL ao disparado no envio do backend
-            # Ex: "user_notifications_15"
-            self.room_group_name = f'user_notifications_{self.user.id}'
+            # 🔒 CORREÇÃO AQUI: 
+            # Se o erro diz que não existe 'id', use 'uuid' ou 'pk'
+            # 'pk' (Primary Key) é o jeito mais seguro de referenciar o ID de qualquer modelo
+            self.room_group_name = f'user_notifications_{self.user.pk}' 
 
             await self.channel_layer.group_add(
                 self.room_group_name,
@@ -51,7 +52,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             )
 
             await self.accept()
-            print(f"✅ Usuário {self.user.email} (ID: {self.user.id}) TRANCADO na sala: {self.room_group_name}")
+            print(f"✅ Usuário {self.user.email} TRANCADO na sala: {self.room_group_name}")
+            
         else:
             print("❌ Conexão negada: Token inválido ou expirado.")
             await self.close(code=4001)
