@@ -32,7 +32,7 @@ def processar_documento_rejeitado(projeto, documento):
             category="DOCUMENTO_RECUSADO"
         )
         # 2. Dispara o alerta para o cliente específico via WebSocket
-        enviar_notificacao_websocket(f'user_notifications_{cliente.id}', notif.title, notif.message)
+        enviar_notificacao_websocket(f'user_notifications_{cliente.pk}', notif.title, notif.message)
         logger.info(f"Notificação enviada via WS para cliente {cliente.id}.")
     except Exception as e:
         logger.error(f"Erro: {str(e)}")
