@@ -67,7 +67,7 @@ def processar_solicitacao_vistoria(projeto, cliente_solicitante):
             {
                 "type": "send_notification",
                 "data": {
-                    "title": "📋 Nova Vistoria Solicitada",
+                    "title": "Nova Vistoria Solicitada",
                     "message": f"O cliente {projeto.nomeTitular} solicitou uma vistoria para o projeto {projeto.codigoCliente}.",
                     "url": f"/admin/projetos/{projeto.pk}/" # Link para o admin verificar
                 }
