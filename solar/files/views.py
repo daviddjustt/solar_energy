@@ -12,6 +12,7 @@ from io import BytesIO
 
 from rest_framework.exceptions import PermissionDenied
 from solar.users.models import User
+from solar.notifications import  processar_comprovante_adicionado, processar_boleto_adicionado
 #
 from .serializers import DocumentUser, DocumentUserSerializer
 
@@ -91,15 +92,26 @@ class DocumentUserListCreateView(generics.ListCreateAPIView):
         raise PermissionDenied("Você não tem permissão para acessar estes documentos.")
 
     def perform_create(self, serializer):
-        # Esta é a parte crucial para injetar o usuário
         user_pk = self.kwargs['user_pk']
         user = get_object_or_404(User, pk=user_pk)
 
-        # Opcional: Validação de permissão para criar documentos para este usuário
         if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff):
-            # Injeta o objeto User no contexto do serializer
             serializer.context['user'] = user
-            serializer.save() # Chama o método create do serializer
+            
+            # 1. SALVAMOS O DOCUMENTO E CAPTURAMOS A INSTÂNCIA
+            documento = serializer.save() 
+
+            # 2. GATILHOS DE NOTIFICAÇÃO
+            tipo_doc = documento.document_type.upper() # Previne erros de case sensitive
+            
+            # Se for um ADMIN adicionando um BOLETO
+            if tipo_doc == 'BOLETO' and (self.request.user.is_admin or self.request.user.is_staff):
+                processar_boleto_adicionado(cliente=user, documento=documento)
+                
+            # Se for o próprio CLIENTE adicionando um COMPROVANTE
+            elif tipo_doc == 'COMPROVANTE' and self.request.user == user:
+                processar_comprovante_adicionado(cliente=user, documento=documento)
+
         else:
             raise PermissionDenied("Você não tem permissão para criar documentos para este usuário.")
 
@@ -129,23 +141,30 @@ class DocumentUserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIVie
         document = self.get_object()
         user_request = self.request.user
 
-        # Lógica de permissão para atualização:
-        # - Apenas admins/superusers podem alterar 'status' ou 'document_type'.
-        # - O próprio usuário pode atualizar o 'arquivo' se for o dono do documento.
-        # - Outras atualizações podem ser permitidas ou restritas conforme a necessidade.
-
         if 'status' in serializer.validated_data and not (user_request.is_staff or user_request.is_superuser):
             raise PermissionDenied("Apenas administradores podem alterar o status do documento.")
 
         if 'document_type' in serializer.validated_data and not (user_request.is_staff or user_request.is_superuser):
             raise PermissionDenied("Apenas administradores podem alterar o tipo do documento.")
 
-        # Se o arquivo está sendo atualizado, verificar permissões
         if 'arquivo' in serializer.validated_data:
             if not (user_request == document.user or user_request.is_staff or user_request.is_superuser):
                 raise PermissionDenied("Você não tem permissão para atualizar o arquivo deste documento.")
 
-        serializer.save()
+        # 1. SALVAMOS A ATUALIZAÇÃO
+        documento_atualizado = serializer.save()
+
+        # 2. GATILHOS DE NOTIFICAÇÃO (Apenas se o arquivo físico foi trocado/adicionado)
+        if 'arquivo' in serializer.validated_data:
+            tipo_doc = documento_atualizado.document_type.upper()
+            
+            # Se o Admin atualizou o arquivo do BOLETO
+            if tipo_doc == 'BOLETO' and (user_request.is_admin or user_request.is_staff):
+                processar_boleto_adicionado(cliente=document.user, documento=documento_atualizado)
+                
+            # Se o Cliente atualizou o arquivo do COMPROVANTE
+            elif tipo_doc == 'COMPROVANTE' and user_request == document.user:
+                processar_comprovante_adicionado(cliente=document.user, documento=documento_atualizado)
 
     def perform_destroy(self, instance):
         user_request = self.request.user

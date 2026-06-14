@@ -45,7 +45,12 @@ from drf_spectacular.types import OpenApiTypes
 logger = logging.getLogger(__name__)
 from .models import ClientProject, ProjectProtocol
 from .permissions import IsAdminOrTechnician # Aquela que criamos no início
-from solar.notifications.services import processar_solicitacao_vistoria, processar_documento_rejeitado
+from solar.notifications.services import (
+    processar_solicitacao_vistoria, 
+    processar_documento_rejeitado,
+    processar_boleto_adicionado,
+    processar_comprovante_adicionado
+)
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -555,7 +560,7 @@ class SolicitarVistoriaView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.ListCreateAPIView
+class ProjectDocumentListView(viewsets.ModelViewSet):
     serializer_class = DocumentUploadSerializer
     queryset = ProjectDocument.objects.all().order_by('-created_at')
     pagination_class = None
@@ -564,11 +569,9 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ProjectDocument.objects.none()
-        # Filtra documentos pertencentes ao projeto da URL
         return ProjectDocument.objects.filter(project_id=project_pk).order_by('-created_at')
 
     def list(self, request, *args, **kwargs):
-        # Mantém o formato de resposta em array [] esperado pelo front-end
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -576,24 +579,48 @@ class ProjectDocumentListView(viewsets.ModelViewSet): # Alterado de generics.Lis
     def perform_create(self, serializer):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
-        serializer.save(project=project)
+        
+        # 1. Salva o documento no banco e recebe a instância gerada
+        documento = serializer.save(project=project)
+        
+        # 2. --- GATILHOS DE NOTIFICAÇÃO ---
+        tipo_doc = documento.document_type
+        user_request = self.request.user
+        
+        # Regra A: Admin (ou staff) adicionando 'boleto'
+        if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+            processar_boleto_adicionado(projeto=project, documento=documento)
+            
+        # Regra B: Cliente adicionando 'comprovante_de_pagamento'
+        elif tipo_doc == 'comprovante_de_pagamento' and user_request == project.created_by:
+            processar_comprovante_adicionado(projeto=project, documento=documento, cliente_remetente=user_request)
 
     def perform_update(self, serializer):
-        # 1. Captura o status antes de salvar
+        # Captura o status antes de salvar
         novo_status = serializer.validated_data.get('status')
         
-        # 2. Garante que 'instance' receba o objeto salvo em qualquer um dos caminhos
+        # Garante que 'instance' receba o objeto salvo
         if novo_status == 'APPROVED':
             from django.utils import timezone
             instance = serializer.save(approved_at=timezone.now())
         else:
             instance = serializer.save()
 
+        # Gatilho já existente de documento recusado
         if novo_status == ProjectDocument.STATUS_REJECTED:
-            processar_documento_rejeitado(
-                projeto=instance.project,
-                documento=instance
-            )
+            processar_documento_rejeitado(projeto=instance.project, documento=instance)
+
+        # --- NOVOS GATILHOS DE NOTIFICAÇÃO (Caso haja alteração de arquivo) ---
+        # Se a atualização enviar um novo 'arquivo', disparamos o aviso novamente.
+        if 'arquivo' in serializer.validated_data:
+            tipo_doc = instance.document_type
+            user_request = self.request.user
+            
+            if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+                processar_boleto_adicionado(projeto=instance.project, documento=instance)
+                
+            elif tipo_doc == 'comprovante_de_pagamento' and user_request == instance.project.created_by:
+                processar_comprovante_adicionado(projeto=instance.project, documento=instance, cliente_remetente=user_request)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
