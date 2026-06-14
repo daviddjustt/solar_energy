@@ -12,7 +12,7 @@ from io import BytesIO
 
 from rest_framework.exceptions import PermissionDenied
 from solar.users.models import User
-from solar.notifications import  processar_comprovante_adicionado, processar_boleto_adicionado
+from solar.notifications.services import  processar_comprovante_adicionado, processar_boleto_adicionado
 #
 from .serializers import DocumentUser, DocumentUserSerializer
 
