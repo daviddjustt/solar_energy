@@ -34,32 +34,73 @@ def enviar_notificacao_websocket(group_name, title, message, url=""):
 # ==========================================
 def processar_documento_rejeitado(projeto, documento):
     """
-    Notifica o cliente quando um documento enviado por ele é recusado na análise.
+    Notifica o cliente quando um documento ou comprovante é recusado.
+    A mensagem se adapta automaticamente ao tipo de arquivo.
     """
     cliente = projeto.created_by
     if not cliente: 
         return
 
-    motivo = documento.rejection_reason or "Verifique detalhes na plataforma."
+    motivo = documento.rejection_reason or "Verifique os detalhes na plataforma."
     
+    # 🧠 Lógica inteligente: O texto muda se for um comprovante de pagamento
+    if documento.document_type == 'comprovante_de_pagamento':
+        titulo = "❌ Comprovante Recusado"
+        mensagem = f"O comprovante de pagamento do projeto {projeto.codigoCliente} não foi aceito. Motivo: {motivo}"
+        categoria = "COMPROVANTE_RECUSADO"
+    else:
+        # Pega o nome amigável do documento (ex: "Contrato Social" em vez de "contrato_social")
+        nome_doc = documento.get_document_type_display() or "documento"
+        titulo = "❌ Documento Recusado"
+        mensagem = f"O seu arquivo '{nome_doc}' do projeto {projeto.codigoCliente} foi recusado. Motivo: {motivo}"
+        categoria = "DOCUMENTO_RECUSADO"
+
     try:
         # 1. Salva a notificação no banco de dados
         notif = Notification.objects.create(
             project=projeto, 
             recipient=cliente,
-            title="❌ Documento Recusado",
-            message=f"O documento do projeto {projeto.codigoCliente} foi recusado. Motivo: {motivo}",
-            category="DOCUMENTO_RECUSADO"
+            title=titulo,
+            message=mensagem,
+            category=categoria
         )
         
-        # 2. Dispara o alerta apenas para a sala privada do cliente
+        # 2. Dispara o alerta via WebSocket
         enviar_notificacao_websocket(f'user_notifications_{cliente.pk}', notif.title, notif.message)
-        logger.info(f"Notificação de recusa enviada via WS para cliente {cliente.pk}.")
+        logger.info(f"Notificação de recusa ({categoria}) enviada via WS para cliente {cliente.pk}.")
         
     except Exception as e:
         logger.error(f"Erro ao notificar recusa de documento: {str(e)}")
 
 
+def processar_documento_aprovado(projeto, documento):
+    """
+    Notifica o cliente apenas quando documentos cruciais (como comprovantes) são aprovados.
+    """
+    cliente = projeto.created_by
+    if not cliente: 
+        return
+
+    # Só queremos incomodar o cliente com uma notificação feliz se for o pagamento.
+    # (Se você quiser notificar TODO documento aprovado, basta remover este 'if')
+    if documento.document_type == 'comprovante_de_pagamento':
+        titulo = "✅ Pagamento Aprovado!"
+        mensagem = f"O seu comprovante de pagamento para o projeto {projeto.codigoCliente} foi analisado e aprovado com sucesso."
+        categoria = "COMPROVANTE_APROVADO"
+        
+        try:
+            notif = Notification.objects.create(
+                project=projeto, 
+                recipient=cliente,
+                title=titulo, 
+                message=mensagem, 
+                category=categoria
+            )
+            enviar_notificacao_websocket(f'user_notifications_{cliente.pk}', notif.title, notif.message)
+            logger.info(f"Notificação de aprovação de pagamento enviada via WS para cliente {cliente.pk}.")
+        except Exception as e:
+            logger.error(f"Erro ao notificar aprovação de comprovante: {str(e)}")
+            
 def processar_boleto_adicionado(projeto, documento):
     """
     Notifica o cliente que a empresa gerou um boleto e anexou ao projeto dele.

@@ -49,7 +49,8 @@ from solar.notifications.services import (
     processar_solicitacao_vistoria, 
     processar_documento_rejeitado,
     processar_boleto_adicionado,
-    processar_comprovante_adicionado
+    processar_comprovante_adicionado,
+    processar_documento_aprovado,
 )
 
 class ProjectExportExcelView(APIView):
@@ -606,12 +607,19 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
         else:
             instance = serializer.save()
 
-        # Gatilho já existente de documento recusado
+        # ==========================================
+        # 1. GATILHOS DE MUDANÇA DE STATUS (Aprovação / Recusa)
+        # ==========================================
         if novo_status == ProjectDocument.STATUS_REJECTED:
             processar_documento_rejeitado(projeto=instance.project, documento=instance)
+            
+        elif novo_status == ProjectDocument.STATUS_APPROVED:
+            # 🟢 O NOVO GATILHO DE APROVAÇÃO ENTRA AQUI
+            processar_documento_aprovado(projeto=instance.project, documento=instance)
 
-        # --- NOVOS GATILHOS DE NOTIFICAÇÃO (Caso haja alteração de arquivo) ---
-        # Se a atualização enviar um novo 'arquivo', disparamos o aviso novamente.
+        # ==========================================
+        # 2. GATILHOS DE ALTERAÇÃO DE ARQUIVO FÍSICO
+        # ==========================================
         if 'arquivo' in serializer.validated_data:
             tipo_doc = instance.document_type
             user_request = self.request.user
