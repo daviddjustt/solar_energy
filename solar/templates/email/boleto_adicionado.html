@@ -1,4 +1,3 @@
-{% extends "email/base_email.html" %}
 {% load i18n %}
 
 {% block subject %}📄 Novo Boleto Disponível - {{ site_name }}{% endblock subject %}
@@ -9,7 +8,9 @@ A equipe adicionou um novo boleto de pagamento ao seu projeto {{ codigo_cliente 
 Acesse seu painel para baixar o arquivo: {{ frontend_url }}
 {% endblock text_body %}
 
-{% block content %}
+{% block html_body %}
+    {% include "email/base_header.html" %}
+    
     <h2>{% trans "Novo Boleto Disponível" %}</h2>
     <p>{% trans "Olá" %} <strong>{{ nome_titular }}</strong>,</p>
     
@@ -22,4 +23,6 @@ Acesse seu painel para baixar o arquivo: {{ frontend_url }}
     <p style="margin-top: 30px; font-size: 0.9em; color: #777;">
         {% trans "Caso tenha dúvidas sobre valores ou prazos, entre em contato com nosso setor financeiro." %}
     </p>
-{% endblock content %}
+    
+    {% include "email/base_footer.html" %}
+{% endblock html_body %}
