@@ -34,8 +34,7 @@ import logging
 from solar.users.email import (
     VistoriaRequestEmail, 
     ProtocoloChangedEmail,
-    DocumentRejectedEmail,
-    DocumentApprovedEmail,         
+    DocumentRejectedEmail,      
     BoletoAdicionadoEmail,         
     ComprovanteAdicionadoEmail
 )

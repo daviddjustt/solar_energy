@@ -1,0 +1,25 @@
+{% extends "email/base_email.html" %}
+{% load i18n %}
+
+{% block subject %}📄 Novo Boleto Disponível - {{ site_name }}{% endblock subject %}
+
+{% block text_body %}
+Olá {{ nome_titular }},
+A equipe adicionou um novo boleto de pagamento ao seu projeto {{ codigo_cliente }}.
+Acesse seu painel para baixar o arquivo: {{ frontend_url }}
+{% endblock text_body %}
+
+{% block content %}
+    <h2>{% trans "Novo Boleto Disponível" %}</h2>
+    <p>{% trans "Olá" %} <strong>{{ nome_titular }}</strong>,</p>
+    
+    <p>{% trans "Informamos que um novo boleto de pagamento foi gerado e anexado ao seu projeto de código" %} <strong>{{ codigo_cliente }}</strong>.</p>
+    
+    <div style="text-align: center;">
+        <a href="{{ frontend_url }}" class="btn">Visualizar e Baixar Boleto</a>
+    </div>
+    
+    <p style="margin-top: 30px; font-size: 0.9em; color: #777;">
+        {% trans "Caso tenha dúvidas sobre valores ou prazos, entre em contato com nosso setor financeiro." %}
+    </p>
+{% endblock content %}
