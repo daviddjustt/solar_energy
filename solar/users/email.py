@@ -123,7 +123,6 @@ class AdminProtocoloNotificationEmail(BaseEmailMessage):
 
     def get_context_data(self):
         context = super().get_context_data()
-        # ... seu código de contexto ...
         return context
 
     # Adicione este método para garantir que o render seja disparado manualmente 
