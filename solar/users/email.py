@@ -117,7 +117,11 @@ class StatusProjetoChangedEmail(BaseEmailMessage):
 
 class AdminProtocoloNotificationEmail(BaseEmailMessage):
     template_name = 'email/protocolo_changed.html'
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Forçamos o assunto aqui para garantir que a Brevo nunca receba um e-mail sem assunto
+        self.subject = "🚨 Nova notificação de protocolo"
+        
     def get_context_data(self):
         context = super().get_context_data()
         projeto = context.get('projeto')
