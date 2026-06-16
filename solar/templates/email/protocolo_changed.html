@@ -1,54 +1,22 @@
-{% extends "email/base_email.html" %}
 {% load i18n %}
 
 {% block subject %}
-{% if acao == 'criado' %}🆕{% else %}🔄{% endif %} {% trans "Atualização de Protocolo" %} - {{ projeto.codigoCliente }}
+🚨 Nova solicitação de protocolo - {{ projeto.codigoCliente }}
 {% endblock subject %}
 
 {% block text_body %}
-{% trans "Olá," %}
-{% trans "Houve uma atualização no protocolo do projeto." %}
-
-{% trans "Dados do Protocolo:" %}
-- {% trans "Ação" %}: {{ acao|capfirst }}
-- {% trans "Código do Cliente" %}: {{ projeto.codigoCliente }}
-- {% trans "Número do Protocolo" %}: {{ protocolo.numero_protocolo|default:"N/A" }}
-- {% trans "Data Limite" %}: {{ protocolo.data_limite|date:"d/m/Y"|default:"N/A" }}
-
-{% trans "Acesse o sistema para mais detalhes." %}
+Olá,
+Uma nova solicitação de protocolo foi registrada para o projeto {{ projeto.codigoCliente }}.
+Dados: {{ dados_protocolo }}
 {% endblock text_body %}
 
 {% block html_body %}
-    {% include "email/base_header.html" %}
-    
-    <div class="content">
-        <h2>{% trans "Atualização de Protocolo" %}</h2>
-        <p>{% trans "Olá," %}</p>
-        <p>{% trans "Informamos que houve uma atualização recente no protocolo do seu projeto." %}</p>
-        
-        <table class="info-table">
-            <tr>
-                <td class="label">{% trans "Ação" %}:</td>
-                <td><strong>{{ acao|capfirst }}</strong></td>
-            </tr>
-            <tr>
-                <td class="label">{% trans "Código do Cliente" %}:</td>
-                <td>{{ projeto.codigoCliente }}</td>
-            </tr>
-            <tr>
-                <td class="label">{% trans "Número do Protocolo" %}:</td>
-                <td>{{ protocolo.numero_protocolo|default:"-" }}</td>
-            </tr>
-            <tr>
-                <td class="label">{% trans "Data Limite" %}:</td>
-                <td>{{ protocolo.data_limite|date:"d/m/Y"|default:"-" }}</td>
-            </tr>
-        </table>
-        
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="{{ frontend_url }}" class="btn">{% trans "Acessar Projeto" %}</a>
-        </div>
-    </div>
-    
-    {% include "email/base_footer.html" %}
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Novo Protocolo Registrado</h1>
+    <p>O cliente {{ nome_titular }} enviou novos dados de protocolo.</p>
+    <p>Código: {{ codigo_cliente }}</p>
+    </body>
+</html>
 {% endblock html_body %}

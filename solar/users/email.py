@@ -119,24 +119,19 @@ class AdminProtocoloNotificationEmail(BaseEmailMessage):
     template_name = 'email/protocolo_changed.html'
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Forçamos o assunto aqui para garantir que a Brevo nunca receba um e-mail sem assunto
         self.subject = "🚨 Nova notificação de protocolo"
-        
+
     def get_context_data(self):
         context = super().get_context_data()
-        projeto = context.get('projeto')
-        dados_protocolo = context.get('dados_protocolo') # Os 2 campos que o cliente informou
-        
-        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
-        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
-        
-        context.update({
-            'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
-            'nome_titular': projeto.nomeTitular,
-            'codigo_cliente': projeto.codigoCliente,
-            'dados_protocolo': dados_protocolo,
-        })
+        # ... seu código de contexto ...
         return context
+
+    # Adicione este método para garantir que o render seja disparado manualmente 
+    # se o backend não estiver pegando os blocos automaticamente
+    def send(self, to, *args, **kwargs):
+        self.html_body = self.render('html_body')
+        self.text_body = self.render('text_body')
+        super().send(to, *args, **kwargs)
     
 class VistoriaRequestEmail(BaseEmailMessage):
     """
