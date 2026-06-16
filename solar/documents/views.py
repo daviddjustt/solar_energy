@@ -33,7 +33,7 @@ from .serializers import (
 import logging
 from solar.users.email import (
     VistoriaRequestEmail, 
-    ProtocoloChangedEmail,
+    AdminProtocoloNotificationEmail,
     DocumentRejectedEmail,      
     BoletoAdicionadoEmail,         
     ComprovanteAdicionadoEmail,
@@ -209,7 +209,7 @@ class ProjectProtocolViewSet(viewsets.ModelViewSet):
             projeto = protocolo.project
             if projeto and projeto.created_by and projeto.created_by.email:
                 
-                ProtocoloChangedEmail(
+                AdminProtocoloNotificationEmail(
                     context={
                         'protocolo': protocolo,
                         'projeto': projeto,
