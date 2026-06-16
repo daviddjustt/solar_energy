@@ -54,6 +54,7 @@ class Common(Configuration):
         'simple_history.middleware.HistoryRequestMiddleware',
         'whitenoise.middleware.WhiteNoiseMiddleware',
     )
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
     # CSRF Trusted Origins
     CSRF_TRUSTED_ORIGINS = os.getenv(
