@@ -115,16 +115,26 @@ class StatusProjetoChangedEmail(BaseEmailMessage):
         logger.info(f"Email de mudança de status ({status_novo}) preparado para o projeto ID: {projeto.id if projeto else 'N/A'}")
         return context
 
-class ProtocoloChangedEmail(BaseEmailMessage): # Supondo que você tenha uma BaseEmail
-    template_name = 'emails/protocolo_changed.html' # Você criará esse template
-    
+class ProtocoloChangedEmail(BaseEmailMessage):
+    template_name = 'email/protocolo_changed.html'
+
     def get_context_data(self):
-        return {
-            'protocolo': self.context.get('protocolo'),
-            'projeto': self.context.get('projeto'),
-            'acao': self.context.get('acao')
-        }
-  
+        context = super().get_context_data()
+        projeto = context.get('projeto')
+        
+        # Configuração de URLs
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
+        
+        context.update({
+            'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': settings.STATIC_URL,
+            # URL que aponta para o projeto específico
+            'frontend_url': f"{_protocol}://{_domain}/projects/{projeto.id}/"
+        })
+        return context
 class VistoriaRequestEmail(BaseEmailMessage):
     """
     Email disparado para a administração quando um cliente solicita uma vistoria.
