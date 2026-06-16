@@ -3,7 +3,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from solar.notifications.models import Notification
-
+from solar.users.email import AdminProtocoloNotificationEmail
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
@@ -72,7 +72,42 @@ def processar_documento_rejeitado(projeto, documento):
     except Exception as e:
         logger.error(f"Erro ao notificar recusa de documento: {str(e)}")
 
+def processar_notificacao_admin_protocolo(projeto, dados_protocolo):
+    """
+    Dispara E-mail e Notificação WebSocket para todos os administradores.
+    """
+    admins = User.objects.filter(is_admin=True)
+    if not admins.exists():
+        return
 
+    titulo = "🆕 Novo Protocolo Registrado"
+    mensagem = f"O cliente {projeto.nomeTitular} enviou dados de protocolo para o projeto {projeto.codigoCliente}."
+
+    # 1. Disparo WebSocket (Notificação em tempo real)
+    notificacoes_para_criar = [
+        Notification(
+            project=projeto,
+            recipient=admin,
+            title=titulo,
+            message=mensagem,
+            category="NOVO_PROTOCOLO"
+        )
+        for admin in admins
+    ]
+    Notification.objects.bulk_create(notificacoes_para_criar)
+    enviar_notificacao_websocket("Administradores", titulo, mensagem)
+
+    # 2. Disparo de E-mail (Notificação assíncrona)
+    # Aqui você instancia o email e envia para a lista de e-mails dos admins
+    emails_admin = admins.values_list('email', flat=True)
+    email_service = AdminProtocoloNotificationEmail(
+        context={'projeto': projeto, 'dados_protocolo': dados_protocolo}
+    )
+    email_service.send(to=list(emails_admin))
+    
+    logger.info(f"Notificação de novo protocolo (E-mail + WS) enviada para {len(admins)} admins.")
+    
+    
 def processar_documento_aprovado(projeto, documento):
     """
     Notifica o cliente apenas quando documentos cruciais (como comprovantes) são aprovados.
