@@ -117,6 +117,15 @@ class StatusProjetoChangedEmail(BaseEmailMessage):
 
 class ProtocoloChangedEmail(BaseEmailMessage):
     template_name = 'email/protocolo_changed.html'
+    def get_subject(self):
+        # 1. Recupera o contexto que já está disponível
+        context = self.get_context_data()
+        acao = context.get('acao')
+        projeto = context.get('projeto')
+        
+        # 2. Monta o assunto manualmente
+        icon = "🆕" if acao == 'criado' else "🔄"
+        return f"{icon} Atualização de Protocolo - {projeto.codigoCliente}"
 
     def get_context_data(self):
         context = super().get_context_data()
