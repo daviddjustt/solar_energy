@@ -11,6 +11,30 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class DocumentApprovedEmail(BaseEmailMessage):
+    """Email disparado para o cliente quando um comprovante/documento é aprovado."""
+    template_name = 'email/document_approved.html'
+
+    def get_context_data(self):
+        context = super().get_context_data()
+        documento = context.get('documento')
+        projeto = context.get('projeto')
+        
+        _protocol = "https" if getattr(settings, 'IS_PRODUCTION', False) else "http"
+        _domain = getattr(settings, 'DOMAIN', 'localhost:8080')
+        
+        context.update({
+            'site_name': getattr(settings, 'SITE_NAME', 'SN Tech Solar'),
+            'protocol': _protocol,
+            'domain': _domain,
+            'STATIC_URL': settings.STATIC_URL,
+            'nome_titular': getattr(projeto, 'nomeTitular', 'Cliente'),
+            'codigo_cliente': getattr(projeto, 'codigoCliente', 'N/A'),
+            'tipo_documento': documento.get_document_type_display() if documento else 'Documento',
+            'frontend_url': getattr(settings, 'FRONTEND_URL', f"{_protocol}://{_domain}")
+        })
+        return context
+
 class BoletoAdicionadoEmail(BaseEmailMessage):
     """Email disparado para o cliente quando a empresa anexa um boleto."""
     template_name = 'email/boleto_adicionado.html'

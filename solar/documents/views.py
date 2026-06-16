@@ -36,7 +36,8 @@ from solar.users.email import (
     ProtocoloChangedEmail,
     DocumentRejectedEmail,      
     BoletoAdicionadoEmail,         
-    ComprovanteAdicionadoEmail
+    ComprovanteAdicionadoEmail,
+    DocumentApprovedEmail,
 )
 
 
