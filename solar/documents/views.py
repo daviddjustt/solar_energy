@@ -31,7 +31,16 @@ from .serializers import (
     ProjectProtocolSerializer
 )
 import logging
-from solar.users.email import VistoriaRequestEmail, ProtocoloChangedEmail
+from solar.users.email import (
+    VistoriaRequestEmail, 
+    ProtocoloChangedEmail,
+    DocumentRejectedEmail,
+    DocumentApprovedEmail,         
+    BoletoAdicionadoEmail,         
+    ComprovanteAdicionadoEmail
+)
+
+
 from django.contrib.auth import get_user_model
 User = get_user_model()
 import openpyxl
@@ -581,54 +590,86 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         
-        # 1. Salva o documento no banco e recebe a instância gerada
         documento = serializer.save(project=project)
         
-        # 2. --- GATILHOS DE NOTIFICAÇÃO ---
         tipo_doc = documento.document_type
         user_request = self.request.user
         
-        # Regra A: Admin (ou staff) adicionando 'boleto'
+        # 1. Regra: Admin adicionando 'boleto'
         if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+            # WS & DB
             processar_boleto_adicionado(projeto=project, documento=documento)
+            # EMAIL
+            if project.created_by and project.created_by.email:
+                BoletoAdicionadoEmail(
+                    context={'projeto': project, 'documento': documento}
+                ).send(to=[project.created_by.email])
             
-        # Regra B: Cliente adicionando 'comprovante_de_pagamento'
+        # 2. Regra: Cliente adicionando 'comprovante_de_pagamento'
         elif tipo_doc == 'comprovante_de_pagamento' and user_request == project.created_by:
+            # WS & DB
             processar_comprovante_adicionado(projeto=project, documento=documento, cliente_remetente=user_request)
+            # EMAIL (Para e-mail fixo + Admins)
+            destinatarios = ['sntecsolar.ba@gmail.com']
+            admins = User.objects.filter(is_admin=True)
+            for admin in admins:
+                if admin.email and admin.email not in destinatarios:
+                    destinatarios.append(admin.email)
+            
+            ComprovanteAdicionadoEmail(
+                context={'projeto': project, 'cliente': user_request}
+            ).send(to=destinatarios)
 
     def perform_update(self, serializer):
-        # Captura o status antes de salvar
         novo_status = serializer.validated_data.get('status')
         
-        # Garante que 'instance' receba o objeto salvo
         if novo_status == 'APPROVED':
-            from django.utils import timezone
             instance = serializer.save(approved_at=timezone.now())
         else:
             instance = serializer.save()
 
+        user_request = self.request.user
+        
         # ==========================================
-        # 1. GATILHOS DE MUDANÇA DE STATUS (Aprovação / Recusa)
+        # 1. GATILHOS DE MUDANÇA DE STATUS
         # ==========================================
         if novo_status == ProjectDocument.STATUS_REJECTED:
+            # WS & DB
             processar_documento_rejeitado(projeto=instance.project, documento=instance)
+            # EMAIL
+            if instance.project.created_by and instance.project.created_by.email:
+                DocumentRejectedEmail(
+                    context={'projeto': instance.project, 'documento': instance, 'motivo': instance.rejection_reason}
+                ).send(to=[instance.project.created_by.email])
             
         elif novo_status == ProjectDocument.STATUS_APPROVED:
-            # 🟢 O NOVO GATILHO DE APROVAÇÃO ENTRA AQUI
+            # WS & DB
             processar_documento_aprovado(projeto=instance.project, documento=instance)
+            # EMAIL (Somente para comprovantes aprovados para não encher a caixa do cliente)
+            if instance.document_type == 'comprovante_de_pagamento' and instance.project.created_by and instance.project.created_by.email:
+                DocumentApprovedEmail(
+                    context={'projeto': instance.project, 'documento': instance}
+                ).send(to=[instance.project.created_by.email])
 
         # ==========================================
         # 2. GATILHOS DE ALTERAÇÃO DE ARQUIVO FÍSICO
         # ==========================================
         if 'arquivo' in serializer.validated_data:
             tipo_doc = instance.document_type
-            user_request = self.request.user
             
             if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
                 processar_boleto_adicionado(projeto=instance.project, documento=instance)
+                if instance.project.created_by and instance.project.created_by.email:
+                    BoletoAdicionadoEmail(context={'projeto': instance.project, 'documento': instance}).send(to=[instance.project.created_by.email])
                 
             elif tipo_doc == 'comprovante_de_pagamento' and user_request == instance.project.created_by:
                 processar_comprovante_adicionado(projeto=instance.project, documento=instance, cliente_remetente=user_request)
+                destinatarios = ['sntecsolar.ba@gmail.com']
+                admins = User.objects.filter(is_admin=True)
+                for admin in admins:
+                    if admin.email and admin.email not in destinatarios:
+                        destinatarios.append(admin.email)
+                ComprovanteAdicionadoEmail(context={'projeto': instance.project, 'cliente': user_request}).send(to=destinatarios)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -636,7 +677,6 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
             project_pk = self.kwargs.get('project_pk')
             context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
-
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
     queryset = ConsumerUnit.objects.all().order_by('id')
