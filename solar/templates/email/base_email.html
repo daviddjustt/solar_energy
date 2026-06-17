@@ -1,52 +1,33 @@
-{% load i18n %}
-
-{% block subject %}
-{% endblock subject %}
-
-{% block text_body %}
-{% endblock text_body %}
-
-{% block html_body %}
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ site_name }}</title>
     <style>
-        /* ESTILOS GLOBAIS - Serão aplicados em TODOS os emails */
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; margin-bottom: 30px; }
-        .header img { max-width: 180px; height: auto; }
-        .content { min-height: 150px; }
-        .footer { border-top: 2px solid #f0f0f0; padding-top: 20px; margin-top: 30px; font-size: 0.85em; color: #888; text-align: center; }
-        
-        /* CLASSES UTILITÁRIAS - Os filhos podem usar à vontade */
-        .btn { display: inline-block; background-color: #007bff; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }
-        .alert-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        .success-box { background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #f9f9f9; border-radius: 4px; }
-        .info-table td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
-        .info-table td.label { font-weight: bold; color: #555; width: 40%; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; }
+        .wrapper { width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e1e6eb; }
+        .header { text-align: center; background-color: #0b2545; padding: 20px; }
+        .header img { max-width: 200px; height: auto; }
+        .content { padding: 30px; color: #333333; line-height: 1.6; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #888888; background-color: #f8f9fa; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="wrapper">
+        <!-- Header com a Imagem incorporada pelo CID da Camada 1 -->
         <div class="header">
-            <img src="{{ protocol }}://{{ domain }}{{ STATIC_URL }}images/logo-com-nome.png" alt="Logo {{ site_name }}">
+            <img src="cid:email_logo_header" alt="Logo Infraestrutura Solar">
         </div>
         
+        <!-- Bloco dinâmico injetado por cada tipo de solicitação -->
         <div class="content">
-            {% block content %}
-            {% endblock content %}
+            {% block content %}{% endblock %}
         </div>
         
+        <!-- Footer Padrão do Sistema -->
         <div class="footer">
-            <p>{% trans "Este é um e-mail automático. Por favor, não responda diretamente a este endereço." %}</p>
-            <p>&copy; {% now "Y" %} {{ site_name }}. {% trans "Todos os direitos reservados." %}</p>
+            <p>Este é um e-mail automático enviado pelo ecossistema de gerenciamento solar.</p>
+            <p>© 2026 Engenharia Solar LTDA. Todos os direitos reservados.</p>
         </div>
     </div>
 </body>
 </html>
-{% endblock html_body %}

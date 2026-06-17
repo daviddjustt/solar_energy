@@ -1,0 +1,14 @@
+{% extends "notifications/emails/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #d9534f; margin-top: 0;">Ação Necessária: Documento Recusado</h2>
+    <p>Olá, <strong>{{ projeto.created_by.get_full_name|default:"Cliente" }}</strong>,</p>
+    <p>Durante a análise do seu projeto <strong>{{ projeto.codigoCliente }}</strong>, identificamos uma não-conformidade no documento <strong>{{ nome_documento }}</strong>.</p>
+    
+    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+        <h4 style="margin: 0 0 10px 0; color: #856404;">Motivo da Recusa:</h4>
+        <p style="margin: 0; color: #856404;">{{ motivo }}</p>
+    </div>
+    
+    <p>Por favor, acesse a plataforma o mais breve possível para enviar um novo arquivo com as correções necessárias.</p>
+{% endblock %}

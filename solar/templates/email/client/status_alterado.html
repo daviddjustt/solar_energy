@@ -1,0 +1,20 @@
+{% extends "notifications/emails/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #0056b3; margin-top: 0;">Atualização de Status</h2>
+    <p>Olá,</p>
+    <p>O status do seu projeto <strong>{{ projeto.codigoCliente }}</strong> acaba de ser atualizado.</p>
+    <table width="100%" cellpadding="10" style="margin: 20px 0; border: 1px solid #e1e6eb; border-radius: 5px;">
+        <tr>
+            <td width="50%" align="center" style="background-color: #f8f9fa;">
+                <span style="font-size: 12px; color: #888;">Status Anterior</span><br>
+                <strong>{{ status_antigo }}</strong>
+            </td>
+            <td width="50%" align="center" style="background-color: #e9f5ff; border-left: 1px solid #e1e6eb;">
+                <span style="font-size: 12px; color: #0056b3;">Novo Status</span><br>
+                <strong style="color: #0056b3;">{{ status_novo }}</strong>
+            </td>
+        </tr>
+    </table>
+    <p>Acesse o portal para conferir os detalhes desta nova etapa.</p>
+{% endblock %}

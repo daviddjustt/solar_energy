@@ -1,0 +1,8 @@
+{% extends "notifications/emails/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #0056b3; margin-top: 0;">Novo Boleto em sua Conta</h2>
+    <p>Olá, <strong>{{ cliente.get_full_name|default:"Cliente" }}</strong>,</p>
+    <p>Um novo boleto administrativo foi anexado diretamente ao seu perfil.</p>
+    <p>Acesse o painel e vá até a seção <strong>Meus Documentos</strong> para realizar o download e efetuar o pagamento.</p>
+{% endblock %}

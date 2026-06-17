@@ -1,0 +1,8 @@
+{% extends "notifications/emails/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #0056b3; margin-top: 0;">Novo Boleto Disponível</h2>
+    <p>Olá, <strong>{{ projeto.created_by.get_full_name|default:"Cliente" }}</strong>,</p>
+    <p>Informamos que um novo boleto de pagamento foi gerado e anexado ao seu projeto <strong>{{ projeto.codigoCliente }}</strong>.</p>
+    <p>Para visualizar e realizar o download do arquivo, acesse a aba de documentos na nossa plataforma.</p>
+{% endblock %}

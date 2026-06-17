@@ -1,0 +1,8 @@
+{% extends "notifications/emails/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #28a745; margin-top: 0;">Documento Aprovado!</h2>
+    <p>Olá, <strong>{{ projeto.created_by.get_full_name|default:"Cliente" }}</strong>,</p>
+    <p>Temos uma ótima notícia: o arquivo <strong>{{ nome_documento }}</strong> referente ao projeto <strong>{{ projeto.codigoCliente }}</strong> foi analisado e <strong>aprovado com sucesso</strong> pela nossa equipe.</p>
+    <p>Estamos avançando para as próximas etapas do seu projeto. Você pode acompanhar todas as atualizações diretamente pelo seu painel.</p>
+{% endblock %}
