@@ -1,8 +1,8 @@
 {% extends "email/base_email.html" %}
 
 {% block content %}
-    <h2 style="color: #17a2b8; margin-top: 0;">[OPERACIONAL] Vistoria Solicitada</h2>
-    <p>Equipe de Engenharia,</p>
+    <h2 style="color: #17a2b8; margin-top: 0;">Vistoria Solicitada</h2>
+    <p>Equipe,</p>
     <p>Foi registrada uma nova solicitação de vistoria para o projeto <strong>{{ projeto.codigoCliente }}</strong> (Titular: {{ projeto.nomeTitular }}).</p>
-    <p>Por favor, acesse o sistema para verificar os detalhes, preparar a lista de materiais e dar andamento ao processo de vistoria técnica.</p>
+    <p>Por favor, acesse o sistema para verificar os detalhes.</p>
 {% endblock %}

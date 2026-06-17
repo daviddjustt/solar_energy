@@ -1,7 +1,7 @@
 {% extends "email/base_email.html" %}
 
 {% block content %}
-    <h2 style="color: #d9534f; margin-top: 0;">[ALERTA TÉCNICO] Protocolo Atualizado</h2>
+    <h2 style="color: #d9534f; margin-top: 0;">Protocolo Atualizado</h2>
     <p>Equipe,</p>
     <p>O projeto <strong>{{ projeto.codigoCliente }}</strong> (Titular: {{ projeto.nomeTitular }}) recebeu uma atualização de protocolo.</p>
     
@@ -9,6 +9,4 @@
         <p style="margin: 0 0 5px 0;"><strong>Nº do Protocolo:</strong> {{ numero_protocolo }}</p>
         <p style="margin: 0;"><strong>Vencimento/Data Limite:</strong> {{ data_limite }}</p>
     </div>
-    
-    <p>Verifique as pendências referentes a este prazo diretamente no painel administrativo.</p>
 {% endblock %}

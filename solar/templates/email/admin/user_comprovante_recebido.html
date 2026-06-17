@@ -1,8 +1,8 @@
 {% extends "email/base_email.html" %}
 
 {% block content %}
-    <h2 style="color: #28a745; margin-top: 0;">[FINANCEIRO] Comprovante Avulso Recebido</h2>
-    <p>Equipe Financeira,</p>
+    <h2 style="color: #28a745; margin-top: 0;">Comprovante Avulso Recebido</h2>
+    <p>Equipe,</p>
     <p>O usuário <strong>{{ cliente.get_full_name|default:"Cliente" }}</strong> enviou um comprovante de pagamento através do seu perfil administrativo (Comprovante sem projeto atrelado).</p>
     <p>Acesse os documentos do usuário no sistema para realizar a baixa financeira.</p>
 {% endblock %}
