@@ -2,7 +2,6 @@
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from .models import ClientProject, AndamentoDoProjeto, ProjectDocument
-from solar.users.email import StatusProjetoChangedEmail, DocumentRejectedEmail
 import logging
 
 logger = logging.getLogger(__name__)
