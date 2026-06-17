@@ -48,17 +48,8 @@ def _enviar_email_template(to_emails, subject, template_name, context):
         )
         msg.attach_alternative(html_content, "text/html")
 
-        # Caminho absoluto da logo
-        path_logo = 'solar/static/images/logo-com-nome.png'
-        
-        if os.path.exists(path_logo):
-            with open(path_logo, 'rb') as f:
-                img = MIMEImage(f.read())
-                img.add_header('Content-ID', '<email_logo_header>')
-                img.add_header('Content-Disposition', 'inline', filename='logo-com-nome.png')
-                msg.attach(img)
-        else:
-            logger.warning(f"Aviso: Arquivo de logo não encontrado em {path_logo}. O e-mail será enviado sem a imagem.")
+        # 🟢 REMOVIDO: O bloco antigo de anexo MIMEImage que o Brevo rejeitava.
+        # Agora o HTML vai buscar a logo diretamente via URL da web.
 
         msg.send(fail_silently=False)
         logger.info(f"E-mail enviado com sucesso para {to_emails}")

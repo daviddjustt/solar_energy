@@ -1,33 +1,69 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <meta charset="utf-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; }
-        .wrapper { width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e1e6eb; }
-        .header { text-align: center; background-color: #0b2545; padding: 20px; }
-        .header img { max-width: 200px; height: auto; }
-        .content { padding: 30px; color: #333333; line-height: 1.6; }
-        .footer { text-align: center; padding: 20px; font-size: 12px; color: #888888; background-color: #f8f9fa; }
-    </style>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f6f9;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e1e6eb;
+    }
+
+    .header {
+      text-align: center;
+      background-color:#F0E68C;
+      padding: 20px;
+    }
+
+    .header img {
+      max-width: 10px;
+      height: auto;
+    }
+
+    .content {
+      padding: 30px;
+      color: #333333;
+      line-height: 1.6;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #888888;
+      background-color: #f8f9fa;
+    }
+  </style>
 </head>
+
 <body>
-    <div class="wrapper">
-        <!-- Header com a Imagem incorporada pelo CID da Camada 1 -->
-        <div class="header">
-            <img src="cid:email_logo_header" alt="Logo Infraestrutura Solar">
-        </div>
-        
-        <!-- Bloco dinâmico injetado por cada tipo de solicitação -->
-        <div class="content">
-            {% block content %}{% endblock %}
-        </div>
-        
-        <!-- Footer Padrão do Sistema -->
-        <div class="footer">
-            <p>Este é um e-mail automático enviado pelo ecossistema de gerenciamento solar.</p>
-            <p>© 2026 Engenharia Solar LTDA. Todos os direitos reservados.</p>
-        </div>
+  <div class="wrapper">
+    <!-- Header com a Imagem incorporada pelo CID da Camada 1 -->
+    <div class="header">
+      <img src="https://solarenergy-production.up.railway.app/static/images/logo-com-nome.png" alt="Engenharia Solar" style="max-width: 200px; height: auto; display: block;">
     </div>
+
+    <!-- Bloco dinâmico injetado por cada tipo de solicitação -->
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer Padrão do Sistema -->
+    <div class="footer">
+      <p>Este é um e-mail automático enviado pelo SNTec Solar.</p>
+      <p>© Todos os direitos reservados.</p>
+    </div>
+  </div>
 </body>
+
 </html>
