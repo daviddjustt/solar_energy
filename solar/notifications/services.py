@@ -143,7 +143,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         message = f"Seu arquivo '{nome_doc}' do projeto {projeto.codigoCliente} não foi aceito. Motivo: {motivo}"
         email_data = {
             'subject': f"Pendência no seu Projeto Solar - {projeto.codigoCliente}",
-            'template': 'notifications/emails/cliente/documento_rejeitado.html',
+            'template': 'templates/emails/cliente/documento_rejeitado.html',
             'context': {'projeto': projeto, 'nome_documento': nome_doc, 'motivo': motivo}
         }
 
@@ -157,7 +157,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         message = f"O seu arquivo '{nome_doc}' do projeto {projeto.codigoCliente} foi analisado e aprovado."
         email_data = {
             'subject': f"Documento Aprovado - Projeto {projeto.codigoCliente}",
-            'template': 'notifications/emails/cliente/documento_aprovado.html',
+            'template': 'templates/emails/cliente/documento_aprovado.html',
             'context': {'projeto': projeto, 'nome_documento': nome_doc}
         }
         
@@ -168,7 +168,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         message = f"Um novo boleto foi anexado ao seu projeto {projeto.codigoCliente}."
         email_data = {
             'subject': f"Seu boleto está disponível - Projeto {projeto.codigoCliente}",
-            'template': 'notifications/emails/cliente/boleto_disponivel.html',
+            'template': 'templates/emails/cliente/boleto_disponivel.html',
             'context': {'projeto': projeto}
         }
 
@@ -179,7 +179,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         message = f"O status do seu projeto {projeto.codigoCliente} mudou de '{context.get('status_antigo')}' para '{context.get('status_novo')}'."
         email_data = {
             'subject': f"Atualização de Status - Projeto {projeto.codigoCliente}",
-            'template': 'notifications/emails/cliente/status_alterado.html',
+            'template': 'templates/emails/cliente/status_alterado.html',
             'context': {'projeto': projeto, 'status_antigo': context.get('status_antigo'), 'status_novo': context.get('status_novo')}
         }
         
@@ -206,7 +206,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
             'subject': f"[ALERTA TÉCNICO] Protocolo Inserido - {projeto.codigoCliente}",
-            'template': 'notifications/emails/admin/protocolo_atualizado.html',
+            'template': 'templates/emails/admin/protocolo_atualizado.html',
             'context': {'projeto': projeto, 'numero_protocolo': numero_proto, 'data_limite': data_limite_br, 'url_painel': url}
         }
 
@@ -218,7 +218,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
             'subject': f"[FINANCEIRO] Comprovante Recebido - {projeto.nomeTitular}",
-            'template': 'notifications/emails/admin/comprovante_recebido.html',
+            'template': 'templates/emails/admin/comprovante_recebido.html',
             'context': {'projeto': projeto, 'url_painel': url}
         }
 
@@ -230,7 +230,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
             'subject': f"[OPERACIONAL] Nova Vistoria Solicitada - {projeto.codigoCliente}",
-            'template': 'notifications/emails/admin/vistoria_solicitada.html',
+            'template': 'templates/emails/admin/vistoria_solicitada.html',
             'context': {'projeto': projeto, 'url_painel': url}
         }
 
@@ -243,7 +243,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         url = "/meus-documentos/"
         email_data = {
             'subject': "Novo Boleto Disponível na sua Conta",
-            'template': 'notifications/emails/cliente/user_boleto_disponivel.html',
+            'template': 'templates/emails/cliente/user_boleto_disponivel.html',
             'context': {'cliente': cliente_direto}
         }
 
@@ -256,7 +256,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         url = f"/admin/usuarios/{cliente_direto.pk}/" if cliente_direto else ""
         email_data = {
             'subject': f"[FINANCEIRO] Comprovante Avulso Recebido - {nome_cliente}",
-            'template': 'notifications/emails/admin/user_comprovante_recebido.html',
+            'template': 'templates/emails/admin/user_comprovante_recebido.html',
             'context': {'cliente': cliente_direto, 'url_painel': url}
         }
 
