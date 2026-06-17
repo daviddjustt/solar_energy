@@ -130,7 +130,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         motivo = documento.rejection_reason if (documento and documento.rejection_reason) else "Verifique as pendências no painel."
         
         category = "DOCUMENTO_RECUSADO"
-        title = f"❌ {nome_doc.title()} Recusado"
+        title = f"{nome_doc.title()} Recusado"
         message = f"Seu arquivo '{nome_doc}' do projeto {projeto.codigoCliente} não foi aceito. Motivo: {motivo}"
         email_data = {
             'subject': f"Pendência no seu Projeto Solar - {projeto.codigoCliente}",
@@ -144,7 +144,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         nome_doc = documento.get_document_type_display() if documento else "documento"
         
         category = "DOCUMENTO_APROVADO"
-        title = f"✅ {nome_doc.title()} Aprovado!"
+        title = f"{nome_doc.title()} Aprovado!"
         message = f"O seu arquivo '{nome_doc}' do projeto {projeto.codigoCliente} foi analisado e aprovado."
         email_data = {
             'subject': f"Documento Aprovado - Projeto {projeto.codigoCliente}",
@@ -156,7 +156,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'novo_projeto_criado':
         publico_alvo = 'admins'
         category = "NOVO_PROJETO"
-        title = "🆕 Novo Projeto Adicionado"
+        title = "Novo Projeto Adicionado"
         message = f"O projeto {projeto.codigoCliente} ({projeto.nomeTitular}) foi registado no sistema."
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
@@ -168,7 +168,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'boleto_adicionado':
         publico_alvo = 'cliente'
         category = "BOLETO_ADICIONADO"
-        title = "📄 Novo Boleto Disponível"
+        title = "Novo Boleto Disponível"
         message = f"Um novo boleto foi anexado ao seu projeto {projeto.codigoCliente}."
         email_data = {
             'subject': f"Seu boleto está disponível - Projeto {projeto.codigoCliente}",
@@ -179,7 +179,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'status_projeto_alterado':
         publico_alvo = 'cliente'
         category = "STATUS_ALTERADO"
-        title = "🔄 Status do Projeto Atualizado"
+        title = "Status do Projeto Atualizado"
         message = f"O status do seu projeto {projeto.codigoCliente} mudou de '{context.get('status_antigo')}' para '{context.get('status_novo')}'."
         email_data = {
             'subject': f"Atualização de Status - Projeto {projeto.codigoCliente}",
@@ -190,7 +190,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'protocolo_atualizado':
         publico_alvo = 'admins'
         category = "PROTOCOLO_ATUALIZADO"
-        title = f"📌 Protocolo Atualizado - {projeto.codigoCliente}"
+        title = f"Protocolo Atualizado - {projeto.codigoCliente}"
         
         data_limite_br = context.get('data_limite')
         if data_limite_br:
@@ -217,7 +217,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'comprovante_adicionado':
         publico_alvo = 'admins'
         category = "COMPROVANTE_ENVIADO"
-        title = "🧾 Novo Comprovante Recebido"
+        title = "Novo Comprovante Recebido"
         message = f"O cliente {projeto.nomeTitular} enviou um comprovante de pagamento para o projeto {projeto.codigoCliente}."
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
@@ -229,7 +229,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'vistoria_solicitada':
         publico_alvo = 'admins'
         category = "VISTORIA_SOLICITADA"
-        title = "🚨 Solicitação de Vistoria"
+        title = "Solicitação de Vistoria"
         message = f"O usuário {sender.get_full_name() if sender else 'Cliente'} solicitou uma vistoria para o projeto {projeto.codigoCliente}."
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
@@ -242,7 +242,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     elif evento == 'user_boleto_adicionado':
         publico_alvo = 'cliente'
         category = "BOLETO_ADICIONADO"
-        title = "📄 Novo Boleto de Cadastro"
+        title = "Novo Boleto de Cadastro"
         message = "Um novo boleto de pagamento geral foi anexado ao seu perfil administrativo. Acesse para baixar."
         url = "/meus-documentos/"
         email_data = {
@@ -255,7 +255,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         publico_alvo = 'admins'
         category = "COMPROVANTE_ENVIADO"
         nome_cliente = cliente_direto.get_full_name() if cliente_direto else "Um cliente"
-        title = "🧾 Novo Comprovante de Usuário"
+        title = "Novo Comprovante de Usuário"
         message = f"O usuário {nome_cliente} enviou um comprovante de pagamento direto no perfil."
         url = f"/admin/usuarios/{cliente_direto.pk}/" if cliente_direto else ""
         email_data = {

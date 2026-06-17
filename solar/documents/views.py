@@ -184,16 +184,56 @@ class ProjectExportExcelView(APIView):
 class ProjectProtocolViewSet(viewsets.ModelViewSet):
     queryset = ProjectProtocol.objects.all()
     serializer_class = ProjectProtocolSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        [C-R-U-D: Read (List)]
+        Filtra os protocolos: Admins/Técnicos veem tudo. 
+        Clientes comuns só conseguem listar os protocolos do seu próprio projeto.
+        """
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False):
+            return ProjectProtocol.objects.all().order_by('-id')
+        
+        return ProjectProtocol.objects.filter(project__created_by=user).order_by('-id')
 
     def perform_create(self, serializer):
+        """
+        [C-R-U-D: Create] -> POST
+        Salva o novo protocolo e dispara a notificação centralizada.
+        """
+        
         protocolo = serializer.save()
-        # DELEGAÇÃO TOTAL: A camada de serviço decide quem recebe e cuida do email/WS
+        
+        # DELEGAÇÃO TOTAL: Notifica via e-mail e WS
         notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
     def perform_update(self, serializer):
+        """
+        [C-R-U-D: Update] -> PUT e PATCH
+        Atualiza os dados e dispara a mesma notificação avisando sobre a alteração.
+        """
+        
         protocolo = serializer.save()
-        # DELEGAÇÃO TOTAL
+        
+        # DELEGAÇÃO TOTAL: Notifica alterações
         notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
+
+    def perform_destroy(self, instance):
+        """
+        [C-R-U-D: Delete] -> DELETE
+        Exclui o registro de protocolo do banco de dados.
+        """
+        
+        instance.delete()
+
+    def _check_staff_permission(self):
+        """Método auxiliar para blindar operações de escrita"""
+        user = self.request.user
+        is_staff = user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)
+        if not is_staff:
+            raise PermissionDenied("Você não tem permissão para realizar esta ação operacional.")
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = ClientProject.objects.all().order_by('-created_at')
