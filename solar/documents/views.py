@@ -31,7 +31,8 @@ from .models import (
     ListaDeMateriais, 
     ConsumerUnit, 
     ProjectStatusHistory,
-    ProjectProtocol
+    ProjectProtocol,
+    AndamentoDoProjeto, 
 )
 
 from .serializers import (
@@ -212,50 +213,96 @@ class ProjectProtocolViewSet(viewsets.ModelViewSet):
         if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
             raise PermissionDenied("Apenas a equipe técnica pode gerenciar protocolos globais.")
 
-
-# ==============================================================================
-# VIEW 2: CRUD RELACIONADO (Focado no Contexto do Projeto)
-# Endpoints: /api/v1/projects/<project_pk>/protocols/
-# ==============================================================================
 class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectProtocolSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Retorna apenas os protocolos do projeto especificado na URL da requisição."""
+        """Retorna os protocolos vinculados ao projeto da URL."""
         user = self.request.user
         project_pk = self.kwargs.get('project_pk')
-        
-        # Filtra a base pelo projeto da URL
         queryset = ProjectProtocol.objects.filter(project_id=project_pk)
         
-        # Se for cliente comum, valida se o projeto realmente pertence a ele
         if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
             queryset = queryset.filter(project__created_by=user)
             
         return queryset.order_by('-id')
 
-    def perform_create(self, serializer):
-        """Cria o protocolo vinculando-o automaticamente ao projeto capturado na URL"""
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
-            raise PermissionDenied("Você não permissão para adicionar protocolos a este projeto.")
-            
+    def list(self, request, *args, **kwargs):
+        """
+        [GET] /api/v1/projects/<project_pk>/protocols/
+        Retorna os protocolos envelopados com o status atual e o próximo do projeto.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
         project_pk = self.kwargs.get('project_pk')
+        project = get_object_or_404(ClientProject, pk=project_pk)
         
-        # Força o salvamento injetando o project_id vindo da URL
+        # Chama a lógica atualizada com os campos do seu modelo
+        status_metadata = self._calcular_status_atual_e_proximo(project)
+        
+        return Response({
+            'status_atual': status_metadata['atual'],
+            'proximo_status': status_metadata['proximo'],
+            'protocols': serializer.data
+        })
+
+    def perform_create(self, serializer):
+        project_pk = self.kwargs.get('project_pk')
         protocolo = serializer.save(project_id=project_pk)
-        
-        # Dispara e-mail e WS
         notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
-            raise PermissionDenied("Você não tem permissão para alterar este protocolo.")
-            
         protocolo = serializer.save()
-        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
+        notify_protocol_updated(protocolo.project, codebase=protocolo.numero_protocolo, data_limite=protocolo.data_limite)
+
+    # -------------------------------------------------------------------------
+    # MÉTODO AUXILIAR AJUSTADO PARA O SEU MODELO
+    # -------------------------------------------------------------------------
+    def _calcular_status_atual_e_proximo(self, project):
+        """
+        Mapeia a situação do projeto baseando-se no 'new_status' do último histórico.
+        """
+        # Como a Meta do seu modelo já tem ordering = ['-changed_at'], o .first() traz o mais atual
+        ultimo_historico = ProjectStatusHistory.objects.filter(project=project).first()
+        
+        # Se for um projeto totalmente novo sem histórico de transição ainda
+        if not ultimo_historico:
+            return {
+                'atual': AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS.value,
+                'proximo': AndamentoDoProjeto.EXECUCAO.value
+            }
+        
+        # 🟢 CORRIGIDO: Coleta o código a partir de 'new_status'
+        status_atual_code = ultimo_historico.new_status
+        status_atual_display = AndamentoDoProjeto.get_display_name(status_atual_code) or status_atual_code
+        
+        # Transforma o TextChoices em uma lista de chaves (ex: ['ANALISE_DE_DOCUMENTOS', 'EXECUCAO', ...])
+        lista_etapas = [etapa.name for etapa in AndamentoDoProjeto]
+        
+        try:
+            index_atual = lista_etapas.index(status_atual_code)
+            
+            # Validações de fim de fluxo ou desvios
+            if status_atual_code == 'REPROVADO':
+                proximo_display = "Aguardando correções/reenvio do projeto"
+            elif status_atual_code == 'CONCLUIDO':
+                proximo_display = "Nenhum (Projeto Finalizado)"
+            elif index_atual + 1 < len(lista_etapas):
+                # Avança um índice na lista e pega o nome amigável (.value)
+                proxima_etapa_code = lista_etapas[index_atual + 1]
+                proximo_display = AndamentoDoProjeto.get_display_name(proxima_etapa_code)
+            else:
+                proximo_display = "Nenhum"
+        except ValueError:
+            # Caso o status guardado não bata com nenhuma chave do TextChoices
+            proximo_display = "Não identificado"
+
+        return {
+            'atual': status_atual_display,
+            'proximo': proximo_display
+        }
         
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = ClientProject.objects.all().order_by('-created_at')
