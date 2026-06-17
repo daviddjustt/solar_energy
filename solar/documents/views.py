@@ -1,24 +1,39 @@
+# Single imports
 import os
 import zipfile
 from io import BytesIO
 import openpyxl
+import logging
 
+# Django imports
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
 from django.utils.timezone import localtime
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.auth import get_user_model
 
+# DRF & Rest imports
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
-from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema, OpenApiParameter
-from drf_spectacular.types import OpenApiTypes
 
 from solar.users.models import User
-from .models import ClientProject, ProjectDocument, ListaDeMateriais, ConsumerUnit, ProjectStatusHistory
+
+from .models import (
+    ClientProject, 
+    ProjectDocument, 
+    ListaDeMateriais, 
+    ConsumerUnit, 
+    ProjectStatusHistory,
+    ProjectProtocol
+)
+
 from .serializers import (
     ProjectInfoSerializer,
     ProjectListSerializer,
@@ -30,37 +45,19 @@ from .serializers import (
     ProjectStatusHistorySerializer,
     ProjectProtocolSerializer
 )
-import logging
-from solar.users.email import (
-    VistoriaRequestEmail, 
-    AdminProtocoloNotificationEmail,
-    DocumentRejectedEmail,      
-    BoletoAdicionadoEmail,         
-    ComprovanteAdicionadoEmail,
-    DocumentApprovedEmail,
-)
 
-
-from django.contrib.auth import get_user_model
-User = get_user_model()
-import openpyxl
-from django.http import HttpResponse
-from django.utils import timezone
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiParameter
-from drf_spectacular.types import OpenApiTypes
-logger = logging.getLogger(__name__)
-from .models import ClientProject, ProjectProtocol
-from .permissions import IsAdminOrTechnician # Aquela que criamos no início
 from solar.notifications.services import (
-    processar_solicitacao_vistoria, 
-    processar_documento_rejeitado,
-    processar_boleto_adicionado,
-    processar_comprovante_adicionado,
-    processar_documento_aprovado,
+    notify_document_rejected,
+    notify_document_approved,
+    notify_boleto_added,
+    notify_comprovante_added,
+    notify_project_status_changed,
+    notify_protocol_updated,
+    notify_inspection_requested
 )
+
+User = get_user_model()
+logger = logging.getLogger(__name__)
 
 class ProjectExportExcelView(APIView):
     permission_classes = [IsAuthenticated]
@@ -188,159 +185,92 @@ class ProjectProtocolViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectProtocolSerializer
 
     def perform_create(self, serializer):
-        # 1. Salva o protocolo no banco
         protocolo = serializer.save()
-        
-        # 2. Dispara o e-mail
-        self._enviar_email_protocolo(protocolo, "criado")
+        # DELEGAÇÃO TOTAL: A camada de serviço decide quem recebe e cuida do email/WS
+        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
     def perform_update(self, serializer):
-        # 1. Salva a alteração no banco
         protocolo = serializer.save()
-        
-        # 2. Dispara o e-mail
-        self._enviar_email_protocolo(protocolo, "atualizado")
+        # DELEGAÇÃO TOTAL
+        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
-    def _enviar_email_protocolo(self, protocolo, acao):
-        """
-        Método helper para enviar o e-mail de notificação.
-        """
-        try:
-            projeto = protocolo.project
-            if projeto and projeto.created_by and projeto.created_by.email:
-                
-                AdminProtocoloNotificationEmail(
-                    context={
-                        'protocolo': protocolo,
-                        'projeto': projeto,
-                        'acao': acao
-                    }
-                ).send(to=[projeto.created_by.email])
-                
-                logger.info(f"Email de protocolo ({acao}) enviado para {projeto.created_by.email}.")
-                
-        except Exception as e:
-            logger.error(f"Erro ao disparar email de protocolo na ViewSet: {str(e)}")
-    
 class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gerenciar projetos com filtragem dinâmica por tipo de usuário e controle de acesso robusto.
-    """
     queryset = ClientProject.objects.all().order_by('-created_at')
-    # get_permissions cuidará do detalhamento das permissões, mas o padrão será IsAuthenticated
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
     filterset_fields = ['created_by', 'codigoCliente']
 
     def get_permissions(self):
-        """
-        Define as permissões com base na ação.
-        Apenas Admins ou Técnicos podem realizar PUT/PATCH em projetos.
-        """
-        # Se for uma ação de alteração
-        if self.action in ['update', 'partial_update']:
-            return [permissions.IsAuthenticated()]
-            
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
             return ClientProject.objects.none()
-
         user = self.request.user
         if user.is_superuser or user.is_admin or user.is_tecnico:
-            # select_related adicionado para otimizar a exportação do excel que usa o self.get_queryset()
             return ClientProject.objects.select_related('created_by').order_by('-created_at')
-        
         return ClientProject.objects.filter(created_by=user).select_related('created_by').order_by('-created_at')
 
     def get_serializer_class(self):
         if getattr(self, "swagger_fake_view", False):
             return ProjectInfoSerializer
-
         user = self.request.user
-        
         if self.action in ['update', 'partial_update']:
-             # Para atualizações, você já tem o 'TecnicoClientProjectSerializer' que trava campos financeiros.
-             # Você deve garantir que dentro da classe Meta dele (no serializers.py), 
-             # o 'read_only_fields' contém as imagens e unidades geradoras.
              return TecnicoClientProjectSerializer
-             
-        # Se não for update, segue o fluxo normal de leitura:
         if user.is_authenticated and (user.is_tecnico or user.is_cliente):
             return TecnicoClientProjectSerializer
-        
         if self.action == 'list':
             return ProjectListSerializer
-        
         return ProjectInfoSerializer
     
     @action(detail=False, methods=['get'])
     def meus_projetos(self, request):
-        """Endpoint explícito para contornar requisições do Front-end"""
-        # Como o get_queryset já filtra por usuário, basta reutilizá-lo
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
     def perform_create(self, serializer):
-        # Aqui o projeto está sendo criado, o dono é o usuário logado
         serializer.save(created_by=self.request.user)
 
-
-    # ==========================================
-    # BLINDAGEM DE AÇÕES (UPDATE)
-    # ==========================================
     def _check_update_permission(self):
-        """Verifica se o usuário tem cargo suficiente para editar o projeto."""
         user = self.request.user
         if not (user.is_superuser or user.is_admin or user.is_tecnico):
              raise PermissionDenied("Apenas Administradores e Técnicos podem atualizar projetos.")
 
     def _check_financial_permission(self, serializer):
-        """Bloqueia a alteração de campos financeiros para técnicos."""
         user = self.request.user
         if user.is_authenticated and user.is_tecnico:
-            # Confirme os nomes reais dos campos financeiros do seu model aqui:
             financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
             if any(field in serializer.validated_data for field in financial_fields):
                 raise PermissionDenied("Você não tem permissão para modificar campos financeiros.")
 
     def update(self, request, *args, **kwargs):
-         # O Segurança da Porta
          self._check_update_permission()
          return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
-         # O Segurança da Porta
          self._check_update_permission()
          return super().partial_update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
-        # Pegamos o projeto ANTES de salvar a mudança
         instance = self.get_object()
         old_status = instance.status
         
-        # Salvamos o projeto com os novos dados
         updated_instance = serializer.save()
         new_status = updated_instance.status
 
-        # Se o status mudou, criamos o registro de auditoria automaticamente
         if old_status != new_status:
             ProjectStatusHistory.objects.create(
                 project=updated_instance,
-                changed_by_uuid=str(self.request.user.uuid), # Captura quem fez o request
+                changed_by_uuid=str(self.request.user.uuid),
                 old_status=old_status,
                 new_status=new_status
             )
+            # NOTIFICAÇÃO: Nova função da Camada 4
+            notify_project_status_changed(updated_instance, old_status, new_status)
 
-    # 2. O ENDPOINT GET ESPECÍFICO (Somente Leitura)
     @action(detail=True, methods=['get'], url_path='status-history')
     def status_history(self, request, pk=None):
-        """
-        Retorna o histórico de mudanças de status de um projeto específico.
-        Exemplo: GET /api/v1/projects/<id>/status-history/
-        """
         project = self.get_object()
         history = ProjectStatusHistory.objects.filter(project=project)
         serializer = ProjectStatusHistorySerializer(history, many=True)
@@ -350,149 +280,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def resumo_financeiro(self, request):
         user = request.user
         if not (user.is_superuser or user.is_admin):
-            return Response({
-                'message': 'Acesso negado ao resumo financeiro.',
-                'total_projetos': self.get_queryset().count()
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        projetos = self.get_queryset()
+            return Response({'message': 'Acesso negado ao resumo financeiro.', 'total_projetos': self.get_queryset().count()}, status=status.HTTP_403_FORBIDDEN)
         return Response({'status': 'dados calculados'})
 
-    @extend_schema(operation_id="projects_by_email")
-    @action(detail=False, methods=['get'], url_path='by_email')
-    def by_email(self, request):
-        email = request.query_params.get('email')
-        if not email:
-            return Response({"detail": "Email obrigatório."}, status=400)
-        queryset = self.get_queryset().filter(email=email)
-        serializer = ProjectListSerializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    # ==========================================
-    # BLINDAGEM DA ROTA: DELETE /api/v1/projects/{id}/
-    # ==========================================
-    @extend_schema(operation_id="projects_destroy") # Força o nome exato no Swagger
+    @extend_schema(operation_id="projects_destroy")
     def destroy(self, request, *args, **kwargs):
-        """
-        Intercepta a requisição DELETE. 
-        Garante que apenas o Administrador possa apagar projetos.
-        """
         user = request.user
-        
-        # Verifica se o usuário tem a flag de admin ou superuser
         if not (user.is_superuser or user.is_admin):
             raise PermissionDenied("Ação bloqueada: Apenas Administradores podem excluir projetos do sistema.")
-            
-        # Se passou pela segurança, executa o delete normal
         return super().destroy(request, *args, **kwargs)
-    
-    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
-    @action(detail=True, methods=['get'], url_path='exportar-excel-individual')
-    def exportar_excel_individual(self, request, pk=None):
-        # Renomeei o url_path para evitar conflito com a action da lista
-        project = self.get_object()
-
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Dados do Projeto"
-
-        headers = [
-            "Titular do Projeto",
-            "Classe do Projeto",
-            "Status",
-            "Código do Cliente",
-            "Data de Ingresso do Cliente"
-        ]
-        ws.append(headers)
-
-        data_ingresso = "Não registrado"
-        if project.created_by and project.created_by.created_at:
-            data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
-
-        row = [
-            project.nomeTitular,
-            project.classe,
-            project.get_status_display(), 
-            project.codigoCliente,
-            data_ingresso
-        ]
-        ws.append(row)
-
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            ws.column_dimensions[column].width = adjusted_width
-
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
-        response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
-
-        wb.save(response)
-        
-        return response
-
-    @extend_schema(operation_id="projects_by_email")
-    @action(detail=False, methods=['get'], url_path='by_email')
-    def by_email(self, request):
-        email = request.query_params.get('email')
-        if not email:
-            return Response({"detail": "Email obrigatório."}, status=400)
-        queryset = self.get_queryset().filter(email=email)
-        serializer = ProjectListSerializer(queryset, many=True)
-        return Response(serializer.data)
     
     @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
     @action(detail=True, methods=['get'], url_path='exportar-excel')
     def exportar_excel(self, request, pk=None):
-        """
-        Gera e faz o download de um arquivo Excel (.xlsx) contendo 
-        os detalhes específicos do projeto.
-        """
-        # 1. Recupera o projeto pelo ID (pk) passado na URL
-        # O get_object() já garante que o usuário tem permissão para ver este projeto
         project = self.get_object()
-
-        # 2. Cria o arquivo Excel (Workbook) em memória
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Dados do Projeto"
 
-        # 3. Adiciona a linha de Cabeçalhos
-        headers = [
-            "Titular do Projeto",
-            "Classe do Projeto",
-            "Status",
-            "Código do Cliente",
-            "Data de Ingresso do Cliente"
-        ]
+        headers = ["Titular do Projeto", "Classe do Projeto", "Status", "Código do Cliente", "Data de Ingresso do Cliente"]
         ws.append(headers)
 
-        # 4. Extrai a data de ingresso (created_at) da tabela users_user
-        # Fazemos um fallback seguro caso o projeto não tenha um criador associado
         data_ingresso = "Não registrado"
         if project.created_by and project.created_by.created_at:
             data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
 
-        # 5. Adiciona a linha com os Dados reais
-        row = [
-            project.nomeTitular,
-            project.classe,
-            project.get_status_display(), # Usa get_status_display() para pegar "Em Análise" em vez de "IN_ANALYSIS"
-            project.codigoCliente,
-            data_ingresso
-        ]
+        row = [project.nomeTitular, project.classe, project.get_status_display(), project.codigoCliente, data_ingresso]
         ws.append(row)
 
-        # Opcional: Ajustar a largura das colunas para o Excel ficar bonito
         for col in ws.columns:
             max_length = 0
             column = col[0].column_letter
@@ -502,71 +317,32 @@ class ProjectViewSet(viewsets.ModelViewSet):
                         max_length = len(cell.value)
                 except:
                     pass
-            adjusted_width = (max_length + 2)
-            ws.column_dimensions[column].width = adjusted_width
+            ws.column_dimensions[column].width = (max_length + 2)
 
-        # 6. Prepara a resposta HTTP informando que é um arquivo de planilha
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        # Configura o nome do arquivo que será baixado
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
         response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
-
-        # 7. Salva o Excel gerado na resposta e retorna
         wb.save(response)
-        
         return response
-
+    
 class SolicitarVistoriaView(APIView):
-    # Garante que apenas usuários autenticados (clientes) acessem o endpoint
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, project_id):
-        # 1. Busca o projeto associado ao cliente logado
         projeto = get_object_or_404(ClientProject, id=project_id, created_by=request.user)
 
-        # 2. Processa o envio do e-mail e as notificações internas
         try:
-            # ─── ACTION 1: COLETAR DESTINATÁRIOS (CAIXA GERAL + ADMINS) ───
-            # Começamos a lista com o e-mail padrão da empresa
-            destinatarios = ['sntecsolar.ba@gmail.com']
+            # A nova abstração cuida de salvar a notificação, alertar os Admins via WS, e (futuramente) por e-mail.
+            notify_inspection_requested(projeto, request.user)
             
-            # Busca todos os administradores e adiciona os e-mails deles na lista
-            admins = User.objects.filter(is_admin=True)
-            
-            for admin in admins:
-                if admin.email and admin.email not in destinatarios:
-                    destinatarios.append(admin.email)
-
-            # ─── ACTION 2: ENVIAR O MESMO EMAIL PARA TODO MUNDO ───
-            # Dispara o e-mail utilizando o padrão de classes do Djoser para toda a lista
-            VistoriaRequestEmail(
-                context={'projeto': projeto, 'user': request.user}
-            ).send(to=destinatarios)
-            
-            # Dispara a criação das notificações em lote (bulk_create) para os administradores
-            processar_solicitacao_vistoria(
-                projeto=projeto, 
-                cliente_solicitante=request.user
-            )
-            # ─── ACTION 3 : ATUALIZAR O CAMPO DO MODELO ───
             projeto.pedido_vistoria = True
             projeto.save()
             
-            # Se todos os passos passarem, retorna o sucesso para o front-end
-            return Response(
-                {"message": "Vistoria solicitada com sucesso!"}, 
-                status=status.HTTP_200_OK
-            )
+            return Response({"message": "Vistoria solicitada com sucesso!"}, status=status.HTTP_200_OK)
         
         except Exception as e:
-            # Captura falhass de rede no envio do e-mail ou problemas de escrita no banco do Railway
             return Response(
-                {
-                    "error": "Erro ao processar a solicitação de vistoria com a equipe técnica.",
-                    "details": str(e)  # Útil para debugar nos logs do Railway se necessário
-                }, 
+                {"error": "Erro ao processar a solicitação de vistoria.", "details": str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -591,34 +367,16 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
         project = get_object_or_404(ClientProject, pk=project_pk)
         
         documento = serializer.save(project=project)
-        
         tipo_doc = documento.document_type
         user_request = self.request.user
         
         # 1. Regra: Admin adicionando 'boleto'
         if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
-            # WS & DB
-            processar_boleto_adicionado(projeto=project, documento=documento)
-            # EMAIL
-            if project.created_by and project.created_by.email:
-                BoletoAdicionadoEmail(
-                    context={'projeto': project, 'documento': documento}
-                ).send(to=[project.created_by.email])
+            notify_boleto_added(project, documento)
             
         # 2. Regra: Cliente adicionando 'comprovante_de_pagamento'
         elif tipo_doc == 'comprovante_de_pagamento' and user_request == project.created_by:
-            # WS & DB
-            processar_comprovante_adicionado(projeto=project, documento=documento, cliente_remetente=user_request)
-            # EMAIL (Para e-mail fixo + Admins)
-            destinatarios = ['sntecsolar.ba@gmail.com']
-            admins = User.objects.filter(is_admin=True)
-            for admin in admins:
-                if admin.email and admin.email not in destinatarios:
-                    destinatarios.append(admin.email)
-            
-            ComprovanteAdicionadoEmail(
-                context={'projeto': project, 'cliente': user_request}
-            ).send(to=destinatarios)
+            notify_comprovante_added(project, documento, user_request)
 
     def perform_update(self, serializer):
         novo_status = serializer.validated_data.get('status')
@@ -630,46 +388,20 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
 
         user_request = self.request.user
         
-        # ==========================================
         # 1. GATILHOS DE MUDANÇA DE STATUS
-        # ==========================================
         if novo_status == ProjectDocument.STATUS_REJECTED:
-            # WS & DB
-            processar_documento_rejeitado(projeto=instance.project, documento=instance)
-            # EMAIL
-            if instance.project.created_by and instance.project.created_by.email:
-                DocumentRejectedEmail(
-                    context={'projeto': instance.project, 'documento': instance, 'motivo': instance.rejection_reason}
-                ).send(to=[instance.project.created_by.email])
+            notify_document_rejected(instance.project, instance)
             
         elif novo_status == ProjectDocument.STATUS_APPROVED:
-            # WS & DB
-            processar_documento_aprovado(projeto=instance.project, documento=instance)
-            # EMAIL (Somente para comprovantes aprovados para não encher a caixa do cliente)
-            if instance.document_type == 'comprovante_de_pagamento' and instance.project.created_by and instance.project.created_by.email:
-                DocumentApprovedEmail(
-                    context={'projeto': instance.project, 'documento': instance}
-                ).send(to=[instance.project.created_by.email])
+            notify_document_approved(instance.project, instance)
 
-        # ==========================================
         # 2. GATILHOS DE ALTERAÇÃO DE ARQUIVO FÍSICO
-        # ==========================================
         if 'arquivo' in serializer.validated_data:
             tipo_doc = instance.document_type
-            
             if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
-                processar_boleto_adicionado(projeto=instance.project, documento=instance)
-                if instance.project.created_by and instance.project.created_by.email:
-                    BoletoAdicionadoEmail(context={'projeto': instance.project, 'documento': instance}).send(to=[instance.project.created_by.email])
-                
+                notify_boleto_added(instance.project, instance)
             elif tipo_doc == 'comprovante_de_pagamento' and user_request == instance.project.created_by:
-                processar_comprovante_adicionado(projeto=instance.project, documento=instance, cliente_remetente=user_request)
-                destinatarios = ['sntecsolar.ba@gmail.com']
-                admins = User.objects.filter(is_admin=True)
-                for admin in admins:
-                    if admin.email and admin.email not in destinatarios:
-                        destinatarios.append(admin.email)
-                ComprovanteAdicionadoEmail(context={'projeto': instance.project, 'cliente': user_request}).send(to=destinatarios)
+                notify_comprovante_added(instance.project, instance, user_request)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -677,6 +409,7 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
             project_pk = self.kwargs.get('project_pk')
             context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
+
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
     queryset = ConsumerUnit.objects.all().order_by('id')
@@ -746,18 +479,14 @@ class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         if getattr(self, "swagger_fake_view", False):
             return None
-            
         project_pk = self.kwargs.get('project_pk')
         document_type = self.kwargs.get('document_type')
         user = self.request.user
-        
         project = get_object_or_404(ClientProject, pk=project_pk)
         document = get_object_or_404(ProjectDocument, project=project, document_type=document_type)
         
-        # Proteção contra AnonymousUser e permissão de cliente
         if user.is_authenticated and user.is_cliente and project.created_by != user:
              raise PermissionDenied("Acesso negado a este documento.")
-             
         return document
 
     @extend_schema(operation_id="payment_document_update")
@@ -767,6 +496,29 @@ class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     @extend_schema(operation_id="payment_document_partial_update")
     def patch(self, request, *args, **kwargs):
         return super().patch(request, *args, **kwargs)
+
+class ProjectDocumentDownloadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="download_document")
+    def get(self, request, project_pk, document_pk):
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        document = get_object_or_404(ProjectDocument, pk=document_pk, project=project)
+        
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+            raise PermissionDenied("Sem permissão para download.")
+
+        if not document.arquivo:
+            return Response({"error": "O documento não possui um arquivo anexado."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_path = document.arquivo.path
+
+        if not os.path.exists(file_path):
+            return Response({"error": "Arquivo físico não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+        return response
     
 class ProjectDocumentDownloadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
