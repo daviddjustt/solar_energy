@@ -53,7 +53,8 @@ from solar.notifications.services import (
     notify_comprovante_added,
     notify_project_status_changed,
     notify_protocol_updated,
-    notify_inspection_requested
+    notify_inspection_requested,
+    notify_new_project_created
 )
 
 User = get_user_model()
@@ -231,6 +232,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+        projeto = serializer.save(created_by=self.request.user)
+        notify_new_project_created(projeto)
 
     def _check_update_permission(self):
         user = self.request.user

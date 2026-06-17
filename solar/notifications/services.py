@@ -151,6 +151,19 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
             'template': 'email/client/documento_aprovado.html',
             'context': {'projeto': projeto, 'nome_documento': nome_doc}
         }
+    
+    # --- NOVO EVENTO: CRIAÇÃO DE PROJETO ---
+    elif evento == 'novo_projeto_criado':
+        publico_alvo = 'admins'
+        category = "NOVO_PROJETO"
+        title = "🆕 Novo Projeto Adicionado"
+        message = f"O projeto {projeto.codigoCliente} ({projeto.nomeTitular}) foi registado no sistema."
+        url = f"/admin/projetos/{projeto.pk}/"
+        email_data = {
+            'subject': f"[SISTEMA] Novo Projeto Registado - {projeto.codigoCliente}",
+            'template': 'email/admin/novo_projeto.html',
+            'context': {'projeto': projeto, 'url_painel': url}
+        }
         
     elif evento == 'boleto_adicionado':
         publico_alvo = 'cliente'
@@ -308,6 +321,9 @@ def notify_protocol_updated(projeto, numero_protocolo, data_limite):
         'numero_protocolo': numero_protocolo,
         'data_limite': data_limite
     })
+
+def notify_new_project_created(projeto):
+    _construir_mensagem_notificacao(projeto, 'novo_projeto_criado', context={})
 
 def notify_comprovante_added(projeto, documento, cliente_remetente):
     _construir_mensagem_notificacao(projeto, 'comprovante_adicionado', context={'documento': documento}, sender=cliente_remetente)

@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+    <h2 style="color: #0b2545; margin-top: 0;">🆕 Novo Projeto Registado</h2>
+    <p>Equipa,</p>
+    <p>Um novo projeto de energia solar acabou de ser adicionado à plataforma.</p>
+    
+    <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0b2545; margin: 20px 0;">
+        <p style="margin: 0 0 5px 0;"><strong>Código do Projeto:</strong> {{ projeto.codigoCliente }}</p>
+        <p style="margin: 0 0 5px 0;"><strong>Titular do Projeto:</strong> {{ projeto.nomeTitular }}</p>
+        <p style="margin: 0;"><strong>Cadastrado por:</strong> {{ projeto.created_by.get_full_name|default:projeto.created_by.email }}</p>
+    </div>
+    
+    <p>Aceda ao painel de administração para analisar a documentação inicial e dar andamento às próximas etapas técnicas.</p>
+{% endblock %}
