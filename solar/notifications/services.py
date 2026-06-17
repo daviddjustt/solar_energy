@@ -138,7 +138,9 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
 
         # Mensagem ajustada contendo a data enviada pelo usuário
         numero_proto = context.get('numero_protocolo')
-        message = f"O projeto {projeto.codigoCliente} recebeu o protocolo {numero_proto} (Vencimento: {data_limite_br})."
+        message = f"O projeto {projeto.codigoCliente} recebeu :
+        Protocolo {numero_proto} 
+        Vencimento: {data_limite_br})."
         url = f"/admin/projetos/{projeto.pk}/"
 
     elif evento == 'comprovante_adicionado':
