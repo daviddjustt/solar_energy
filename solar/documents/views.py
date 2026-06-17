@@ -262,43 +262,57 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
     # -------------------------------------------------------------------------
     def _calcular_status_atual_e_proximo(self, project):
         """
-        Mapeia a situação do projeto baseando-se no 'new_status' do último histórico.
-        """
-        # Como a Meta do seu modelo já tem ordering = ['-changed_at'], o .first() traz o mais atual
+        Calcula o status atual e o próximo utilizando uma esteira linear (fila)
+        baseada nos valores reais salvos no banco de dados.
+        """        
+        # Coleta o histórico mais recente do projeto
         ultimo_historico = ProjectStatusHistory.objects.filter(project=project).first()
         
-        # Se for um projeto totalmente novo sem histórico de transição ainda
+        # 🟢 A FILA/ESTEIRA: Definição exata da sequência cronológica do seu projeto
+        esteira_fluxo = [
+            AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS.value,  # 'Em análise de documentos'
+            AndamentoDoProjeto.EXECUCAO.value,               # 'Projeto em Execução'
+            AndamentoDoProjeto.PAGAMENTO_TRT_ART.value,       # 'Pagamento da TRT/ART'
+            AndamentoDoProjeto.ANALISE_TECNICA.value,        # 'Projeto em análise técnica'
+            AndamentoDoProjeto.APROVADO.value,               # 'Projeto aprovado'
+            AndamentoDoProjeto.VISTORIA.value,               # 'Projeto em vistoria'
+            AndamentoDoProjeto.CONCLUIDO.value               # 'Projeto finalizado'
+        ]
+        
+        # Caso o projeto seja novo e não tenha nenhuma linha de histórico ainda
         if not ultimo_historico:
             return {
-                'atual': AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS.value,
-                'proximo': AndamentoDoProjeto.EXECUCAO.value
+                'atual': esteira_fluxo[0],
+                'proximo': esteira_fluxo[1]
             }
         
-        # 🟢 CORRIGIDO: Coleta o código a partir de 'new_status'
-        status_atual_code = ultimo_historico.new_status
-        status_atual_display = AndamentoDoProjeto.get_display_name(status_atual_code) or status_atual_code
+        # Captura o status bruto gravado no banco (pode ser chave ou valor)
+        status_salvo = ultimo_historico.new_status
         
-        # Transforma o TextChoices em uma lista de chaves (ex: ['ANALISE_DE_DOCUMENTOS', 'EXECUCAO', ...])
-        lista_etapas = [etapa.name for etapa in AndamentoDoProjeto]
+        # Normalização: Garante que vamos trabalhar sempre com o texto descritivo (ex: 'Projeto em análise técnica')
+        status_atual_display = AndamentoDoProjeto.get_display_name(status_salvo) or status_salvo
         
-        try:
-            index_atual = lista_etapas.index(status_atual_code)
+        # 🛑 TRATAMENTO DE DESVIO: O status 'REPROVADO' não segue a linha reta da esteira
+        if status_salvo in ['REPROVADO', AndamentoDoProjeto.REPROVADO.value]:
+            return {
+                'atual': AndamentoDoProjeto.REPROVADO.value,
+                'proximo': "Aguardando correções / Reenvio de documentos"
+            }
             
-            # Validações de fim de fluxo ou desvios
-            if status_atual_code == 'REPROVADO':
-                proximo_display = "Aguardando correções/reenvio do projeto"
-            elif status_atual_code == 'CONCLUIDO':
-                proximo_display = "Nenhum (Projeto Finalizado)"
-            elif index_atual + 1 < len(lista_etapas):
-                # Avança um índice na lista e pega o nome amigável (.value)
-                proxima_etapa_code = lista_etapas[index_atual + 1]
-                proximo_display = AndamentoDoProjeto.get_display_name(proxima_etapa_code)
+        try:
+            # Descobre a posição (índice) do status atual dentro da nossa fila
+            index_atual = esteira_fluxo.index(status_atual_display)
+            
+            # Se não for o último passo da fila, o próximo será o elemento seguinte
+            if index_atual + 1 < len(esteira_fluxo):
+                proximo_display = esteira_fluxo[index_atual + 1]
             else:
-                proximo_display = "Nenhum"
+                proximo_display = "Nenhum (Projeto Finalizado)"
+                
         except ValueError:
-            # Caso o status guardado não bata com nenhuma chave do TextChoices
-            proximo_display = "Não identificado"
-
+            # Fallback de segurança caso o texto do banco não exista na nossa esteira por algum motivo
+            proximo_display = "Não identificado (Fora do fluxo padrão)"
+            
         return {
             'atual': status_atual_display,
             'proximo': proximo_display
