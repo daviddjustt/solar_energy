@@ -19,15 +19,10 @@
       border: 1px solid #e1e6eb;
     }
 
-    .header {
-      text-align: center;
-      background-color:#F0E68C;
-      padding: 20px;
-    }
-
-    .header img {
-      max-width: 10px;
-      height: auto;
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #0b2545;
     }
 
     .content {
@@ -42,23 +37,29 @@
       font-size: 12px;
       color: #888888;
       background-color: #f8f9fa;
+      border-top: 1px solid #e1e6eb;
     }
   </style>
 </head>
 
 <body>
   <div class="wrapper">
-    <!-- Header com a Imagem incorporada pelo CID da Camada 1 -->
-    <div class="header">
-      <img src="https://solarenergy-production.up.railway.app/static/images/logo-com-nome.png" alt="Engenharia Solar" style="max-width: 200px; height: auto; display: block;">
-    </div>
 
-    <!-- Bloco dinâmico injetado por cada tipo de solicitação -->
+    <table class="header-table" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0b2545"
+      style="background-color: #F0E68C;">
+      <tr>
+        <td align="center" bgcolor="#F0E68C" style="background-color: #F0E68C; padding: 25px; text-align: center;">
+          <img src="https://solarenergy-production.up.railway.app/static/images/logo-com-nome.png"
+               alt="Engenharia Solar"
+               style="max-width: 200px; height: auto; display: inline-block; margin: 0 auto; vertical-align: middle;">
+        </td>
+      </tr>
+    </table>
+
     <div class="content">
       {% block content %}{% endblock %}
     </div>
 
-    <!-- Footer Padrão do Sistema -->
     <div class="footer">
       <p>Este é um e-mail automático enviado pelo SNTec Solar.</p>
       <p>© Todos os direitos reservados.</p>
