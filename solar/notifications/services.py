@@ -121,7 +121,24 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
         publico_alvo = 'admins'
         category = "PROTOCOLO_ATUALIZADO"
         title = f"📌 Protocolo Atualizado - {projeto.codigoCliente}"
-        message = f"O projeto {projeto.codigoCliente} recebeu o protocolo {context.get('numero_protocolo')}."
+        
+        # Recupera e trata a data enviada (convertendo de YYYY-MM-DD para DD/MM/YYYY se for string)
+        data_limite_br = context.get('data_limite')
+        if data_limite_br:
+            if isinstance(data_limite_br, str) and '-' in data_limite_br:
+                try:
+                    ano, mes, dia = data_limite_br.split('-')
+                    data_limite_br = f"{dia}/{mes}/{ano}"
+                except ValueError:
+                    pass
+            elif hasattr(data_limite_br, 'strftime'):  # Caso o model já entregue um objeto date/datetime
+                data_limite_br = data_limite_br.strftime('%d/%m/%Y')
+        else:
+            data_limite_br = "Não informada"
+
+        # Mensagem ajustada contendo a data enviada pelo usuário
+        numero_proto = context.get('numero_protocolo')
+        message = f"O projeto {projeto.codigoCliente} recebeu o protocolo {numero_proto} (Vencimento: {data_limite_br})."
         url = f"/admin/projetos/{projeto.pk}/"
 
     elif evento == 'comprovante_adicionado':
