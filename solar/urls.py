@@ -34,7 +34,8 @@ from solar.documents.views import (
     ProjectExportExcelView,
     ProjectViewSet,
     SolicitarVistoriaView,
-    ProjectProtocolViewSet
+    ProjectProtocolViewSet,
+    ProjectSpecificProtocolViewSet
 )
 
 # --- Apps: Files ---
@@ -132,8 +133,10 @@ urlpatterns = [
     path('api/v1/projects/<int:project_pk>/<str:document_type>/', PaymentDocumentView.as_view(), name='payment-document-detail'),
     
     # 6. Protocol
-    path('api/v1/protocols/', ProjectProtocolViewSet.as_view({'get': 'list', 'post': 'create'}), name='protocol-list-create'),
-    path('api/v1/protocols/<int:pk>/', ProjectProtocolViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='protocol-detail'),
+    path('protocols/', ProjectProtocolViewSet.as_view({'get': 'list','post': 'create'}), name='protocol-global-list'),
+    path('protocols/<int:pk>/', ProjectProtocolViewSet.as_view({'get': 'retrieve','put': 'update','patch': 'partial_update','delete': 'destroy'}), name='protocol-global-detail'),
+    path('projects/<int:project_pk>/protocols/', ProjectSpecificProtocolViewSet.as_view({'get': 'list','post': 'create'}), name='project-protocols-list'),
+    path('projects/<int:project_pk>/protocols/<int:pk>/', ProjectSpecificProtocolViewSet.as_view({'get': 'retrieve','put': 'update','patch': 'partial_update','delete': 'destroy'}), name='project-protocols-detail'),
 
     # --------------------------------------------------------------------------
     # USERS: NESTED RESOURCES
