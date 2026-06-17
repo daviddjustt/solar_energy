@@ -180,31 +180,18 @@ class ProjectExportExcelView(APIView):
         
         wb.save(response)
         return response
+
 class ProjectProtocolViewSet(viewsets.ModelViewSet):
     queryset = ProjectProtocol.objects.all()
     serializer_class = ProjectProtocolSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """
-        [CRUD: Read (List)]
-        Aplica a segurança por utilizador e adiciona o filtro opcional por projeto.
-        """
+        """Admins veem todos os protocolos, clientes veem apenas os seus."""
         user = self.request.user
-        
-        # 1. Define a base do queryset com base nas permissões do utilizador
         if user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False):
-            queryset = ProjectProtocol.objects.all()
-        else:
-            # Cliente comum só tem acesso aos protocolos dos seus próprios projetos
-            queryset = ProjectProtocol.objects.filter(project__created_by=user)
-        
-        # 2. 🟢 NOVO: Captura o parâmetro '?project=' enviado na URL
-        project_id = self.request.query_params.get('project')
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-            
-        return queryset.order_by('-id')
+            return ProjectProtocol.objects.all().order_by('-id')
+        return ProjectProtocol.objects.filter(project__created_by=user).order_by('-id')
 
     def perform_create(self, serializer):
         
@@ -222,10 +209,54 @@ class ProjectProtocolViewSet(viewsets.ModelViewSet):
 
     def _check_staff_permission(self):
         user = self.request.user
-        is_staff = user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)
-        if not is_staff:
-            raise PermissionDenied("Você não tem permissão para realizar esta ação operacional.")
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
+            raise PermissionDenied("Apenas a equipe técnica pode gerenciar protocolos globais.")
 
+
+# ==============================================================================
+# VIEW 2: CRUD RELACIONADO (Focado no Contexto do Projeto)
+# Endpoints: /api/v1/projects/<project_pk>/protocols/
+# ==============================================================================
+class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectProtocolSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Retorna apenas os protocolos do projeto especificado na URL da requisição."""
+        user = self.request.user
+        project_pk = self.kwargs.get('project_pk')
+        
+        # Filtra a base pelo projeto da URL
+        queryset = ProjectProtocol.objects.filter(project_id=project_pk)
+        
+        # Se for cliente comum, valida se o projeto realmente pertence a ele
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
+            queryset = queryset.filter(project__created_by=user)
+            
+        return queryset.order_by('-id')
+
+    def perform_create(self, serializer):
+        """Cria o protocolo vinculando-o automaticamente ao projeto capturado na URL"""
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
+            raise PermissionDenied("Você não permissão para adicionar protocolos a este projeto.")
+            
+        project_pk = self.kwargs.get('project_pk')
+        
+        # Força o salvamento injetando o project_id vindo da URL
+        protocolo = serializer.save(project_id=project_pk)
+        
+        # Dispara e-mail e WS
+        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False)):
+            raise PermissionDenied("Você não tem permissão para alterar este protocolo.")
+            
+        protocolo = serializer.save()
+        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
+        
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = ClientProject.objects.all().order_by('-created_at')
     filter_backends = [DjangoFilterBackend]
