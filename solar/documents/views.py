@@ -169,20 +169,23 @@ class ProjectExportExcelView(APIView):
             # O .all() aqui não atinge o banco graças ao prefetch_related
             for material in p.material_lists.all():
                 qtd = float(material.quantidade or 0)
-                pot = float(material.potencia or 0)
+                pot_bruta = float(material.potencia or 0)
                 tipo = str(material.tipo or '').lower()
-                unidade = str(material.unidade_de_medida or '').lower()
+                unidade = str(material.unidade_de_medida or '').lower().strip()
                 
-                # Conversão de Watts para Kilowatts
-                if 'w' in unidade and 'k' not in unidade:
-                    pot = pot / 1000.0
-                    
-                potencia_linha = qtd * pot
+                # 🟢 NORMALIZAÇÃO DE UNIDADE: Garante que tudo vire kW antes da conta
+                if 'kw' in unidade:
+                    pot_kw = pot_bruta  # Já está em kW, mantém o valor puro
+                else:
+                    # Se for 'wats', 'w' ou o padrão do banco, divide por 1000 para virar kW
+                    pot_kw = pot_bruta / 1000.0
+                
+                total_linha_kw = qtd * pot_kw
                 
                 if 'modulo' in tipo or 'módulo' in tipo:
-                    total_mod_kw += potencia_linha
+                    total_mod_kw += total_linha_kw
                 elif 'inversor' in tipo:
-                    total_inv_kw += potencia_linha
+                    total_inv_kw += total_linha_kw
 
             # Monta o pacote pro paralelismo
             projetos_para_processar.append({
