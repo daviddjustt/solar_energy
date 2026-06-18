@@ -466,28 +466,70 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
     @action(detail=True, methods=['get'], url_path='exportar-excel')
     def exportar_excel(self, request, pk=None):
-        project = self.get_object()
+        project = get_object_or_404(ClientProject.objects.prefetch_related('material_lists'), pk=pk)
+        
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Dados do Projeto"
 
-        headers = ["Titular do Projeto", "Classe do Projeto", "Status", "Código do Cliente", "Data de Ingresso do Cliente"]
+        headers = [
+            "Titular do Projeto", "Classe do Projeto", "Status", 
+            "Código do Cliente", "Data de Ingresso do Cliente",
+            "Potência (kW)", "Valor (R$)"
+        ]
         ws.append(headers)
 
         data_ingresso = "Não registrado"
         if project.created_by and project.created_by.created_at:
             data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
 
-        row = [project.nomeTitular, project.classe, project.get_status_display(), project.codigoCliente, data_ingresso]
+        # 🟢 Agregação com normalização de unidades para o projeto individual
+        total_mod_kw = 0.0
+        total_inv_kw = 0.0
+        for material in project.material_lists.all():
+            qtd = float(material.quantidade or 0)
+            pot_bruta = float(material.potencia or 0)
+            tipo = str(material.tipo or '').lower()
+            unidade = str(material.unidade_de_medida or '').lower().strip()
+            
+            # 🟢 Filtro de Unidade de Medida
+            if 'kw' in unidade:
+                pot_kw = pot_bruta
+            else:
+                pot_kw = pot_bruta / 1000.0
+                
+            total_linha_kw = qtd * pot_kw
+            
+            if 'modulo' in tipo or 'módulo' in tipo:
+                total_mod_kw += total_linha_kw
+            elif 'inversor' in tipo:
+                total_inv_kw += total_linha_kw
+
+        # Invoca a regra matemática pura do utils
+        dados_calculados = calcular_regras_potencia_e_valor({
+            'total_modulos_kw': total_mod_kw,
+            'total_inversores_kw': total_inv_kw
+        })
+
+        row = [
+            project.nomeTitular, 
+            project.classe, 
+            project.get_status_display(), 
+            project.codigoCliente, 
+            data_ingresso,
+            f"{dados_calculados['potencia_calculada']:.2f}",
+            f"{dados_calculados['valor_calculado']:.2f}"
+        ]
         ws.append(row)
 
+        # Ajuste automático do tamanho das colunas
         for col in ws.columns:
             max_length = 0
             column = col[0].column_letter
             for cell in col:
                 try:
                     if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
+                        max_length = len(str(cell.value))
                 except:
                     pass
             ws.column_dimensions[column].width = (max_length + 2)
