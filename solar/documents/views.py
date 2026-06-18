@@ -4,6 +4,7 @@ import zipfile
 from io import BytesIO
 import openpyxl
 import logging
+import concurrent.futures
 
 # Django imports
 from django.shortcuts import get_object_or_404
@@ -33,6 +34,10 @@ from .models import (
     ProjectStatusHistory,
     ProjectProtocol,
     AndamentoDoProjeto, 
+)
+
+from .utils import (
+    calcular_regras_potencia_e_valor,   
 )
 
 from .serializers import (
@@ -111,6 +116,9 @@ class ProjectExportExcelView(APIView):
         # 3. Queryset base otimizado
         queryset = ClientProject.objects.all().select_related('created_by')
 
+        # 3. Query para itens 
+        queryset = ClientProject.objects.all().select_related('created_by').prefetch_related('material_lists')
+        
         # 4. Aplicação dos filtros tradicionais
         if client_uuids:
             queryset = queryset.filter(created_by__uuid__in=client_uuids)
@@ -135,44 +143,80 @@ class ProjectExportExcelView(APIView):
             "Código do Cliente", 
             "Data de Ingresso",
             "Criado Por",
-            "Observações"
+            "Observações",
+            "Potência (kW)",
+            "Valor (R$)",
         ]
         ws.append(headers)
 
+        # 7. EXTRAÇÃO E AGREGAÇÃO (Varrendo a ListaDeMateriais)
+        projetos_para_processar = []
         for p in queryset:
+            # Info do Usuário
             user_relatado = p.created_by
-            
-            # Tratamento da Data de Ingresso do Usuário
             data_ingresso_user = "N/A"
+            criado_por = "N/A"
             if user_relatado:
                 data_user = getattr(user_relatado, 'date_joined', getattr(user_relatado, 'created_at', None))
                 if data_user:
                     data_ingresso_user = data_user.strftime('%d/%m/%Y')
+                criado_por = user_relatado.get_full_name() or getattr(user_relatado, 'email', str(user_relatado))
+
+            # 🟢 SOMA DOS MATERIAIS DO PROJETO
+            total_mod_kw = 0.0
+            total_inv_kw = 0.0
             
-            # Tratamento do campo "Criado Por" (exibe nome completo ou e-mail como fallback)
-            criado_por = "N/A"
-            if user_relatado:
-                if hasattr(user_relatado, 'get_full_name') and user_relatado.get_full_name():
-                    criado_por = user_relatado.get_full_name()
-                else:
-                    criado_por = getattr(user_relatado, 'email', getattr(user_relatado, 'username', str(user_relatado)))
+            # O .all() aqui não atinge o banco graças ao prefetch_related
+            for material in p.material_lists.all():
+                qtd = float(material.quantidade or 0)
+                pot = float(material.potencia or 0)
+                tipo = str(material.tipo or '').lower()
+                unidade = str(material.unidade_de_medida or '').lower()
+                
+                # Conversão de Watts para Kilowatts
+                if 'w' in unidade and 'k' not in unidade:
+                    pot = pot / 1000.0
+                    
+                potencia_linha = qtd * pot
+                
+                if 'modulo' in tipo or 'módulo' in tipo:
+                    total_mod_kw += potencia_linha
+                elif 'inversor' in tipo:
+                    total_inv_kw += potencia_linha
 
-            # Coleta de strings seguras para evitar quebras com valores nulos
-            nome_titular = getattr(p, 'nomeTitular', "N/A")
-            status_display = p.get_status_display() if hasattr(p, 'get_status_display') else getattr(p, 'status', "N/A")
-            codigo_cliente = getattr(p, 'codigoCliente', "N/A")
-            observacoes = getattr(p, 'observacoes', "")  # Deixa em branco no Excel se for nulo
+            # Monta o pacote pro paralelismo
+            projetos_para_processar.append({
+                'nome_titular': getattr(p, 'nomeTitular', "N/A"),
+                'status_display': p.get_status_display() if hasattr(p, 'get_status_display') else getattr(p, 'status', "N/A"),
+                'codigo_cliente': getattr(p, 'codigoCliente', "N/A"),
+                'data_ingresso_user': data_ingresso_user,
+                'criado_por': criado_por,
+                'observacoes': getattr(p, 'observacoes', ""),
+                
+                # Envia os totais já somados e convertidos para kW
+                'total_modulos_kw': total_mod_kw,
+                'total_inversores_kw': total_inv_kw
+            })
 
+        # 8. CÁLCULO PARALELO (Mágica da velocidade)
+        projetos_processados = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            projetos_processados = list(executor.map(calcular_regras_potencia_e_valor, projetos_para_processar))
+
+        # 9. ESCREVER NO EXCEL
+        for dados in projetos_processados:
             ws.append([
-                nome_titular,
-                status_display,
-                codigo_cliente,
-                data_ingresso_user,
-                criado_por,
-                observacoes
+                dados['nome_titular'],
+                dados['status_display'],
+                dados['codigo_cliente'],
+                dados['data_ingresso_user'],
+                dados['criado_por'],
+                dados['observacoes'],
+                f"{dados['potencia_calculada']:.2f}",
+                f"{dados['valor_calculado']:.2f}"
             ])
 
-        # 7. Resposta HTTP
+        # 10. Resposta HTTP
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )

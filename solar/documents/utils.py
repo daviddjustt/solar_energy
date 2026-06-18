@@ -163,3 +163,30 @@ def get_voltage_choices():
     """Retorna as choices para o model"""
     return [(label, label) for label in VOLTAGEM_LABELS]
 
+def calcular_regras_potencia_e_valor(dados_projeto):
+    """
+    Função pura que recebe os totais já em kW e aplica a regra de negócio do Excel.
+    """
+    total_modulos = dados_projeto.get('total_modulos_kw', 0.0)
+    total_inversores = dados_projeto.get('total_inversores_kw', 0.0)
+
+    # Regra da Potência (O menor valor dita a potência real)
+    # Proteção extra: Se um deles for 0 (ex: cliente ainda não registrou inversor), assume o maior para não zerar a planilha.
+    if total_modulos > 0 and total_inversores > 0:
+        potencia_final = min(total_modulos, total_inversores)
+    else:
+        potencia_final = max(total_modulos, total_inversores)
+
+    # Regra do Valor
+    valor_final = 0.00
+    if 0.1 <= potencia_final <= 49.99:
+        valor_final = 125.00
+    elif 50.0 <= potencia_final <= 75.0:
+        valor_final = 150.00
+    # Valores acima de 75kW ou zerados continuarão retornando 0.00
+
+    # Retorna os dados enriquecidos
+    dados_projeto['potencia_calculada'] = potencia_final
+    dados_projeto['valor_calculado'] = valor_final
+
+    return dados_projeto
