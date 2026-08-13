@@ -279,10 +279,11 @@ class ProjectDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         user = self.request.user
         
-        # Validações de permissão para exclusão
+        # Validações de permissão restritas para exclusão
         if instance.document_type == 'boleto':
-            if not (user.is_admin or user.is_tecnico or user.is_superuser):
-                raise PermissionDenied("Apenas administradores e técnicos podem excluir boletos.")
+            # Removido o user.is_tecnico. Agora APENAS administradores (ou superusers) podem deletar.
+            if not (user.is_admin or user.is_superuser):
+                raise PermissionDenied("Apenas administradores podem excluir boletos.")
         
         elif instance.document_type == 'comprovante_de_pagamento':
             if user.is_cliente and instance.project.created_by != user:
