@@ -618,6 +618,23 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
             elif tipo_doc == 'comprovante_de_pagamento' and user_request == instance.project.created_by:
                 notify_comprovante_added(instance.project, instance, user_request)
 
+    def perform_destroy(self, instance):
+        user_request = self.request.user
+        
+        # 1. Regra restrita para exclusão de boletos
+        if instance.document_type == 'boleto':
+            # APENAS administradores (ou superusers) podem deletar
+            if not (getattr(user_request, 'is_admin', False) or getattr(user_request, 'is_superuser', False)):
+                raise PermissionDenied("Apenas administradores podem excluir boletos.")
+        
+        # 2. Regra de exclusão para comprovantes
+        elif instance.document_type == 'comprovante_de_pagamento':
+            if getattr(user_request, 'is_cliente', False) and instance.project.created_by != user_request:
+                raise PermissionDenied("Você só pode excluir comprovante dos seus próprios projetos.")
+        
+        # Se passar pelas validações, deleta o documento
+        instance.delete()
+        
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if not getattr(self, "swagger_fake_view", False):
