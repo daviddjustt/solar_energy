@@ -40,78 +40,48 @@ def validate_image_size(image):
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
-    def create_user(self, email, name, cnpj, cpf, celular=None, password=None, group_name=None, **extra_fields):
-
-            user = self.model(
-                email=email,
-                name=name.upper() if name else None,
-                cnpj=cnpj,
-                cpf=cpf,
-                celular=celular,
-                is_cliente=True,
-                **extra_fields
-            )
-
-            
-            user.set_password(password)
-
-            with transaction.atomic():
-                user.full_clean()
-                user.save(using=self._db)
-
-                if group_name:
-                    try:
-                        group = Group.objects.get(name=group_name)
-                        user.groups.add(group)
-                    except Group.DoesNotExist:
-                        raise ValueError(f"O grupo '{group_name}' não existe.")
-
-            user.save(using=self._db)
-            return user
-
-    def create_superuser(self, email, name, celular, cnpj=None, cpf=None, password=None, group_name=None, **extra_fields):
-        extra_fields.setdefault('is_admin', True)
-        extra_fields.setdefault('is_active', True)
-        extra_fields.setdefault('is_superuser', True)
-
-        # 🟢 DEFINIÇÃO AUTOMÁTICA DE PF OU PJ BASEADA EM CPF/CNPJ
-        if group_name is None:
-            if cnpj and not cpf:
-                group_name = 'Clientes PJ'
-            elif cpf and not cnpj:
-                group_name = 'Clientes PF'
-            else:
-                group_name = 'Clientes PF'
-
-        # Validações por grupo
-        if group_name == 'Clientes PJ':
-            if not cnpj:
-                raise ValueError('CNPJ é obrigatório para clientes PJ.')
-            cpf = None
-        elif group_name == 'Clientes PF':
-            if not cpf:
-                raise ValueError('CPF é obrigatório para clientes PF.')
-            cnpj = None
-        elif group_name == 'Técnicos':
-            cpf = None
-            cnpj = None
-        else:
-            raise ValueError(f"Grupo '{group_name}' não é um grupo válido.")
+    def create_user(self, email, name, cnpj=None, cpf=None, celular=None, password=None, group_name=None, **extra_fields):
+        if not email:
+            raise ValueError('O e-mail é obrigatório.')
         
+        email = self.normalize_email(email)
+        user = self.model(
+            email=email,
+            name=name.upper() if name else None,
+            cnpj=cnpj,
+            cpf=cpf,
+            celular=celular,
+            **extra_fields
+        )
+        user.set_password(password)
+
+        with transaction.atomic():
+            user.full_clean()
+            # 🟢 1. Único save() necessário para persitir o usuário e gerar a Primary Key
+            user.save(using=self._db)
+
+            # 2. Adiciona o grupo diretamente (o relacionameto M2M opera na tabela intermediária)
+            if group_name:
+                group, _ = Group.objects.get_or_create(name=group_name)
+                user.groups.add(group)
+
+        # 🟢 O segundo user.save() foi removido daqui
+        return user
+
+    def create_superuser(self, email, name, celular, password=None, **extra_fields):
+        extra_fields.setdefault('is_admin', True)
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
         return self.create_user(
-                email=email,
-                name=name,
-                cnpj=cnpj,
-                cpf=cpf,
-                celular=celular,
-                password=password,
-                is_admin=True,
-                is_active=True,
-                is_superuser=True,
-                group_name=group_name,
-                **extra_fields
-            )
-    
+            email=email,
+            name=name,
+            celular=celular,
+            password=password,
+            group_name='Admin',
+            **extra_fields
+        )
 class User(AbstractBaseUser, PermissionsMixin):
     """Modelo de usuário para policiais militares."""
     
