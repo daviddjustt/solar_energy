@@ -17,7 +17,7 @@ from .utils import (
 class AndamentoDoProjeto(models.TextChoices):
     ANALISE_DE_DOCUMENTOS = 'Em análise de documentos'
     EXECUCAO = "Projeto em Execução"
-    PAGAMENTOS = 'Pagamento da TRT/ART e pagamento do projeto'
+    PAGAMENTO_TRT_ART = 'Pagamento da TRT/ART'
     ANALISE_TECNICA = 'Projeto em análise técnica'
     APROVADO = 'Projeto aprovado'
     REPROVADO = 'Projeto reprovado'
@@ -30,6 +30,7 @@ class AndamentoDoProjeto(models.TextChoices):
                if status.name == code:
                    return status.value
            return None
+
 
 class ClientProject(models.Model):
     codigoCliente = models.CharField(max_length=50, verbose_name="Código único do cliente")
@@ -68,6 +69,7 @@ class ClientProject(models.Model):
     status = models.CharField(
            max_length=43, choices=AndamentoDoProjeto.choices, default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS, verbose_name="Status do Projeto"
     )
+    pedido_vistoria=models.BooleanField(default=False, verbose_name='Pedido de Vistoria Ativo?')
     observacoes = models.TextField(blank=True, null=True, verbose_name="Observações")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -175,6 +177,25 @@ class ClientProject(models.Model):
     def __str__(self):
         return f"{self.codigoCliente} - {self.nomeTitular} (Criado por: {self.created_by_name})"
 
+class ProjectStatusHistory(models.Model):
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='status_history'
+    )
+    changed_by_uuid = models.CharField(max_length=255, verbose_name="UUID do Usuário", null=True, blank=True)
+    old_status = models.CharField(max_length=100, verbose_name="Status Antigo")
+    new_status = models.CharField(max_length=100, verbose_name="Status Novo")
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name="Data e Hora da Mudança")
+
+    class Meta:
+        ordering = ['-changed_at'] # Traz os mais recentes primeiro
+        verbose_name = "Histórico de Status"
+        verbose_name_plural = "Históricos de Status"
+
+    def __str__(self):
+        return f"Projeto {self.project.codigoCliente}: {self.old_status} -> {self.new_status}"
+    
 class ConsumerUnit(models.Model):
     project = models.ForeignKey(
         ClientProject, 
@@ -234,6 +255,35 @@ class ListaDeMateriais(models.Model):
         max_length=100, choices=WATS_CHOICES, help_text="Unidade de medida", default="wats"
     )
     
+class ProjectProtocol(models.Model):
+    project = models.ForeignKey(
+        ClientProject, 
+        on_delete=models.CASCADE, 
+        related_name='protocolos',
+        verbose_name="Projeto"
+    )
+    numero_protocolo = models.CharField(
+        max_length=100, 
+        verbose_name="Número do Protocolo", 
+        null=True, 
+        blank=True
+    )
+    data_limite = models.DateField(
+        verbose_name="Data Limite", 
+        null=True, 
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última Atualização")
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Protocolo do Projeto"
+        verbose_name_plural = "Protocolos dos Projetos"
+
+    def __str__(self):
+        protocolo_str = self.numero_protocolo if self.numero_protocolo else "Sem protocolo"
+        return f"Protocolo {protocolo_str} - Projeto {self.project.codigoCliente}"
 
 class ProjectDocument(BaseModel, ArquivoMixin):
     STATUS_CHOICES = [

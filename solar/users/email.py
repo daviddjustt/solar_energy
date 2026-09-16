@@ -2,7 +2,11 @@ from djoser.email import ActivationEmail as BaseActivationEmail
 from djoser.email import PasswordResetEmail as BasePasswordResetEmail
 from djoser.email import PasswordChangedConfirmationEmail as BasePasswordChangedConfirmationEmail
 from djoser.email import UsernameChangedConfirmationEmail as BaseUsernameChangedConfirmationEmail
+from templated_mail.mail import BaseEmailMessage
+
 from django.conf import settings
+from django.utils import timezone
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,9 +64,7 @@ class PasswordResetEmail(BasePasswordResetEmail):
         
         logger.info("Email de reset de senha preparado")
         return context
-
-# As classes de Confirmação podem se manter como estavam,
-# mas se elas tiverem logo no HTML delas, você precisará injetar protocol, domain e STATIC_URL lá também.
+  
 class PasswordChangedConfirmationEmail(BasePasswordChangedConfirmationEmail):
     template_name = 'email/password_changed_confirmation.html'
     

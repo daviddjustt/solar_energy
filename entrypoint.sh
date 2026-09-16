@@ -2,7 +2,7 @@
 set -e
 
 echo "🚀 Iniciando Solar Energy às $(date)"
-
+fuser -k ${PORT:-8080}/tcp || true
 # 1. Ajuste de Permissões (Volume montado pelo Railway)
 if [ -d "/app/media" ]; then
     chown -R 65532:65532 /app/media || true
@@ -20,7 +20,12 @@ done
 echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 # Forçamos a criação para evitar o aviso "models have changes not reflected"
 
-echo "🔄 Aplicando migrações..."
+# 4. APLICAÇÃO DE MIGRAÇÕES
+echo "🔄 Sincronizando histórico das notificações..."
+# Essa linha abaixo é o antídoto! Ela avisa o Django que a tabela já existe antes do erro acontecer.
+python manage.py migrate notifications --fake
+python manage.py migrate documents --fake
+echo "🔄 Aplicando demais migrações..."
 python manage.py migrate --noinput
 echo "✅ Banco de dados atualizado com sucesso!"
 
@@ -44,13 +49,7 @@ if not User.objects.filter(email=email).exists():
 else:
     print(f"ℹ️ Superuser {email} já existe.")
 EOF
-
-# 6. Execução do Gunicorn
-echo "✅ Tudo pronto! Iniciando Gunicorn..."
-exec gunicorn solar.wsgi:application \
-    --bind 0.0.0.0:${PORT:-8080} \
-    --workers 2 \
-    --threads 4 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile -
+python manage.py collectstatic --noinput
+# 6. Execução do Servidor ASGI (Daphne) com Debug Ativado
+echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne) em modo Verboso... 🛠️"
+exec daphne -v 3 -b 0.0.0.0 -p ${PORT:-8080} solar.asgi:application

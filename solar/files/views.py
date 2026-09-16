@@ -1,19 +1,27 @@
-from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, permissions, generics
-from rest_framework.exceptions import PermissionDenied # Importa Http404 do DRF
-from django.conf import settings
-from django.http import FileResponse
 import os
 import zipfile
 from io import BytesIO
 
+from django.shortcuts import get_object_or_404
+from django.http import FileResponse
+from django.conf import settings
+
+from rest_framework import status, permissions, generics, viewsets
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
+
 from solar.users.models import User
-#
 from .serializers import DocumentUser, DocumentUserSerializer
+
+# =====================================================================
+# IMPORTAÇÃO DOS NOVOS SERVIÇOS ADAPTADOS (Camada 4)
+# =====================================================================
+from solar.notifications.services import (
+    notify_user_boleto_added,
+    notify_user_comprovante_added
+)
 
 class DocumentUserDownloadView(APIView):
     """
@@ -91,17 +99,23 @@ class DocumentUserListCreateView(generics.ListCreateAPIView):
         raise PermissionDenied("Você não tem permissão para acessar estes documentos.")
 
     def perform_create(self, serializer):
-        # Esta é a parte crucial para injetar o usuário
-        user_pk = self.kwargs['user_pk']
-        user = get_object_or_404(User, pk=user_pk)
+        user_pk = self.kwargs.get('user_pk')
+        target_user = get_object_or_404(User, uuid=user_pk)
+        
+        # Salva o documento vinculando-o ao usuário alvo
+        documento = serializer.save(user=target_user)
+        
+        tipo_doc = documento.document_type.upper() if documento.document_type else ""
+        user_request = self.request.user
 
-        # Opcional: Validação de permissão para criar documentos para este usuário
-        if self.request.user.is_authenticated and (self.request.user == user or self.request.user.is_staff):
-            # Injeta o objeto User no contexto do serializer
-            serializer.context['user'] = user
-            serializer.save() # Chama o método create do serializer
-        else:
-            raise PermissionDenied("Você não tem permissão para criar documentos para este usuário.")
+        # 1. Se o Admin criou inserindo um BOLETO direto no usuário
+        if tipo_doc == 'BOLETO' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+            notify_user_boleto_added(target_user, documento)
+            
+        # 2. Se o Cliente criou enviando um COMPROVANTE no seu próprio perfil
+        elif tipo_doc == 'COMPROVANTE' and user_request == target_user:
+            notify_user_comprovante_added(target_user, documento, user_request)
+
 
 class DocumentUserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -129,28 +143,29 @@ class DocumentUserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIVie
         document = self.get_object()
         user_request = self.request.user
 
-        # Lógica de permissão para atualização:
-        # - Apenas admins/superusers podem alterar 'status' ou 'document_type'.
-        # - O próprio usuário pode atualizar o 'arquivo' se for o dono do documento.
-        # - Outras atualizações podem ser permitidas ou restritas conforme a necessidade.
-
-        if 'status' in serializer.validated_data and not (user_request.is_staff or user_request.is_superuser):
-            raise PermissionDenied("Apenas administradores podem alterar o status do documento.")
-
-        if 'document_type' in serializer.validated_data and not (user_request.is_staff or user_request.is_superuser):
-            raise PermissionDenied("Apenas administradores podem alterar o tipo do documento.")
-
-        # Se o arquivo está sendo atualizado, verificar permissões
+        # Validação de Segurança para alteração de arquivos
         if 'arquivo' in serializer.validated_data:
-            if not (user_request == document.user or user_request.is_staff or user_request.is_superuser):
+            if not (user_request == document.user or user_request.is_admin or user_request.is_staff or user_request.is_superuser):
                 raise PermissionDenied("Você não tem permissão para atualizar o arquivo deste documento.")
 
-        serializer.save()
+        # 1. Salvamos a atualização de forma limpa
+        documento_atualizado = serializer.save()
 
+        # 2. Gatilhos de Notificação usando a Camada 4 limpa (apenas se alterou o arquivo físico)
+        if 'arquivo' in serializer.validated_data:
+            tipo_doc = documento_atualizado.document_type.upper() if documento_atualizado.document_type else ""
+            
+            # Admin atualizou o boleto do usuário
+            if tipo_doc == 'BOLETO' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+                notify_user_boleto_added(document.user, documento_atualizado)
+                
+            # Cliente re-enviou o comprovante dele
+            elif tipo_doc == 'COMPROVANTE' and user_request == document.user:
+                notify_user_comprovante_added(document.user, documento_atualizado, user_request)
+                
     def perform_destroy(self, instance):
         user_request = self.request.user
-        # Permissões: Apenas o próprio usuário ou admins/superusers podem deletar o documento
         if user_request.is_authenticated and (user_request == instance.user or user_request.is_staff or user_request.is_superuser):
-            instance.delete() # O método delete do modelo DocumentUser (herdado de Document) lida com a remoção do arquivo físico.
+            instance.delete()
         else:
             raise PermissionDenied("Você não tem permissão para deletar este documento.")

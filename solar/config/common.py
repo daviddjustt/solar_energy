@@ -9,6 +9,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Common(Configuration):
     INSTALLED_APPS = (
+        'daphne',
         'django.contrib.admin',
         'django.contrib.auth',
         'django.contrib.contenttypes',
@@ -34,8 +35,11 @@ class Common(Configuration):
 
         # Your apps
         'solar.users',
-        'solar.documents',
+        'solar.notifications',
+        'solar.documents.apps.DocumentsConfig', # AGORA A PASTA EM QUESTÃO PRECISA DOS APPS
         'solar.files',
+        
+        'channels',
     )
     DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
     MIDDLEWARE = (
@@ -50,6 +54,7 @@ class Common(Configuration):
         'simple_history.middleware.HistoryRequestMiddleware',
         'whitenoise.middleware.WhiteNoiseMiddleware',
     )
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
     # CSRF Trusted Origins
     CSRF_TRUSTED_ORIGINS = os.getenv(
@@ -70,8 +75,9 @@ class Common(Configuration):
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'solar.urls'
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-    WSGI_APPLICATION = 'solar.wsgi.application'
-
+    # WSGI_APPLICATION = 'solar.wsgi.application'
+    ASGI_APPLICATION = 'solar.asgi.application'
+    
     # Email
     EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8080')
@@ -96,15 +102,18 @@ class Common(Configuration):
     IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None # Exemplo
 
     db_url = os.getenv('DATABASE_URL')
-
+    
     DATABASES = {
         'default': dj_database_url.config(
             default=db_url,
-            conn_max_age=600,
-            ssl_require=False  # Mude para False temporariamente para testar
+            # conn_max_age=0 é OBRIGATÓRIO quando se usa Daphne com psycopg2 
+            # para evitar o erro NO_SOCKET e o colapso das conexões.
+            conn_max_age=0, 
+            # Como você usa a rede interna (.railway.internal), SSL não é necessário
+            ssl_require=False
         )
     }
-#
+    
     # General
     APPEND_SLASH = False
     TIME_ZONE = 'America/Sao_Paulo'
@@ -331,6 +340,8 @@ class Common(Configuration):
         "http://127.0.0.1:8080",
         "http://localhost:8080",
         "https://sn-solar-tech.vercel.app",
+        "https://www.sntecsolar.com.br",
+        "https://sntecsolar.com.br",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOWED_HEADERS = [
@@ -372,9 +383,19 @@ class Common(Configuration):
             'login': '5/hour',            # Login (mais restritivo)
             'activation': '10/hour',      # Ativação de conta
         },
+        
         'EXCEPTION_HANDLER': 'solar.users.exceptions.custom_exception_handler',
         'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
         'PAGE_SIZE': 20,
+    }
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                # Lê a URL do Railway, ou usa o localhost se estiver a rodar na sua máquina
+                "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
+            },
+        },
     }
 
 

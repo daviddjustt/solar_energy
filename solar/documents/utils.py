@@ -163,3 +163,42 @@ def get_voltage_choices():
     """Retorna as choices para o model"""
     return [(label, label) for label in VOLTAGEM_LABELS]
 
+def calcular_regras_potencia_e_valor(dados_projeto):
+    """
+    Função pura projetada para rodar em paralelo.
+    Calcula a Potência real (SEMPRE o menor valor absoluto entre módulos e inversores)
+    e define o tier de preço.
+    """
+    
+    # 1. CAPTURA DE DADOS
+    # Extrai os totais já convertidos para kW/kWp recebidos da View.
+    # O uso do .get() com fallback '0.0' previne erros caso o dicionário venha vazio.
+    total_modulos = dados_projeto.get('total_modulos_kw', 0.0)
+    total_inversores = dados_projeto.get('total_inversores_kw', 0.0)
+
+    # 2. DEFINIÇÃO DA POTÊNCIA FINAL
+    # 🟢 A regra de negócio principal: o "gargalo" (menor valor) dita a potência do sistema.
+    # Exemplo: 10 kWp de módulos e 8 kW de inversores = 8 kW reais de potência final.
+    potencia_final = min(total_modulos, total_inversores)
+
+    # 3. PRECIFICAÇÃO (TIERS)
+    # Inicializa com zero. Se a potência for 0 (ex: faltou cadastrar o inversor), o valor fica R$ 0,00.
+    valor_final = 0.00
+    
+    # Faixa 1: Micro/Minigeração inicial
+    if 0.1 <= potencia_final <= 49.99:
+        valor_final = 125.00
+        
+    # Faixa 2: Projetos de maior porte
+    elif 50.0 <= potencia_final <= 75.0:
+        valor_final = 150.00
+        
+    # (Nota para o futuro: Se houver projetos > 75.0, eles cairão no 0.00 a menos que uma nova faixa seja criada aqui)
+
+    # 4. PREPARAÇÃO DO RETORNO
+    # Injeta os valores calculados de volta no dicionário original.
+    # Isso permite que a View apenas pegue esses dados e jogue direto no Excel.
+    dados_projeto['potencia_calculada'] = potencia_final
+    dados_projeto['valor_calculado'] = valor_final
+
+    return dados_projeto
