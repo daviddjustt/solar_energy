@@ -5,7 +5,7 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.contrib.auth.models import Group # Importar Group
 
@@ -14,26 +14,23 @@ CELULAR_REGEX = r'^\d{11}$'
 MAX_IMAGE_SIZE_MB = 7
 
 def validate_cpf(cpf):
-    cpf_pattern = r'^\d{3}\.\d{3}\.\d{3}/\d{2}$'
-    """Valida o cpf de forma simplificada."""
-    cpf = ''.join(filter(str.isdigit, cpf))
-    if len(cpf) != 11:
-        raise ValidationError('cpf deve conter 18 dígitos')
-    if all(d == cpf[0] for d in cpf):
-        raise ValidationError('cpf inválido')
-    
-    return bool(re.match(cpf_pattern, cpf))
+    """Valida se o CPF possui 11 dígitos numéricos após limpeza."""
+    cpf_cleaned = ''.join(filter(str.isdigit, str(cpf or '')))
+    if len(cpf_cleaned) != 11:
+        raise ValidationError('CPF deve conter 11 dígitos numéricos.')
+    if all(d == cpf_cleaned[0] for d in cpf_cleaned):
+        raise ValidationError('CPF inválido.')
+    return True
+
 
 def validate_cnpj(cnpj):
-    cnpj_pattern = r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$'
-    """Valida o cnpj de forma simplificada."""
-    cnpj = ''.join(filter(str.isdigit, cnpj))
-    if len(cnpj) != 14:
-        raise ValidationError('cnpj deve conter 18 dígitos')
-    if all(d == cnpj[0] for d in cnpj):
-        raise ValidationError('cnpj inválido')
-    
-    return bool(re.match(cnpj_pattern, cnpj))
+    """Valida se o CNPJ possui 14 dígitos numéricos após limpeza."""
+    cnpj_cleaned = ''.join(filter(str.isdigit, str(cnpj or '')))
+    if len(cnpj_cleaned) != 14:
+        raise ValidationError('CNPJ deve conter 14 dígitos numéricos.')
+    if all(d == cnpj_cleaned[0] for d in cnpj_cleaned):
+        raise ValidationError('CNPJ inválido.')
+    return True
 
 def validate_image_size(image):
     """Valida o tamanho máximo da imagem."""
@@ -43,7 +40,7 @@ def validate_image_size(image):
 class UserManager(BaseUserManager):
     """Gerenciador de usuários personalizado."""
     
-    def create_user(self, email, name, cnpj, cpf, celular=None, password=None, **extra_fields):
+    def create_user(self, email, name, cnpj, cpf, celular=None, password=None, group_name=None, **extra_fields):
 
             user = self.model(
                 email=email,
@@ -54,14 +51,52 @@ class UserManager(BaseUserManager):
                 is_cliente=True,
                 **extra_fields
             )
+
+            
             user.set_password(password)
+
+            with transaction.atomic():
+                user.full_clean()
+                user.save(using=self._db)
+
+                if group_name:
+                    try:
+                        group = Group.objects.get(name=group_name)
+                        user.groups.add(group)
+                    except Group.DoesNotExist:
+                        raise ValueError(f"O grupo '{group_name}' não existe.")
+
             user.save(using=self._db)
             return user
 
-    def create_superuser(self, email, name, cnpj, cpf, celular, password=None, **extra_fields):
+    def create_superuser(self, email, name, celular, cnpj=None, cpf=None, password=None, group_name=None, **extra_fields):
         extra_fields.setdefault('is_admin', True)
         extra_fields.setdefault('is_active', True)
         extra_fields.setdefault('is_superuser', True)
+
+        # 🟢 DEFINIÇÃO AUTOMÁTICA DE PF OU PJ BASEADA EM CPF/CNPJ
+        if group_name is None:
+            if cnpj and not cpf:
+                group_name = 'Clientes PJ'
+            elif cpf and not cnpj:
+                group_name = 'Clientes PF'
+            else:
+                group_name = 'Clientes PF'
+
+        # Validações por grupo
+        if group_name == 'Clientes PJ':
+            if not cnpj:
+                raise ValueError('CNPJ é obrigatório para clientes PJ.')
+            cpf = None
+        elif group_name == 'Clientes PF':
+            if not cpf:
+                raise ValueError('CPF é obrigatório para clientes PF.')
+            cnpj = None
+        elif group_name == 'Técnicos':
+            cpf = None
+            cnpj = None
+        else:
+            raise ValueError(f"Grupo '{group_name}' não é um grupo válido.")
         
         return self.create_user(
                 email=email,
@@ -73,6 +108,8 @@ class UserManager(BaseUserManager):
                 is_admin=True,
                 is_active=True,
                 is_superuser=True,
+                group_name=group_name,
+                **extra_fields
             )
     
 class User(AbstractBaseUser, PermissionsMixin):
@@ -143,24 +180,83 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"{self.name} - {self.cnpj}"
     
     def _normalize_text_fields(self):
-        """Normaliza os campos de texto."""
+        """
+        Normaliza os campos de texto do usuário:
+        - Nome: Remove espaços nas extremidades e converte para maiúsculas.
+        - CPF, CNPJ e Celular: Mantém apenas dígitos numéricos.
+        - Evita strings vazias ("") convertendo-as para None (evita erro no unique=True).
+        """
         if self.name:
-            self.name = self.name.upper()
+            self.name = self.name.upper().strip()
+
+        if self.cpf:
+            cpf_cleaned = ''.join(filter(str.isdigit, str(self.cpf)))
+            self.cpf = cpf_cleaned if cpf_cleaned else None
+
         if self.cnpj:
-            self.cnpj = ''.join(filter(str.isdigit, self.cnpj))
+            cnpj_cleaned = ''.join(filter(str.isdigit, str(self.cnpj)))
+            self.cnpj = cnpj_cleaned if cnpj_cleaned else None
+
         if self.celular:
-            self.celular = ''.join(filter(str.isdigit, self.celular))
+            celular_cleaned = ''.join(filter(str.isdigit, str(self.celular)))
+            self.celular = celular_cleaned if celular_cleaned else None
     
     def clean(self):
         if not self.celular:
             raise ValidationError({'celular': 'O celular é obrigatório.'})
-    
+
     def save(self, *args, **kwargs):
-        """Salva o usuário após normalizar os campos."""
+        """Salva o usuário após normalizar os campos e sincronizar grupos."""
         self.is_active = True 
         self._normalize_text_fields()
+        
+        # Sincroniza a flag de Pessoa Jurídica baseada no documento preenchido
+        if self.cnpj and not self.cpf:
+            self.is_pessoa_juridica = True
+        elif self.cpf and not self.cnpj:
+            self.is_pessoa_juridica = False
+
         super().save(*args, **kwargs)
-        self._update_groups()
+        
+        # 🟢 Garante que a sincronização unificada de grupos ocorra APÓS salvar
+        self._sync_groups()
+
+    def _sync_groups(self):
+        """
+        Gerencia todos os grupos de acesso de forma centralizada e sem duplicidade.
+        Substitui as funções antigas _update_groups e _assign_to_groups.
+        """
+        # 1. Busca ou cria os grupos com Nomes Padronizados
+        group_admin, _ = Group.objects.get_or_create(name='Admin')
+        group_tecnico, _ = Group.objects.get_or_create(name='Técnicos')
+        group_cliente, _ = Group.objects.get_or_create(name='Clientes')
+        group_pf, _ = Group.objects.get_or_create(name='Clientes PF')
+        group_pj, _ = Group.objects.get_or_create(name='Clientes PJ')
+
+        # 2. Sincroniza o perfil Administrador
+        if self.is_admin or self.is_superuser:
+            self.groups.add(group_admin)
+        else:
+            self.groups.remove(group_admin)
+
+        # 3. Sincroniza o perfil Técnico
+        if self.is_tecnico:
+            self.groups.add(group_tecnico)
+        else:
+            self.groups.remove(group_tecnico)
+
+        # 4. Sincroniza o perfil Cliente e ramificações PF/PJ
+        if self.is_cliente:
+            self.groups.add(group_cliente)
+            if self.is_pessoa_juridica:
+                self.groups.add(group_pj)
+                self.groups.remove(group_pf)
+            else:
+                self.groups.add(group_pf)
+                self.groups.remove(group_pj)
+        else:
+            # Remove de todos os grupos de cliente se não for mais cliente
+            self.groups.remove(group_cliente, group_pf, group_pj)
 
     @property
     def is_staff(self):
@@ -213,6 +309,27 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.groups.add(cliente_group)
         else:
             self.groups.remove(cliente_group)
+
+    def _assign_to_groups(self):
+        """
+        Sincroniza os grupos do usuário de acordo com a presença de CPF ou CNPJ.
+        """
+        group_admin, _ = Group.objects.get_or_create(name='Admin')
+        group_tecnico, _ = Group.objects.get_or_create(name='Técnicos')
+        group_cliente, _ = Group.objects.get_or_create(name='Clientes')
+        group_cliente_pf, _ = Group.objects.get_or_create(name='Clientes PF')
+        group_cliente_pj, _ = Group.objects.get_or_create(name='Clientes PJ')
+
+        if self.is_superuser:
+            self.groups.add(group_admin)
+        elif self.cpf and not self.cnpj:
+            # CPF preenchido -> Pessoa Física (is_pessoa_juridica = False)
+            self.groups.remove(group_cliente_pj)
+            self.groups.add(group_cliente, group_cliente_pf)
+        elif self.cnpj and not self.cpf:
+            # CNPJ preenchido -> Pessoa Jurídica (is_pessoa_juridica = True)
+            self.groups.remove(group_cliente_pf)
+            self.groups.add(group_cliente, group_cliente_pj)
         
 
 class Tecnico(User):
@@ -229,42 +346,22 @@ class Tecnico(User):
         ]
     
     def save(self, *args, **kwargs):
-        # Garante que o Técnico seja staff (pode acessar o admin)
-        if (self==True):
-            self.is_staff = False
-            self.is_admin = False
-            self.is_tecnico = True
-            self.is_cliente = False
-            self.is_active = False 
-            super().save(update_fields=['is_staff'])
-            super().save(update_fields=['is_admin'])
-            super().save(update_fields=['is_tecnico'])
-            super().save(update_fields=['cliente'])
+        self.is_admin = False
+        self.is_tecnico = True
+        self.is_cliente = False
+        self.is_pessoa_juridica = False
+        self.cnpj = None
         
-        # Gaante que a Empresa é uma pessoa jurídica
-        if self.is_pessoa_juridica is True:
-            self.is_pessoa_juridica = False
-            super().save(update_fields=['is_pessoa_juridica'])
-            self.cnpj = None
-            super().save(update_fields=['cnpj'])
-        
-        # Adicionar ao grupo 'Tecnicos'
-        tecnico_group, created = Group.objects.get_or_create(name='Tecnicos')
-        self.groups.add(tecnico_group)
-        
-        # Remover de 'Clientes' se estiver lá (para garantir exclusividade de papel)
-        cliente_group = Group.objects.filter(name='Clientes').first()
-        if cliente_group and self.groups.filter(name='Clientes').exists():
-            self.groups.remove(cliente_group)
-            
+        # Um único save() que atualiza os campos e dispara a sincronização de grupos do User
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Técnico: {self.get_full_name() or self.username}"
+        return f"Técnico: {self.get_full_name() or self.email}"
 
-class Cliente(Tecnico):
+
+class Cliente(User):
     """
-    Perfil de usuário Cliente. Não pode editar campos financeiros e
-    só pode acessar seus próprios projetos.
+    Perfil de usuário Cliente (Pessoa Física).
     """
     class Meta:
         proxy = True
@@ -272,47 +369,25 @@ class Cliente(Tecnico):
         verbose_name_plural = 'Clientes'
         permissions = [
             ('can_view_own_projects', 'Pode visualizar apenas seus próprios projetos'),
-            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'), # Redundante, mas explícito
+            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'),
         ]
 
     def save(self, *args, **kwargs):
-        # Primeiro, chama o save de Tecnico (super()), que adiciona ao grupo 'Tecnicos' e define is_staff=True
-        super().save(*args, **kwargs) 
+        self.is_admin = False
+        self.is_tecnico = False
+        self.is_cliente = True
+        self.is_pessoa_juridica = False
+        self.cnpj = None
         
-        # Agora, remove de 'Tecnicos' e adiciona a 'Clientes'
-        tecnico_group = Group.objects.filter(name='Tecnicos').first()
-        if tecnico_group and self.groups.filter(name='Tecnicos').exists():
-            self.groups.remove(tecnico_group)
-            
-        cliente_group, created = Group.objects.get_or_create(name='Clientes')
-        self.groups.add(cliente_group)
-        
-        # Garante que o Cliente NÃO seja staff
-        if (self==True):
-            self.is_staff = False
-            self.is_admin = False
-            self.is_tecnico = False
-            self.is_cliente = True
-            self.is_active = False 
-            super().save(update_fields=['is_staff'])
-            super().save(update_fields=['is_admin'])
-            super().save(update_fields=['is_tecnico'])
-            super().save(update_fields=['cliente'])
-        
-        # Gaante que o Cliente é uma pessoa física
-        if self.is_pessoa_juridica is True:
-            self.is_pessoa_juridica = False
-            super().save(update_fields=['is_pessoa_juridica'])
-            self.cnpj = None
-            super().save(update_fields=['cnpj'])
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Cliente: {self.get_full_name() or self.username}"
+        return f"Cliente: {self.get_full_name() or self.email}"
 
-class Empresa(Cliente):
+
+class Empresa(User):
     """
-    Perfil de usuário Empresa. Herdado de Cliente.
-    Pode acessar apenas seus próprios projetos e não edita campos financeiros.
+    Perfil de usuário Empresa (Pessoa Jurídica).
     """
     class Meta:
         proxy = True
@@ -320,34 +395,20 @@ class Empresa(Cliente):
         verbose_name_plural = 'Empresas'
         permissions = [
             ('can_view_own_projects', 'Pode visualizar apenas seus próprios projetos'),
-            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'), # Redundante, mas explícito
+            ('cannot_edit_financial_data', 'Não pode editar dados financeiros'),
         ]
 
     def save(self, *args, **kwargs):
-        # Primeiro, chama o save de Cliente (super()), que adiciona ao grupo 'Clientes' e define is_staff=False
-        super().save(*args, **kwargs) 
+        self.is_admin = False
+        self.is_tecnico = False
+        self.is_cliente = True
+        self.is_pessoa_juridica = True
+        self.cpf = None
         
-        if (self==True):
-            self.is_staff = False
-            self.is_admin = False
-            self.is_tecnico = False
-            self.is_cliente = True
-            self.is_active = False 
-            super().save(update_fields=['is_staff'])
-            super().save(update_fields=['is_admin'])
-            super().save(update_fields=['is_tecnico'])
-            super().save(update_fields=['cliente'])
-        
-        # Gaante que a Empresa é uma pessoa jurídica
-        if self.is_pessoa_juridica is False:
-            self.is_pessoa_juridica = True
-            super().save(update_fields=['is_pessoa_juridica'])
-            self.cpf = None
-            super().save(update_fields=['cpf'])
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Empresa: {self.get_full_name() or self.username}"
-
+        return f"Empresa: {self.get_full_name() or self.email}"
 class EmailLog(models.Model):
     """Registra todos os e-mails enviados pelo sistema."""
     STATUS_CHOICES = (
