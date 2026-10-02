@@ -35,6 +35,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
     )
 
     # Campos específicos da tabela Energisa (Opcionais no Swagger)
+    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     tensao_tipo = serializers.ChoiceField(choices=EnergisaProject.TIPO_TENSAO_CHOICES, required=False, allow_null=True)
     tensao_imagem = serializers.ImageField(required=False, allow_null=True)
     cabo_mm2 = serializers.FloatField(required=False, allow_null=True)
