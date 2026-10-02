@@ -34,25 +34,27 @@ echo "✅ Banco de dados atualizado com sucesso!"
 # =========================================================================
 echo "🛠️ Aplicando correções forçadas de Schema (Energisa e Pagamentos)..."
 python manage.py shell << 'EOF'
-from django.db import connection
-# IMPORTAÇÃO CORRIGIDA AQUI:
+from django.db import connection, transaction
 from solar.documents.models import EnergisaProject, ProjectDocument
 
-with connection.schema_editor() as schema_editor:
-    # 1. Tenta criar a tabela da Energisa (se falhar, é porque já existe)
-    try:
-        schema_editor.create_model(EnergisaProject)
-        print("✅ Tabela 'EnergisaProject' construída com sucesso no banco!")
-    except Exception:
-        print("ℹ️ Tabela 'EnergisaProject' já existe e está pronta para uso.")
+# 1. Tenta criar a tabela da Energisa de forma isolada
+try:
+    with transaction.atomic():
+        with connection.schema_editor() as schema_editor:
+            schema_editor.create_model(EnergisaProject)
+    print("✅ Tabela 'EnergisaProject' construída com sucesso no banco!")
+except Exception:
+    print("ℹ️ Tabela 'EnergisaProject' já existe e está pronta para uso.")
         
-    # 2. Tenta recriar a coluna de pagamento que foi perdida nas migrações
-    try:
-        field = ProjectDocument._meta.get_field('related_payment_document')
-        schema_editor.add_field(ProjectDocument, field)
-        print("✅ Coluna 'related_payment_document' adicionada com sucesso!")
-    except Exception:
-        print("ℹ️ Coluna 'related_payment_document' já existe e está pronta para uso.")
+# 2. Tenta recriar a coluna de pagamento de forma isolada
+try:
+    with transaction.atomic():
+        with connection.schema_editor() as schema_editor:
+            field = ProjectDocument._meta.get_field('related_payment_document')
+            schema_editor.add_field(ProjectDocument, field)
+    print("✅ Coluna 'related_payment_document' adicionada com sucesso!")
+except Exception:
+    print("ℹ️ Coluna 'related_payment_document' já existe e está pronta para uso.")
 EOF
 # =========================================================================
 
