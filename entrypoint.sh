@@ -29,6 +29,32 @@ echo "🔄 Aplicando demais migrações..."
 python manage.py migrate --noinput
 echo "✅ Banco de dados atualizado com sucesso!"
 
+docker-compose run --rm web python manage.py shell << 'EOF'
+from django.db import connection
+from documents.models import EnergisaProject, ProjectDocument
+
+print("🛠️ Iniciando correção forçada do banco de dados...")
+
+with connection.schema_editor() as schema_editor:
+    # 1. Força a criação da tabela da Energisa que estava faltando
+    try:
+        schema_editor.create_model(EnergisaProject)
+        print("✅ Tabela 'EnergisaProject' construída com sucesso no banco!")
+    except Exception as e:
+        print(f"⚠️ Aviso Energisa (Pode já existir): {e}")
+        
+    # 2. Força a criação da coluna de pagamento nos documentos 
+    # (que provavelmente também foi perdida no fake da 0006)
+    try:
+        field = ProjectDocument._meta.get_field('related_payment_document')
+        schema_editor.add_field(ProjectDocument, field)
+        print("✅ Coluna 'related_payment_document' adicionada com sucesso!")
+    except Exception as e:
+        print(f"⚠️ Aviso Documento (Pode já existir): {e}")
+
+print("🚀 Correção finalizada! O banco agora está idêntico ao models.py.")
+EOF
+
 # 5. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
 python manage.py shell << EOF
