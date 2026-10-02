@@ -29,6 +29,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
     grupo = serializers.ChoiceField(
         choices=GRUPO_CHOICES, 
         required=True, 
+        write_only=True,  # 🟢 ADICIONE ISTO: Impede o Django de procurar o campo no banco na hora de responder
         help_text="Defina se o projeto é Saeb ou Energisa."
     )
 
@@ -103,9 +104,15 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
+        # 🟢 ATUALIZE ISTO: Injeta o grupo manualmente no JSON de resposta
         if hasattr(instance, 'energisaproject'):
-            return EnergisaProjectSerializer(instance.energisaproject).data
-        return super().to_representation(instance)
+            data = EnergisaProjectSerializer(instance.energisaproject).data
+            data['grupo'] = 'energisa'
+            return data
+            
+        data = super().to_representation(instance)
+        data['grupo'] = 'saeb'
+        return data
 
     
 class ProjectProtocolSerializer(serializers.ModelSerializer):
