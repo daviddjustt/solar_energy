@@ -33,7 +33,7 @@ echo "✅ Banco de dados atualizado com sucesso!"
 echo "🛠️ Aplicando correções forçadas de Schema (Energisa e Pagamentos)..."
 python manage.py shell << 'EOF'
 from django.db import connection
-from documents.models import EnergisaProject, ProjectDocument
+from documents.documents.models import EnergisaProject, ProjectDocument
 
 with connection.schema_editor() as schema_editor:
     # 1. Tenta criar a tabela da Energisa (se falhar, é porque já existe)
