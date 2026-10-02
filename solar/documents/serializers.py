@@ -77,18 +77,21 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
 
         return data
 
+
     def create(self, validated_data):
-        grupo = validated_data.get('grupo') 
+        # O pop() pega o valor e REMOVE a chave 'grupo' do dicionário de dados.
+        # Assim, o Django não tentará salvar uma coluna que não existe no models.py.
+        grupo = validated_data.pop('grupo', 'saeb') 
         
         if grupo == 'energisa':
-            # Salva na tabela base e também na tabela separada da Energisa
             return EnergisaProject.objects.create(**validated_data)
         
-        # Salva apenas na tabela base (Saeb)
+        # Agora o validated_data está limpo e não causará o TypeError
         return ClientProject.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
-        grupo = validated_data.get('grupo', instance.grupo)
+        # Removemos o grupo aqui também para não dar erro na atualização
+        grupo = validated_data.pop('grupo', 'saeb')
 
         if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
             energisa_instance = instance.energisaproject
