@@ -30,10 +30,13 @@ python manage.py migrate --noinput
 echo "✅ Banco de dados atualizado com sucesso!"
 
 # =========================================================================
+# 4. CORREÇÃO FORÇADA DE SCHEMA (AUTO-CURA DO BANCO)
+# =========================================================================
 echo "🛠️ Aplicando correções forçadas de Schema (Energisa e Pagamentos)..."
 python manage.py shell << 'EOF'
 from django.db import connection
-from documents.documents.models import EnergisaProject, ProjectDocument
+# IMPORTAÇÃO CORRIGIDA AQUI:
+from solar.documents.models import EnergisaProject, ProjectDocument
 
 with connection.schema_editor() as schema_editor:
     # 1. Tenta criar a tabela da Energisa (se falhar, é porque já existe)
@@ -51,7 +54,7 @@ with connection.schema_editor() as schema_editor:
     except Exception:
         print("ℹ️ Coluna 'related_payment_document' já existe e está pronta para uso.")
 EOF
-#==================================================================================================
+# =========================================================================
 
 # 5. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
