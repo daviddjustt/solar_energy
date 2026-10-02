@@ -20,9 +20,7 @@ class EnergisaProjectSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
-    # Declaramos os campos da Energisa aqui como não-obrigatórios 
-    # para que o DRF não bloqueie a requisição POST/PUT
-
+    # Declaramos como opcionais aqui, para a nossa lógica interna decidir quando exigir
     tensao_tipo = serializers.ChoiceField(choices=EnergisaProject.TIPO_TENSAO_CHOICES, required=False, allow_null=True)
     tensao_imagem = serializers.ImageField(required=False, allow_null=True)
     cabo_mm2 = serializers.FloatField(required=False, allow_null=True)
@@ -34,29 +32,55 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClientProject
-        fields = '__all__' # Pega todos os campos base de ClientProject + os declarados acima
+        fields = '__all__' 
+
+    def validate(self, data):
+        """
+        O coração da inteligência da API: decide o que exigir com base no grupo.
+        """
+        # Pega o grupo atual da requisição ou do banco de dados (se for edição)
+        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'saeb'))
+        
+        campos_energisa = [
+            'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
+            'disjuntor_amperes', 'dps_ka', 'tipo_ramal'
+        ]
+
+        if grupo == 'energisa':
+            # 1. Se for Energisa, valida se os campos obrigatórios foram enviados
+            erros = {}
+            for campo in campos_energisa:
+                # Checa se o dado veio no request ou se já existe no banco (no caso de PATCH)
+                if data.get(campo) is None and not getattr(self.instance, campo, None):
+                    erros[campo] = "Este campo é obrigatório para projetos da Energisa."
+            
+            if erros:
+                raise serializers.ValidationError(erros)
+            
+            # Validação extra da imagem (Coletivo vs Individual)
+            tensao_tipo = data.get('tensao_tipo', getattr(self.instance, 'tensao_tipo', 'individual'))
+            if tensao_tipo == 'individual' and data.get('tensao_imagem'):
+                raise serializers.ValidationError({"tensao_imagem": "Não é permitido enviar imagem para tensão Individual."})
+
+        else:
+            # 2. Se NÃO for Energisa, nós deletamos preventivamente esses campos do pacote de dados
+            # Isso garante que mesmo que o frontend mande "cabo_mm2" para um projeto Saeb, 
+            # a API ignora e as colunas não são salvas de forma indevida.
+            todos_campos_energisa = campos_energisa + ['tensao_tipo', 'tensao_imagem']
+            for campo in todos_campos_energisa:
+                data.pop(campo, None)
+
+        return data
 
     def create(self, validated_data):
-        # Pegamos a flag que diz qual é o grupo (ajuste 'grupo' para o campo exato que você usa)
         grupo = validated_data.get('grupo', 'saeb') 
         
         if grupo == 'energisa':
-            # Cria direto na tabela filha. Como ela herda de ClientProject, salva em ambas!
             return EnergisaProject.objects.create(**validated_data)
         
-        # Se NÃO for Energisa (ex: Saeb), removemos os campos da Energisa da requisição
-        # para evitar erros ao tentar salvar na tabela base (ClientProject)
-        campos_energisa = [
-            'tensao_tipo', 'tensao_imagem', 'cabo_mm2', 'isolacao_volts', 
-            'cabos_por_fase', 'disjuntor_amperes', 'dps_ka', 'tipo_ramal'
-        ]
-        for campo in campos_energisa:
-            validated_data.pop(campo, None)
-            
         return ClientProject.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
-        # Verifica se estamos atualizando um projeto que É da Energisa
         if hasattr(instance, 'energisaproject'):
             energisa_instance = instance.energisaproject
             for attr, value in validated_data.items():
@@ -64,18 +88,11 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
             energisa_instance.save()
             return energisa_instance
         
-        # Se for Saeb, atualiza normalmente
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
-        """
-        Mágica do GET: Na hora de enviar os dados pro Frontend, 
-        se o projeto for da Energisa, enviamos o JSON completo com os campos extras.
-        """
         if hasattr(instance, 'energisaproject'):
             return EnergisaProjectSerializer(instance.energisaproject).data
-        
-        # Se for projeto normal, devolve os dados base
         return super().to_representation(instance)
     
 class ProjectProtocolSerializer(serializers.ModelSerializer):
