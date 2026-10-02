@@ -19,8 +19,20 @@ class EnergisaProjectSerializer(serializers.ModelSerializer):
         model = EnergisaProject
         fields = '__all__'
 
+
 class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
-    # Declaramos como opcionais aqui, para a nossa lógica interna decidir quando exigir
+    # 1. FORÇANDO O SWAGGER A EXIBIR O CAMPO GRUPO
+    GRUPO_CHOICES = (
+        ('saeb', 'Saeb'),
+        ('energisa', 'Energisa'),
+    )
+    grupo = serializers.ChoiceField(
+        choices=GRUPO_CHOICES, 
+        required=True, 
+        help_text="Defina se o projeto é Saeb ou Energisa."
+    )
+
+    # Campos específicos da tabela Energisa (Opcionais no Swagger)
     tensao_tipo = serializers.ChoiceField(choices=EnergisaProject.TIPO_TENSAO_CHOICES, required=False, allow_null=True)
     tensao_imagem = serializers.ImageField(required=False, allow_null=True)
     cabo_mm2 = serializers.FloatField(required=False, allow_null=True)
@@ -35,53 +47,50 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
         fields = '__all__' 
 
     def validate(self, data):
-        """
-        O coração da inteligência da API: decide o que exigir com base no grupo.
-        """
-        # Pega o grupo atual da requisição ou do banco de dados (se for edição)
+        # Pegamos o grupo enviado na requisição
         grupo = data.get('grupo', getattr(self.instance, 'grupo', 'saeb'))
         
         campos_energisa = [
             'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
-            'disjuntor_amperes', 'dps_ka', 'tipo_ramal'
+            'disjuntor_amperes', 'dps_ka', 'tipo_ramal',
+            'tensao_tipo', 'tensao_imagem'
         ]
 
         if grupo == 'energisa':
-            # 1. Se for Energisa, valida se os campos obrigatórios foram enviados
+            # Valida se os campos obrigatórios da Energisa foram enviados
             erros = {}
             for campo in campos_energisa:
-                # Checa se o dado veio no request ou se já existe no banco (no caso de PATCH)
-                if data.get(campo) is None and not getattr(self.instance, campo, None):
-                    erros[campo] = "Este campo é obrigatório para projetos da Energisa."
+                if campo not in ['tensao_tipo', 'tensao_imagem']: # Ignorando imagem/tipo da obrigatoriedade base
+                    if data.get(campo) is None and not getattr(self.instance, campo, None):
+                        erros[campo] = f"O campo {campo} é obrigatório para a Energisa."
             
             if erros:
                 raise serializers.ValidationError(erros)
-            
-            # Validação extra da imagem (Coletivo vs Individual)
-            tensao_tipo = data.get('tensao_tipo', getattr(self.instance, 'tensao_tipo', 'individual'))
-            if tensao_tipo == 'individual' and data.get('tensao_imagem'):
-                raise serializers.ValidationError({"tensao_imagem": "Não é permitido enviar imagem para tensão Individual."})
-
+                
         else:
-            # 2. Se NÃO for Energisa, nós deletamos preventivamente esses campos do pacote de dados
-            # Isso garante que mesmo que o frontend mande "cabo_mm2" para um projeto Saeb, 
-            # a API ignora e as colunas não são salvas de forma indevida.
-            todos_campos_energisa = campos_energisa + ['tensao_tipo', 'tensao_imagem']
-            for campo in todos_campos_energisa:
+            # 2. REGRA DO SAEB: Se for Saeb, removemos (anulamos) todos os campos de Energisa.
+            # O comando `pop` retira esses dados da requisição. Como eles pertencem a uma
+            # tabela separada (EnergisaProject), ao removê-los daqui, o Django simplesmente
+            # não vai criar o registro na tabela Energisa. Ficará 100% isolado.
+            for campo in campos_energisa:
                 data.pop(campo, None)
 
         return data
 
     def create(self, validated_data):
-        grupo = validated_data.get('grupo', 'saeb') 
+        grupo = validated_data.get('grupo') 
         
         if grupo == 'energisa':
+            # Salva na tabela base e também na tabela separada da Energisa
             return EnergisaProject.objects.create(**validated_data)
         
+        # Salva apenas na tabela base (Saeb)
         return ClientProject.objects.create(**validated_data)
 
     def update(self, instance, validated_data):
-        if hasattr(instance, 'energisaproject'):
+        grupo = validated_data.get('grupo', instance.grupo)
+
+        if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
             energisa_instance = instance.energisaproject
             for attr, value in validated_data.items():
                 setattr(energisa_instance, attr, value)
@@ -94,6 +103,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
         if hasattr(instance, 'energisaproject'):
             return EnergisaProjectSerializer(instance.energisaproject).data
         return super().to_representation(instance)
+
     
 class ProjectProtocolSerializer(serializers.ModelSerializer):
     class Meta:
