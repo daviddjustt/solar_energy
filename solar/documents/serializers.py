@@ -29,6 +29,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
     grupo = serializers.ChoiceField(
         choices=GRUPO_CHOICES, 
         required=True, 
+        default='saeb',
         write_only=True,  # 🟢 ADICIONE ISTO: Impede o Django de procurar o campo no banco na hora de responder
         help_text="Defina se o projeto é Saeb ou Energisa."
     )
