@@ -542,7 +542,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         
         # 3. ATUALIZADO: Agora usamos o Serializer Unificado como motor principal.
         # Ele será responsável por criar, atualizar e listar os projetos dinamicamente 
-        # exibindo os campos extras quando for 'Energisa' e escondendo quando for 'Saeb'.
+        # exibindo os campos extras quando for 'Energisa' e escondendo quando for 'coelba'.
         if self.action in ['create', 'update', 'partial_update', 'retrieve', 'list', 'meus_projetos']:
              return ClientProjectUnifiedSerializer
              

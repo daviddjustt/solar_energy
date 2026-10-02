@@ -23,15 +23,15 @@ class EnergisaProjectSerializer(serializers.ModelSerializer):
 class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
     # 1. FORÇANDO O SWAGGER A EXIBIR O CAMPO GRUPO
     GRUPO_CHOICES = (
-        ('saeb', 'Saeb'),
+        ('coelba', 'Coelba'),
         ('energisa', 'Energisa'),
     )
     grupo = serializers.ChoiceField(
         choices=GRUPO_CHOICES, 
         required=True, 
-        default='saeb',
+        default='coelba',
         write_only=True,  # 🟢 ADICIONE ISTO: Impede o Django de procurar o campo no banco na hora de responder
-        help_text="Defina se o projeto é Saeb ou Energisa."
+        help_text="Defina se o projeto é Coelba ou Energisa."
     )
 
     # Campos específicos da tabela Energisa (Opcionais no Swagger)
@@ -50,7 +50,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # Pegamos o grupo enviado na requisição
-        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'saeb'))
+        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
         
         campos_energisa = [
             'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
@@ -70,7 +70,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(erros)
                 
         else:
-            # 2. REGRA DO SAEB: Se for Saeb, removemos (anulamos) todos os campos de Energisa.
+            # 2. REGRA DO Coelba: Se for Coelba, removemos (anulamos) todos os campos de Energisa.
             # O comando `pop` retira esses dados da requisição. Como eles pertencem a uma
             # tabela separada (EnergisaProject), ao removê-los daqui, o Django simplesmente
             # não vai criar o registro na tabela Energisa. Ficará 100% isolado.
@@ -83,7 +83,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # O pop() pega o valor e REMOVE a chave 'grupo' do dicionário de dados.
         # Assim, o Django não tentará salvar uma coluna que não existe no models.py.
-        grupo = validated_data.pop('grupo', 'saeb') 
+        grupo = validated_data.pop('grupo', 'coelba') 
         
         if grupo == 'energisa':
             return EnergisaProject.objects.create(**validated_data)
@@ -93,7 +93,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Removemos o grupo aqui também para não dar erro na atualização
-        grupo = validated_data.pop('grupo', 'saeb')
+        grupo = validated_data.pop('grupo', 'coelba')
 
         if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
             energisa_instance = instance.energisaproject
@@ -112,7 +112,7 @@ class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
             return data
             
         data = super().to_representation(instance)
-        data['grupo'] = 'saeb'
+        data['grupo'] = 'coelba'
         return data
 
     

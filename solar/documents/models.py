@@ -434,7 +434,7 @@ class EnergisaProject(ClientProject):
 
     def save(self, *args, **kwargs):
         # Garante que o projeto sempre pertença ao grupo Energisa
-        # (Ajuste 'grupo' para o nome exato da variável que você usa em ClientProject para definir Saeb/Energisa)
+        # (Ajuste 'grupo' para o nome exato da variável que você usa em ClientProject para definir Coelba/Energisa)
         self.grupo = 'energisa'  
         
         # Regra de negócio: Limpa a imagem caso alguém mude de Coletivo para Individual
