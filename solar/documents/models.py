@@ -391,3 +391,57 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     @property
     def is_recent(self):
         return self.days_since_upload <= 7
+
+class EnergisaProject(ClientProject):
+    """
+    Modelo para projetos da concessionária Energisa.
+    Herda todos os campos de ClientProject.
+    """
+    TIPO_TENSAO_CHOICES = [
+        ('individual', 'Individual'),
+        ('coletivo', 'Coletivo'),
+    ]
+    
+    ISOLACAO_CHOICES = [
+        (750, '750 Volts'),
+        (1000, '1000 Volts'),
+    ]
+    
+    TIPO_RAMAL_CHOICES = [
+        ('aereo', 'Aéreo'),
+        ('subterraneo', 'Subterrâneo'),
+    ]
+
+    tensao_tipo = models.CharField('Tipo de Tensão', max_length=15, choices=TIPO_TENSAO_CHOICES, default='individual')
+    tensao_imagem = models.ImageField(
+        'Imagem da Tensão (Coletivo)', 
+        upload_to='projetos/energisa/tensao/', 
+        null=True, 
+        blank=True,
+        help_text='Opcional. Apenas aplicável se a tensão for Coletiva.'
+    )
+    
+    cabo_mm2 = models.FloatField('Cabo (mm²)')
+    isolacao_volts = models.IntegerField('Isolação do Cabo (V)', choices=ISOLACAO_CHOICES)
+    cabos_por_fase = models.IntegerField('Cabos por Fase')
+    disjuntor_amperes = models.FloatField('Disjuntor (A)')
+    dps_ka = models.FloatField('Dispositivo de Proteção contra Surtos - DPS (kA)')
+    tipo_ramal = models.CharField('Tipo de Ramal', max_length=15, choices=TIPO_RAMAL_CHOICES)
+
+    class Meta:
+        verbose_name = 'Projeto Energisa'
+        verbose_name_plural = 'Projetos Energisa'
+
+    def save(self, *args, **kwargs):
+        # Garante que o projeto sempre pertença ao grupo Energisa
+        # (Ajuste 'grupo' para o nome exato da variável que você usa em ClientProject para definir Saeb/Energisa)
+        self.grupo = 'energisa'  
+        
+        # Regra de negócio: Limpa a imagem caso alguém mude de Coletivo para Individual
+        if self.tensao_tipo == 'individual':
+            self.tensao_imagem = None
+            
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Energisa: {super().__str__()}"

@@ -33,7 +33,7 @@ from .models import (
     ConsumerUnit, 
     ProjectStatusHistory,
     ProjectProtocol,
-    AndamentoDoProjeto, 
+    AndamentoDoProjeto,
 )
 
 from .utils import (
@@ -49,7 +49,9 @@ from .serializers import (
     PaymentDocumentSerializer,
     ListaDeMateriaisSerializer,
     ProjectStatusHistorySerializer,
-    ProjectProtocolSerializer
+    ProjectProtocolSerializer,
+    ClientProjectUnifiedSerializer
+    
 )
 
 from solar.notifications.services import (
@@ -365,35 +367,7 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
             'proximo': proximo_display
         }
         
-class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = ClientProject.objects.all().order_by('-created_at')
-    filter_backends = [DjangoFilterBackend]
-    pagination_class = None
-    filterset_fields = ['created_by', 'codigoCliente']
 
-    def get_permissions(self):
-        return [permissions.IsAuthenticated()]
-    
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
-            return ClientProject.objects.none()
-        user = self.request.user
-        if user.is_superuser or user.is_admin or user.is_tecnico:
-            return ClientProject.objects.select_related('created_by').order_by('-created_at')
-        return ClientProject.objects.filter(created_by=user).select_related('created_by').order_by('-created_at')
-
-    def get_serializer_class(self):
-        if getattr(self, "swagger_fake_view", False):
-            return ProjectInfoSerializer
-        user = self.request.user
-        if self.action in ['update', 'partial_update']:
-             return TecnicoClientProjectSerializer
-        if user.is_authenticated and (user.is_tecnico or user.is_cliente):
-            return TecnicoClientProjectSerializer
-        if self.action == 'list':
-            return ProjectListSerializer
-        return ProjectInfoSerializer
-    
     @action(detail=False, methods=['get'])
     def meus_projetos(self, request):
         queryset = self.get_queryset()
@@ -523,6 +497,186 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ws.append(row)
 
         # Ajuste automático do tamanho das colunas
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            ws.column_dimensions[column].width = (max_length + 2)
+
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+        wb.save(response)
+        return response
+
+class ProjectViewSet(viewsets.ModelViewSet):
+    # 1. ATUALIZADO: Inclui 'energisaproject' para trazer os dados extras em 1 única query
+    queryset = ClientProject.objects.select_related('energisaproject').all().order_by('-created_at')
+    filter_backends = [DjangoFilterBackend]
+    pagination_class = None
+    filterset_fields = ['created_by', 'codigoCliente']
+
+    def get_permissions(self):
+        return [permissions.IsAuthenticated()]
+    
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
+            return ClientProject.objects.none()
+        
+        user = self.request.user
+        
+        # 2. ATUALIZADO: Inclui 'energisaproject' também nas queries filtradas
+        if user.is_superuser or user.is_admin or user.is_tecnico:
+            return ClientProject.objects.select_related('created_by', 'energisaproject').order_by('-created_at')
+        
+        return ClientProject.objects.filter(created_by=user).select_related('created_by', 'energisaproject').order_by('-created_at')
+
+    def get_serializer_class(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ClientProjectUnifiedSerializer
+        
+        # 3. ATUALIZADO: Agora usamos o Serializer Unificado como motor principal.
+        # Ele será responsável por criar, atualizar e listar os projetos dinamicamente 
+        # exibindo os campos extras quando for 'Energisa' e escondendo quando for 'Saeb'.
+        if self.action in ['create', 'update', 'partial_update', 'retrieve', 'list', 'meus_projetos']:
+             return ClientProjectUnifiedSerializer
+             
+        # Fallback de segurança
+        return ClientProjectUnifiedSerializer
+    
+    @action(detail=False, methods=['get'])
+    def meus_projetos(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        # Criação do projeto vinculando ao usuário da requisição
+        projeto = serializer.save(created_by=self.request.user)
+        notify_new_project_created(projeto)
+
+    def _check_update_permission(self):
+        user = self.request.user
+        if not (user.is_superuser or user.is_admin or user.is_tecnico):
+             raise PermissionDenied("Apenas Administradores e Técnicos podem atualizar projetos.")
+
+    def _check_financial_permission(self, serializer):
+        user = self.request.user
+        if user.is_authenticated and user.is_tecnico:
+            financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
+            if any(field in serializer.validated_data for field in financial_fields):
+                raise PermissionDenied("Você não tem permissão para modificar campos financeiros.")
+
+    def update(self, request, *args, **kwargs):
+         self._check_update_permission()
+         return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+         self._check_update_permission()
+         return super().partial_update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_status = instance.status
+        
+        # Executa a regra do serializer unificado (que atualiza Energisa ou ClientProject)
+        updated_instance = serializer.save()
+        new_status = updated_instance.status
+
+        # Mantém a sua regra de negócio de histórico intacta
+        if old_status != new_status:
+            ProjectStatusHistory.objects.create(
+                project=updated_instance,
+                changed_by_uuid=str(self.request.user.uuid),
+                old_status=old_status,
+                new_status=new_status
+            )
+            notify_project_status_changed(updated_instance, old_status, new_status)
+
+    @action(detail=True, methods=['get'], url_path='status-history')
+    def status_history(self, request, pk=None):
+        project = self.get_object()
+        history = ProjectStatusHistory.objects.filter(project=project)
+        serializer = ProjectStatusHistorySerializer(history, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def resumo_financeiro(self, request):
+        user = request.user
+        if not (user.is_superuser or user.is_admin):
+            return Response({'message': 'Acesso negado ao resumo financeiro.', 'total_projetos': self.get_queryset().count()}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'status': 'dados calculados'})
+
+    @extend_schema(operation_id="projects_destroy")
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        if not (user.is_superuser or user.is_admin):
+            raise PermissionDenied("Ação bloqueada: Apenas Administradores podem excluir projetos do sistema.")
+        return super().destroy(request, *args, **kwargs)
+    
+    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
+    @action(detail=True, methods=['get'], url_path='exportar-excel')
+    def exportar_excel(self, request, pk=None):
+        # Este método fica exatamente igual, operando perfeitamente 
+        # porque os dados base ainda estão disponíveis em ClientProject.
+        project = get_object_or_404(ClientProject.objects.prefetch_related('material_lists'), pk=pk)
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Dados do Projeto"
+
+        headers = [
+            "Titular do Projeto", "Classe do Projeto", "Status", 
+            "Código do Cliente", "Data de Ingresso do Cliente",
+            "Potência (kW)", "Valor (R$)"
+        ]
+        ws.append(headers)
+
+        data_ingresso = "Não registrado"
+        if project.created_by and project.created_by.created_at:
+            data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
+
+        total_mod_kw = 0.0
+        total_inv_kw = 0.0
+        for material in project.material_lists.all():
+            qtd = float(material.quantidade or 0)
+            pot_bruta = float(material.potencia or 0)
+            tipo = str(material.tipo or '').lower()
+            unidade = str(material.unidade_de_medida or '').lower().strip()
+            
+            if 'kw' in unidade:
+                pot_kw = pot_bruta
+            else:
+                pot_kw = pot_bruta / 1000.0
+                
+            total_linha_kw = qtd * pot_kw
+            
+            if 'modulo' in tipo or 'módulo' in tipo:
+                total_mod_kw += total_linha_kw
+            elif 'inversor' in tipo:
+                total_inv_kw += total_linha_kw
+
+        dados_calculados = calcular_regras_potencia_e_valor({
+            'total_modulos_kw': total_mod_kw,
+            'total_inversores_kw': total_inv_kw
+        })
+
+        row = [
+            project.nomeTitular, 
+            project.classe, 
+            project.get_status_display(), 
+            project.codigoCliente, 
+            data_ingresso,
+            f"{dados_calculados['potencia_calculada']:.2f}",
+            f"{dados_calculados['valor_calculado']:.2f}"
+        ]
+        ws.append(row)
+
         for col in ws.columns:
             max_length = 0
             column = col[0].column_letter

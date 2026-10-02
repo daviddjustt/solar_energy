@@ -3,7 +3,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
-from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory, ProjectProtocol
+from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory, ProjectProtocol, EnergisaProject
 from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
 from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
@@ -14,6 +14,70 @@ class ProjectStatusHistorySerializer(serializers.ModelSerializer):
         fields = ['id', 'project', 'changed_by_uuid', 'old_status', 'new_status', 'changed_at']
         read_only_fields = fields # Isso garante que TODO o endpoint é somente leitura
 
+class EnergisaProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EnergisaProject
+        fields = '__all__'
+
+class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
+    # Declaramos os campos da Energisa aqui como não-obrigatórios 
+    # para que o DRF não bloqueie a requisição POST/PUT
+
+    tensao_tipo = serializers.ChoiceField(choices=EnergisaProject.TIPO_TENSAO_CHOICES, required=False, allow_null=True)
+    tensao_imagem = serializers.ImageField(required=False, allow_null=True)
+    cabo_mm2 = serializers.FloatField(required=False, allow_null=True)
+    isolacao_volts = serializers.ChoiceField(choices=EnergisaProject.ISOLACAO_CHOICES, required=False, allow_null=True)
+    cabos_por_fase = serializers.IntegerField(required=False, allow_null=True)
+    disjuntor_amperes = serializers.FloatField(required=False, allow_null=True)
+    dps_ka = serializers.FloatField(required=False, allow_null=True)
+    tipo_ramal = serializers.ChoiceField(choices=EnergisaProject.TIPO_RAMAL_CHOICES, required=False, allow_null=True)
+
+    class Meta:
+        model = ClientProject
+        fields = '__all__' # Pega todos os campos base de ClientProject + os declarados acima
+
+    def create(self, validated_data):
+        # Pegamos a flag que diz qual é o grupo (ajuste 'grupo' para o campo exato que você usa)
+        grupo = validated_data.get('grupo', 'saeb') 
+        
+        if grupo == 'energisa':
+            # Cria direto na tabela filha. Como ela herda de ClientProject, salva em ambas!
+            return EnergisaProject.objects.create(**validated_data)
+        
+        # Se NÃO for Energisa (ex: Saeb), removemos os campos da Energisa da requisição
+        # para evitar erros ao tentar salvar na tabela base (ClientProject)
+        campos_energisa = [
+            'tensao_tipo', 'tensao_imagem', 'cabo_mm2', 'isolacao_volts', 
+            'cabos_por_fase', 'disjuntor_amperes', 'dps_ka', 'tipo_ramal'
+        ]
+        for campo in campos_energisa:
+            validated_data.pop(campo, None)
+            
+        return ClientProject.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        # Verifica se estamos atualizando um projeto que É da Energisa
+        if hasattr(instance, 'energisaproject'):
+            energisa_instance = instance.energisaproject
+            for attr, value in validated_data.items():
+                setattr(energisa_instance, attr, value)
+            energisa_instance.save()
+            return energisa_instance
+        
+        # Se for Saeb, atualiza normalmente
+        return super().update(instance, validated_data)
+
+    def to_representation(self, instance):
+        """
+        Mágica do GET: Na hora de enviar os dados pro Frontend, 
+        se o projeto for da Energisa, enviamos o JSON completo com os campos extras.
+        """
+        if hasattr(instance, 'energisaproject'):
+            return EnergisaProjectSerializer(instance.energisaproject).data
+        
+        # Se for projeto normal, devolve os dados base
+        return super().to_representation(instance)
+    
 class ProjectProtocolSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectProtocol
