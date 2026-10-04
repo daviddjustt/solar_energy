@@ -5,7 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 
 from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory, ProjectProtocol, EnergisaProject
 from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
-from solar.files.utils import DOCUMENT_TYPE_CHOICES, admin_only_docs
+from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
 # =========================================================================
 # 1. HELPERS E CAMPOS CUSTOMIZADOS
@@ -121,6 +121,11 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
                 if related_payment.project_id != project.id:
                     raise serializers.ValidationError({'related_payment_document': 'O boleto deve pertencer ao mesmo projeto.'})
 
+        admin_only_docs = [
+            'boleto', 'formulario', 'diagrama_unifilar', 
+            'dados_geradora', 'unidades_consumidoras_extra', 
+            'memorial', 'art_documento'
+        ]
         if document_type in admin_only_docs:
             user = request.user
             if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):

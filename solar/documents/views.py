@@ -37,7 +37,7 @@ from .models import (
 )
 
 from .utils import (
-    calcular_regras_potencia_e_valor, admin_only_docs
+    calcular_regras_potencia_e_valor
 )
 
 from .serializers import (
@@ -736,7 +736,12 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
 
     def _check_admin_write_permission(self, document_type):
         """ Garante que apenas o Administrador manipule a Lista VIP de documentos """
-
+        admin_only_docs = [
+            'boleto', 'formulario', 'diagrama_unifilar', 
+            'dados_geradora', 'unidades_consumidoras_extra', 
+            'memorial', 'art_documento'
+        ]
+        
         user = self.request.user
         if document_type in admin_only_docs:
             if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):
