@@ -45,13 +45,13 @@ class Migration(migrations.Migration):
                     ('Projeto aprovado', 'Aprovado'), 
                     ('Projeto reprovado', 'Reprovado'), 
                     ('Projeto em vistoria', 'Vistoria'), 
-                    ('Projeto finalizado', 'Concluido')
-                    ('formulario', 'Formulario')
-                    ('diagrama_unifilar', 'Diagrama Unifilar')
-                    ('dados_geradora','Dados da Geradora') 
-                    ('unidades_consumidoras_extra', 'Unidades Consumidoras Extra')
-                    ('memorial', 'Memorial') 
-                    ('art_documento', 'Art Documento')
+                    ('Projeto finalizado', 'Concluido'),
+                    ('formulario', 'Formulario'),
+                    ('diagrama_unifilar', 'Diagrama Unifilar'),
+                    ('dados_geradora','Dados da Geradora'),
+                    ('unidades_consumidoras_extra', 'Unidades Consumidoras Extra'),
+                    ('memorial', 'Memorial'),
+                    ('art_documento', 'Art Documento'),
                 ], 
                 default='Em análise de documentos', 
                 max_length=43, 
