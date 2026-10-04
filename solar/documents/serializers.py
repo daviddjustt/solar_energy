@@ -7,125 +7,23 @@ from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateria
 from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
 from solar.files.utils import DOCUMENT_TYPE_CHOICES
 
-# --- Helpers e Campos Customizados ---
+# =========================================================================
+# 1. HELPERS E CAMPOS CUSTOMIZADOS
+# =========================================================================
+
 class ProjectStatusHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectStatusHistory
         fields = ['id', 'project', 'changed_by_uuid', 'old_status', 'new_status', 'changed_at']
-        read_only_fields = fields # Isso garante que TODO o endpoint é somente leitura
+        read_only_fields = fields 
 
-class EnergisaProjectSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EnergisaProject
-        fields = '__all__'
-
-
-class ClientProjectUnifiedSerializer(serializers.ModelSerializer):
-    # 1. FORÇANDO O SWAGGER A EXIBIR O CAMPO GRUPO
-    GRUPO_CHOICES = (
-        ('coelba', 'Coelba'),
-        ('energisa', 'Energisa'),
-    )
-    grupo = serializers.ChoiceField(
-        choices=GRUPO_CHOICES, 
-        required=False, 
-        default='coelba',
-        write_only=True,  # 🟢 ADICIONE ISTO: Impede o Django de procurar o campo no banco na hora de responder
-        help_text="Defina se o projeto é Coelba ou Energisa."
-    )
-
-    # Campos específicos da tabela Energisa (Opcionais no Swagger)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
-    tensao_tipo = serializers.ChoiceField(choices=EnergisaProject.TIPO_TENSAO_CHOICES, required=False, allow_null=True)
-    tensao_imagem = serializers.ImageField(required=False, allow_null=True)
-    cabo_mm2 = serializers.FloatField(required=False, allow_null=True)
-    isolacao_volts = serializers.ChoiceField(choices=EnergisaProject.ISOLACAO_CHOICES, required=False, allow_null=True)
-    cabos_por_fase = serializers.IntegerField(required=False, allow_null=True)
-    disjuntor_amperes = serializers.FloatField(required=False, allow_null=True)
-    dps_ka = serializers.FloatField(required=False, allow_null=True)
-    tipo_ramal = serializers.ChoiceField(choices=EnergisaProject.TIPO_RAMAL_CHOICES, required=False, allow_null=True)
-
-    class Meta:
-        model = ClientProject
-        fields = '__all__' 
-
-    def validate(self, data):
-        # Pegamos o grupo enviado na requisição
-        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
-        
-        campos_energisa = [
-            'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
-            'disjuntor_amperes', 'dps_ka', 'tipo_ramal',
-            'tensao_tipo', 'tensao_imagem'
-        ]
-
-        if grupo == 'energisa':
-            # Valida se os campos obrigatórios da Energisa foram enviados
-            erros = {}
-            for campo in campos_energisa:
-                if campo not in ['tensao_tipo', 'tensao_imagem']: # Ignorando imagem/tipo da obrigatoriedade base
-                    if data.get(campo) is None and not getattr(self.instance, campo, None):
-                        erros[campo] = f"O campo {campo} é obrigatório para a Energisa."
-            
-            if erros:
-                raise serializers.ValidationError(erros)
-                
-        else:
-            # 2. REGRA DO Coelba: Se for Coelba, removemos (anulamos) todos os campos de Energisa.
-            # O comando `pop` retira esses dados da requisição. Como eles pertencem a uma
-            # tabela separada (EnergisaProject), ao removê-los daqui, o Django simplesmente
-            # não vai criar o registro na tabela Energisa. Ficará 100% isolado.
-            for campo in campos_energisa:
-                data.pop(campo, None)
-
-        return data
-
-
-    def create(self, validated_data):
-        # O pop() pega o valor e REMOVE a chave 'grupo' do dicionário de dados.
-        # Assim, o Django não tentará salvar uma coluna que não existe no models.py.
-        grupo = validated_data.pop('grupo', 'coelba') 
-        
-        if grupo == 'energisa':
-            return EnergisaProject.objects.create(**validated_data)
-        
-        # Agora o validated_data está limpo e não causará o TypeError
-        return ClientProject.objects.create(**validated_data)
-
-    def update(self, instance, validated_data):
-        # Removemos o grupo aqui também para não dar erro na atualização
-        grupo = validated_data.pop('grupo', 'coelba')
-
-        if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
-            energisa_instance = instance.energisaproject
-            for attr, value in validated_data.items():
-                setattr(energisa_instance, attr, value)
-            energisa_instance.save()
-            return energisa_instance
-        
-        return super().update(instance, validated_data)
-
-    def to_representation(self, instance):
-        # 🟢 ATUALIZE ISTO: Injeta o grupo manualmente no JSON de resposta
-        if hasattr(instance, 'energisaproject'):
-            data = EnergisaProjectSerializer(instance.energisaproject).data
-            data['grupo'] = 'energisa'
-            return data
-            
-        data = super().to_representation(instance)
-        data['grupo'] = 'coelba'
-        return data
-
-    
 class ProjectProtocolSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectProtocol
         fields = ['id', 'project', 'numero_protocolo', 'data_limite', 'created_at', 'updated_at']
-        # Aqui NÃO usamos read_only_fields para o protocolo e data, pois o CRUD será completo.
         read_only_fields = ['id', 'created_at', 'updated_at']
-              
+
 class VoltageField(serializers.CharField):
-    """Campo que aceita valores curtos (127) e salva o label completo."""
     def to_internal_value(self, data):
         if not data:
             raise serializers.ValidationError("Voltagem é obrigatória")
@@ -142,7 +40,10 @@ class VoltageField(serializers.CharField):
 
         raise serializers.ValidationError(f"Voltagem inválida. Aceitos: {', '.join(VOLTAGEM_MAP.keys())}")
 
-# --- Serializers de Apoio ---
+
+# =========================================================================
+# 2. SERIALIZERS DE APOIO (Listas, Documentos, etc.)
+# =========================================================================
 
 class ConsumerUnitSerializer(serializers.ModelSerializer):
     class Meta:
@@ -173,8 +74,6 @@ class ListaDeMateriaisSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['project']
 
-# --- Serializer de Documentos (Upload) ---
-
 class DocumentUploadSerializer(serializers.ModelSerializer):
     project = serializers.PrimaryKeyRelatedField(read_only=True)
     download_url = serializers.SerializerMethodField()
@@ -196,22 +95,18 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     def validate(self, data):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
-            # Proteção crucial para o Swagger não quebrar ao tentar validar sem usuário
             return data
 
-        user = request.user
         project = self.context.get('project') or (self.instance.project if self.instance else None)
         document_type = data.get('document_type') or (self.instance.document_type if self.instance else None)
 
         if not project:
             raise serializers.ValidationError("Projeto não identificado no contexto.")
 
-        # Validação de Comprovante x Boleto
         if document_type == 'comprovante_de_pagamento':
             related_payment = data.get('related_payment_document')
             
             if not related_payment:
-                # Verifica se existe algum boleto no projeto
                 has_boleto = ProjectDocument.objects.filter(project=project, document_type='boleto').exists()
                 if not has_boleto:
                     raise serializers.ValidationError({'related_payment_document': 'Crie um boleto antes de enviar o comprovante.'})
@@ -227,22 +122,52 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
         return data
 
-# --- Serializers de Projeto (Base e Especializados) ---
+class PaymentDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectDocument
+        fields = '__all__'
+        read_only_fields = ['status']
 
-class ProjectBaseSerializer(serializers.ModelSerializer):
-    """Classe base para evitar repetição de lógica entre Info, List e Tecnico"""
+    def validate(self, data):
+        user = self.context['request'].user
+        if user.is_authenticated and user.is_cliente:
+            if self.instance and self.instance.document_type == 'boleto':
+                raise serializers.ValidationError("Clientes não podem editar boletos.")
+        return data
+
+
+# =========================================================================
+# 3. ARQUITETURA POLIMÓRFICA DE PROJETOS (A Magia Acontece Aqui)
+# =========================================================================
+
+class AbstractProjectSerializer(serializers.ModelSerializer):
+    """
+    CLASSE ABSTRATA: Contém todo o comportamento padrão.
+    Resolve redundância em todos os serializers de projetos.
+    """
     voltagem = VoltageField()
     voltagem_label = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    
+    documents = DocumentUploadSerializer(many=True, read_only=True)
+    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
+    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
+
+    class Meta:
+        abstract = True
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_voltagem_label(self, obj):
         return obj.voltagem
 
+    def validate(self, data):
+        self.validate_coordinates(data)
+        self.validate_cpf_cnpj(data)
+        return data
+
     def validate_coordinates(self, data):
-        """Valida grupos de latitude e longitude"""
-        lat_group = [data.get('lat_degrees'), data.get('lat_minutes'), data.get('lat_seconds')]
-        long_group = [data.get('long_degrees'), data.get('long_minutes'), data.get('long_seconds')]
+        lat_group = [data.get('latGraus'), data.get('latMin'), data.get('latSeg')]
+        long_group = [data.get('longGraus'), data.get('longMin'), data.get('longSeg')]
 
         if any(x is not None for x in lat_group) and not all(x is not None for x in lat_group):
             raise serializers.ValidationError("Preencha todos os campos de latitude (graus, min, seg).")
@@ -250,41 +175,111 @@ class ProjectBaseSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Preencha todos os campos de longitude (graus, min, seg).")
 
     def validate_cpf_cnpj(self, data):
-        """Validação de formato de documento de cliente"""
         doc_type = data.get('tipoDocumento', '').upper()
-        doc_val = data.get('client_document')
+        doc_val = data.get('documento')
 
         if doc_val:
             if doc_type == 'PF' and not re.match(r'^\d{3}\.\d{3}\.\d{3}-\d{2}$', doc_val):
-                raise serializers.ValidationError({'client_document': 'CPF inválido (000.000.000-00).'})
+                raise serializers.ValidationError({'documento': 'CPF inválido (000.000.000-00).'})
             if doc_type == 'PJ' and not re.match(r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$', doc_val):
-                raise serializers.ValidationError({'client_document': 'CNPJ inválido (00.000.000/0000-00).'})
+                raise serializers.ValidationError({'documento': 'CNPJ inválido (00.000.000/0000-00).'})
 
-class ProjectInfoSerializer(ProjectBaseSerializer):
-    # Declaramos explicitamente para o DRF não usar a paginação global nestes campos
-    documents = DocumentUploadSerializer(many=True, read_only=True)
-    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
-    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
 
+class CoelbaProjectSerializer(AbstractProjectSerializer):
+    class Meta:
+        model = ClientProject
+        fields = '__all__'
+
+
+class EnergisaProjectSerializer(AbstractProjectSerializer):
+    class Meta:
+        model = EnergisaProject
+        fields = '__all__'
+
+
+class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
+    GRUPO_CHOICES = (
+        ('coelba', 'Coelba'),
+        ('energisa', 'Energisa'),
+    )
+    
+    grupo = serializers.ChoiceField(
+        choices=GRUPO_CHOICES, 
+        required=False, 
+        default='coelba',
+        write_only=True, 
+        help_text="Defina se o projeto é Coelba ou Energisa."
+    )
+
+    class Meta(EnergisaProjectSerializer.Meta):
+        model = EnergisaProject
+
+    def validate(self, data):
+        data = super().validate(data)
+        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
+        campos_energisa = [
+            'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
+            'disjuntor_amperes', 'dps_ka', 'tipo_ramal',
+            'tensao_tipo', 'tensao_imagem'
+        ]
+
+        if grupo == 'energisa':
+            erros = {}
+            for campo in campos_energisa:
+                if campo not in ['tensao_tipo', 'tensao_imagem']:
+                    if data.get(campo) is None and not getattr(self.instance, campo, None):
+                        erros[campo] = f"O campo {campo} é obrigatório para a Energisa."
+            if erros:
+                raise serializers.ValidationError(erros)
+        else:
+            for campo in campos_energisa:
+                data.pop(campo, None)
+
+        return data
+
+    def create(self, validated_data):
+        grupo = validated_data.pop('grupo', 'coelba') 
+        if grupo == 'energisa':
+            return EnergisaProject.objects.create(**validated_data)
+        return ClientProject.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        grupo = validated_data.pop('grupo', 'coelba')
+
+        if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
+            energisa_instance = instance.energisaproject
+            for attr, value in validated_data.items():
+                setattr(energisa_instance, attr, value)
+            energisa_instance.save()
+            return energisa_instance
+        
+        return super(serializers.ModelSerializer, self).update(instance, validated_data)
+
+    def to_representation(self, instance):
+        if hasattr(instance, 'energisaproject'):
+            data = EnergisaProjectSerializer(context=self.context).to_representation(instance.energisaproject)
+            data['grupo'] = 'energisa'
+            return data
+            
+        data = CoelbaProjectSerializer(context=self.context).to_representation(instance)
+        data['grupo'] = 'coelba'
+        return data
+
+
+# =========================================================================
+# 4. SERIALIZERS DE LEITURA E ATUALIZAÇÃO (Herdam de Abstract)
+# =========================================================================
+
+class ProjectInfoSerializer(AbstractProjectSerializer):
     class Meta:
         model = ClientProject
         fields = "__all__"
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'valor_total', 'resumo_financeiro')
 
-    # Remova os métodos get_documents e get_lista_materiais antigos
-    # O DRF agora usará os nomes acima automaticamente
-
-class ProjectListSerializer(ProjectBaseSerializer):
+class ProjectListSerializer(AbstractProjectSerializer):
     tipoDocumento_label = serializers.SerializerMethodField()
     documents_count = serializers.SerializerMethodField()
     consumer_units_count = serializers.SerializerMethodField()
-
-    # --- ADICIONE ESTAS 3 LINHAS ---
-    # Isso injeta os arrays vazios/cheios na listagem principal, impedindo o erro "undefined"
-    documents = DocumentUploadSerializer(many=True, read_only=True)
-    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
-    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
-    # -------------------------------
 
     class Meta:
         model = ClientProject
@@ -303,58 +298,22 @@ class ProjectListSerializer(ProjectBaseSerializer):
     def get_consumer_units_count(self, obj):
         return obj.consumer_units.count()
 
-class TecnicoClientProjectSerializer(ProjectBaseSerializer):
-    """Garante que o Técnico também veja a lista de documentos/materiais sem quebrar o Front"""
-    documents = DocumentUploadSerializer(many=True, read_only=True)
-    lista_materiais = ListaDeMateriaisSerializer(source='material_lists', many=True, read_only=True)
-    consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
-
+class TecnicoClientProjectSerializer(AbstractProjectSerializer):
     class Meta:
         model = ClientProject
         fields = '__all__'
         read_only_fields = ('created_by', 'created_at', 'updated_at', 'tipo_financeiro', 'valor_financeiro', 'parcelas')
 
-class ClientProjectSerializer(serializers.ModelSerializer):
-    """Serializer padrão para Listar e Criar."""
-    # Se você tiver serializers aninhados, eles ficariam aqui. Ex:
-    # consumer_units = ConsumerUnitSerializer(many=True, read_only=True)
-    
+class ClientProjectSerializer(AbstractProjectSerializer):
     class Meta:
         model = ClientProject
         fields = '__all__'
 
-class ClientProjectUpdateSerializer(serializers.ModelSerializer):
-    """
-    Serializer exclusivo para Atualização (PUT/PATCH).
-    Bloqueia estritamente a edição das relações de imagem e unidades.
-    """
+class ClientProjectUpdateSerializer(AbstractProjectSerializer):
     class Meta:
         model = ClientProject
         fields = '__all__'
-        
-        # Aqui trancamos os campos que não podem ser alterados nesta rota
         read_only_fields = (
-            'id', 
-            'created_at', 
-            'created_by', # O autor do projeto não deve mudar
-            'codigoCliente', # Geralmente é um identificador imutável
-            
-            # Bloqueamos qualquer tentativa de alterar as relações inversas (related_names)
-            'documents', 
-            'consumer_units', 
-            'material_lists',
+            'id', 'created_at', 'created_by', 'codigoCliente', 
+            'documents', 'consumer_units', 'material_lists'
         )
-
-class PaymentDocumentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProjectDocument
-        fields = '__all__'
-        read_only_fields = ['status']
-
-    def validate(self, data):
-        user = self.context['request'].user
-        if user.is_authenticated and user.is_cliente:
-            # Cliente tentando editar boleto
-            if self.instance and self.instance.document_type == 'boleto':
-                raise serializers.ValidationError("Clientes não podem editar boletos.")
-        return data
