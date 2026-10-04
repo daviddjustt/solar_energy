@@ -70,6 +70,7 @@ class ClientProject(models.Model):
            max_length=43, choices=AndamentoDoProjeto.choices, default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS, verbose_name="Status do Projeto"
     )
     pedido_vistoria=models.BooleanField(default=False, verbose_name='Pedido de Vistoria Ativo?')
+    vistoria_automatica = models.BooleanField(default=False, verbose_name="Vistoria Automática")
     observacoes = models.TextField(blank=True, null=True, verbose_name="Observações")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
