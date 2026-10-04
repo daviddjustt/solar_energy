@@ -37,7 +37,7 @@ from .models import (
 )
 
 from .utils import (
-    calcular_regras_potencia_e_valor,   
+    calcular_regras_potencia_e_valor, admin_only_docs
 )
 
 from .serializers import (
@@ -717,85 +717,121 @@ class SolicitarVistoriaView(APIView):
 
 class ProjectDocumentListView(viewsets.ModelViewSet):
     serializer_class = DocumentUploadSerializer
-    queryset = ProjectDocument.objects.all().order_by('-created_at')
     pagination_class = None
 
+    # =========================================================================
+    # HELPERS DE PERMISSÃO (Centralizando a Segurança)
+    # =========================================================================
+    def _check_project_read_permission(self, project):
+        """ Garante que apenas a equipe ou o dono do projeto podem visualizá-lo """
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user == project.created_by):
+            raise PermissionDenied("Você não tem permissão para visualizar ou acessar os documentos deste projeto.")
+
+    def _check_client_write_permission(self, project):
+        """ Garante que o cliente só possa enviar/excluir arquivos dos seus PRÓPRIOS projetos """
+        user = self.request.user
+        if getattr(user, 'is_cliente', False) and project.created_by != user:
+            raise PermissionDenied("Você só pode interagir com documentos dos seus próprios projetos.")
+
+    def _check_admin_write_permission(self, document_type):
+        """ Garante que apenas o Administrador manipule a Lista VIP de documentos """
+
+        user = self.request.user
+        if document_type in admin_only_docs:
+            if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):
+                raise PermissionDenied(f"Acesso negado. Apenas administradores podem enviar, editar ou excluir documentos do tipo: '{document_type}'.")
+
+
+    # =========================================================================
+    # OVERRIDES DOS MÉTODOS DO CRUD (GET, POST, PUT/PATCH, DELETE)
+    # =========================================================================
     def get_queryset(self):
+        """ Protege os métodos GET (list, retrieve) """
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ProjectDocument.objects.none()
-        return ProjectDocument.objects.filter(project_id=project_pk).order_by('-created_at')
+            
+        project = get_object_or_404(ClientProject, pk=project_pk)
+        
+        # 1. Checa se o utilizador pode sequer ver este projeto
+        self._check_project_read_permission(project)
 
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return ProjectDocument.objects.filter(project=project).order_by('-created_at')
 
     def perform_create(self, serializer):
+        """ Protege o método POST (create) """
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         
-        documento = serializer.save(project=project)
-        tipo_doc = documento.document_type
-        user_request = self.request.user
+        # 1. Permissões
+        self._check_project_read_permission(project)
+        self._check_client_write_permission(project)
+        self._check_admin_write_permission(serializer.validated_data.get('document_type'))
         
-        # 1. Regra: Admin adicionando 'boleto'
-        if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
+        # 2. Salva o documento
+        documento = serializer.save(project=project)
+        
+        # 3. Notificações
+        user_request = self.request.user
+        if documento.document_type == 'boleto' and getattr(user_request, 'is_admin', False):
             notify_boleto_added(project, documento)
-            
-        # 2. Regra: Cliente adicionando 'comprovante_de_pagamento'
-        elif tipo_doc == 'comprovante_de_pagamento' and user_request == project.created_by:
+        elif documento.document_type == 'comprovante_de_pagamento' and user_request == project.created_by:
             notify_comprovante_added(project, documento, user_request)
 
     def perform_update(self, serializer):
-        novo_status = serializer.validated_data.get('status')
+        """ Protege os métodos PUT e PATCH (update) """
+        instance = self.get_object()
+        project = instance.project
+        novo_tipo_doc = serializer.validated_data.get('document_type', instance.document_type)
         
-        if novo_status == 'APPROVED':
-            instance = serializer.save(approved_at=timezone.now())
-        else:
-            instance = serializer.save()
+        # 1. Permissões
+        self._check_project_read_permission(project)
+        self._check_client_write_permission(project)
+        self._check_admin_write_permission(instance.document_type) # Verifica se tem poder sobre o arquivo atual
+        if novo_tipo_doc != instance.document_type:
+            self._check_admin_write_permission(novo_tipo_doc)      # Verifica se tem poder sobre a nova tipagem escolhida
 
+        # 2. Salva com registro de data caso aprovado
+        novo_status = serializer.validated_data.get('status', instance.status)
+        if novo_status == 'APPROVED' and instance.status != 'APPROVED':
+            updated_instance = serializer.save(approved_at=timezone.now())
+        else:
+            updated_instance = serializer.save()
+
+        # 3. Gatilhos de Notificação
         user_request = self.request.user
         
-        # 1. GATILHOS DE MUDANÇA DE STATUS
-        if novo_status == ProjectDocument.STATUS_REJECTED:
-            notify_document_rejected(instance.project, instance)
-            
-        elif novo_status == ProjectDocument.STATUS_APPROVED:
-            notify_document_approved(instance.project, instance)
+        if novo_status == ProjectDocument.STATUS_REJECTED and instance.status != ProjectDocument.STATUS_REJECTED:
+            notify_document_rejected(project, updated_instance)
+        elif novo_status == ProjectDocument.STATUS_APPROVED and instance.status != ProjectDocument.STATUS_APPROVED:
+            notify_document_approved(project, updated_instance)
 
-        # 2. GATILHOS DE ALTERAÇÃO DE ARQUIVO FÍSICO
         if 'arquivo' in serializer.validated_data:
-            tipo_doc = instance.document_type
-            if tipo_doc == 'boleto' and (user_request.is_admin or user_request.is_staff or user_request.is_superuser):
-                notify_boleto_added(instance.project, instance)
-            elif tipo_doc == 'comprovante_de_pagamento' and user_request == instance.project.created_by:
-                notify_comprovante_added(instance.project, instance, user_request)
+            if updated_instance.document_type == 'boleto' and getattr(user_request, 'is_admin', False):
+                notify_boleto_added(project, updated_instance)
+            elif updated_instance.document_type == 'comprovante_de_pagamento' and user_request == project.created_by:
+                notify_comprovante_added(project, updated_instance, user_request)
 
     def perform_destroy(self, instance):
-        user_request = self.request.user
+        """ Protege o método DELETE (destroy) """
+        project = instance.project
         
-        # 1. Regra restrita para exclusão de boletos
-        if instance.document_type == 'boleto':
-            # APENAS administradores (ou superusers) podem deletar
-            if not (getattr(user_request, 'is_admin', False) or getattr(user_request, 'is_superuser', False)):
-                raise PermissionDenied("Apenas administradores podem excluir boletos.")
+        # 1. Permissões
+        self._check_project_read_permission(project)
+        self._check_client_write_permission(project)
+        self._check_admin_write_permission(instance.document_type)
         
-        # 2. Regra de exclusão para comprovantes
-        elif instance.document_type == 'comprovante_de_pagamento':
-            if getattr(user_request, 'is_cliente', False) and instance.project.created_by != user_request:
-                raise PermissionDenied("Você só pode excluir comprovante dos seus próprios projetos.")
-        
-        # Se passar pelas validações, deleta o documento
+        # 2. Exclui o arquivo
         instance.delete()
         
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if not getattr(self, "swagger_fake_view", False):
             project_pk = self.kwargs.get('project_pk')
-            context['project'] = get_object_or_404(ClientProject, pk=project_pk)
+            if project_pk:
+                context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
-
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
     queryset = ConsumerUnit.objects.all().order_by('id')

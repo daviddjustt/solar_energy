@@ -47,6 +47,13 @@ DOCUMENT_TYPE_CHOICES_PESSOA = [
         ('PJ', 'Pessoa Jurídica'),
         ('PF', 'Pessoa Física'),
     ]
+
+admin_only_docs = [
+            'boleto', 'formulario', 'diagrama_unifilar', 
+            'dados_geradora', 'unidades_consumidoras_extra', 
+            'memorial', 'art_documento'
+        ]
+
 DOCUMENT_TYPE_CHOICES = [
         # Documentos obrigatórios para PF e PJ
         ('documento_cliente', 'Documento do Cliente'),
@@ -64,6 +71,13 @@ DOCUMENT_TYPE_CHOICES = [
         #Pagamentos
         ('boleto', 'Boleto'),
         ('comprovante_de_pagamento', 'Comprovante de Pagamento'),
+        # 🟢 NOVOS DOCUMENTOS EXCLUSIVOS DO ADMIN -> CLIENTE
+        ('formulario', 'Formulário'),
+        ('diagrama_unifilar', 'Diagrama Unifilar'),
+        ('dados_geradora', 'Dados da Geradora'),
+        ('unidades_consumidoras_extra', 'Unidades Consumidoras (Opcional)'),
+        ('memorial', 'Memorial'),
+        ('art_documento', 'ART'),
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]
