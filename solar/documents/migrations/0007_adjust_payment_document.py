@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         # Aponta para a migração que criámos anteriormente
-        ('documents', '0006_clientproject_vistoria_automatica'),
+        ('documents', '0006_vistoria_automatica'),
     ]
 
     operations = [
