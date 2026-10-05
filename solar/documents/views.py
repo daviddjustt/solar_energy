@@ -51,7 +51,6 @@ from .serializers import (
     ProjectStatusHistorySerializer,
     ProjectProtocolSerializer,
     ClientProjectUnifiedSerializer
-    
 )
 
 from solar.notifications.services import (
@@ -104,57 +103,38 @@ class ProjectExportExcelView(APIView):
         responses={200: OpenApiTypes.BINARY},
     )
     def get(self, request, user_pk=None):
-        # 1. Captura dos parâmetros antigos
         client_uuids = request.query_params.getlist('client_uuids')
         if user_pk:
             client_uuids.append(str(user_pk))
             
         project_ids = request.query_params.getlist('project_ids')
-
-        # 2. Captura dos novos parâmetros de data
         data_inicial = request.query_params.get('data_1')
         data_final = request.query_params.get('data_2')
 
-        # 3. Queryset base otimizado
-        queryset = ClientProject.objects.all().select_related('created_by')
-
-        # 3. Query para itens 
         queryset = ClientProject.objects.all().select_related('created_by').prefetch_related('material_lists')
         
-        # 4. Aplicação dos filtros tradicionais
         if client_uuids:
             queryset = queryset.filter(created_by__uuid__in=client_uuids)
-        
         if project_ids:
             queryset = queryset.filter(id__in=project_ids)
-
-        # 5. Aplicação do filtro por intervalo de datas (created_at)
         if data_inicial:
             queryset = queryset.filter(created_at__date__gte=data_inicial)
         if data_final:
             queryset = queryset.filter(created_at__date__lte=data_final)
 
-        # 6. Geração do Excel
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Relatório Solar"
         
         headers = [
-            "Nome do Titular", 
-            "Status", 
-            "Código do Cliente", 
-            "Data de Ingresso",
-            "Criado Por",
-            "Observações",
-            "Potência (kW)",
-            "Valor (R$)",
+            "Nome do Titular", "Status", "Código do Cliente", 
+            "Data de Ingresso", "Criado Por", "Observações",
+            "Potência (kW)", "Valor (R$)",
         ]
         ws.append(headers)
 
-        # 7. EXTRAÇÃO E AGREGAÇÃO (Varrendo a ListaDeMateriais)
         projetos_para_processar = []
         for p in queryset:
-            # Info do Usuário
             user_relatado = p.created_by
             data_ingresso_user = "N/A"
             criado_por = "N/A"
@@ -164,22 +144,18 @@ class ProjectExportExcelView(APIView):
                     data_ingresso_user = data_user.strftime('%d/%m/%Y')
                 criado_por = user_relatado.get_full_name() or getattr(user_relatado, 'email', str(user_relatado))
 
-            # 🟢 SOMA DOS MATERIAIS DO PROJETO
             total_mod_kw = 0.0
             total_inv_kw = 0.0
             
-            # O .all() aqui não atinge o banco graças ao prefetch_related
             for material in p.material_lists.all():
                 qtd = float(material.quantidade or 0)
                 pot_bruta = float(material.potencia or 0)
                 tipo = str(material.tipo or '').lower()
                 unidade = str(material.unidade_de_medida or '').lower().strip()
                 
-                # 🟢 NORMALIZAÇÃO DE UNIDADE: Garante que tudo vire kW antes da conta
                 if 'kw' in unidade:
-                    pot_kw = pot_bruta  # Já está em kW, mantém o valor puro
+                    pot_kw = pot_bruta
                 else:
-                    # Se for 'wats', 'w' ou o padrão do banco, divide por 1000 para virar kW
                     pot_kw = pot_bruta / 1000.0
                 
                 total_linha_kw = qtd * pot_kw
@@ -189,7 +165,6 @@ class ProjectExportExcelView(APIView):
                 elif 'inversor' in tipo:
                     total_inv_kw += total_linha_kw
 
-            # Monta o pacote pro paralelismo
             projetos_para_processar.append({
                 'nome_titular': getattr(p, 'nomeTitular', "N/A"),
                 'status_display': p.get_status_display() if hasattr(p, 'get_status_display') else getattr(p, 'status', "N/A"),
@@ -197,34 +172,22 @@ class ProjectExportExcelView(APIView):
                 'data_ingresso_user': data_ingresso_user,
                 'criado_por': criado_por,
                 'observacoes': getattr(p, 'observacoes', ""),
-                
-                # Envia os totais já somados e convertidos para kW
                 'total_modulos_kw': total_mod_kw,
                 'total_inversores_kw': total_inv_kw
             })
 
-        # 8. CÁLCULO PARALELO (Mágica da velocidade)
         projetos_processados = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             projetos_processados = list(executor.map(calcular_regras_potencia_e_valor, projetos_para_processar))
 
-        # 9. ESCREVER NO EXCEL
         for dados in projetos_processados:
             ws.append([
-                dados['nome_titular'],
-                dados['status_display'],
-                dados['codigo_cliente'],
-                dados['data_ingresso_user'],
-                dados['criado_por'],
-                dados['observacoes'],
-                f"{dados['potencia_calculada']:.2f}",
-                f"{dados['valor_calculado']:.2f}"
+                dados['nome_titular'], dados['status_display'], dados['codigo_cliente'],
+                dados['data_ingresso_user'], dados['criado_por'], dados['observacoes'],
+                f"{dados['potencia_calculada']:.2f}", f"{dados['valor_calculado']:.2f}"
             ])
 
-        # 10. Resposta HTTP
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
         response['Content-Disposition'] = f'attachment; filename="export_{timestamp}.xlsx"'
         
@@ -237,24 +200,20 @@ class ProjectProtocolViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Admins veem todos os protocolos, clientes veem apenas os seus."""
         user = self.request.user
         if user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False):
             return ProjectProtocol.objects.all().order_by('-id')
         return ProjectProtocol.objects.filter(project__created_by=user).order_by('-id')
 
     def perform_create(self, serializer):
-        
         protocolo = serializer.save()
         notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
     def perform_update(self, serializer):
-        
         protocolo = serializer.save()
         notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
     def perform_destroy(self, instance):
-        
         instance.delete()
 
     def _check_staff_permission(self):
@@ -267,7 +226,6 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Retorna os protocolos vinculados ao projeto da URL."""
         user = self.request.user
         project_pk = self.kwargs.get('project_pk')
         queryset = ProjectProtocol.objects.filter(project_id=project_pk)
@@ -278,17 +236,12 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-id')
 
     def list(self, request, *args, **kwargs):
-        """
-        [GET] /api/v1/projects/<project_pk>/protocols/
-        Retorna os protocolos envelopados com o status atual e o próximo do projeto.
-        """
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         
-        # Chama a lógica atualizada com os campos do seu modelo
         status_metadata = self._calcular_status_atual_e_proximo(project)
         
         return Response({
@@ -304,44 +257,27 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         protocolo = serializer.save()
-        notify_protocol_updated(protocolo.project, codebase=protocolo.numero_protocolo, data_limite=protocolo.data_limite)
+        notify_protocol_updated(protocolo.project, protocolo.numero_protocolo, protocolo.data_limite)
 
-    # -------------------------------------------------------------------------
-    # MÉTODO AUXILIAR AJUSTADO PARA O SEU MODELO
-    # -------------------------------------------------------------------------
     def _calcular_status_atual_e_proximo(self, project):
-        """
-        Calcula o status atual e o próximo utilizando uma esteira linear (fila)
-        baseada nos valores reais salvos no banco de dados.
-        """        
-        # Coleta o histórico mais recente do projeto
         ultimo_historico = ProjectStatusHistory.objects.filter(project=project).first()
         
-        # 🟢 A FILA/ESTEIRA: Definição exata da sequência cronológica do seu projeto
         esteira_fluxo = [
-            AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS.value,  # 'Em análise de documentos'
-            AndamentoDoProjeto.EXECUCAO.value,               # 'Projeto em Execução'
-            AndamentoDoProjeto.PAGAMENTO_TRT_ART.value,       # 'Pagamento da TRT/ART'
-            AndamentoDoProjeto.ANALISE_TECNICA.value,        # 'Projeto em análise técnica'
-            AndamentoDoProjeto.APROVADO.value,               # 'Projeto aprovado'
-            AndamentoDoProjeto.VISTORIA.value,               # 'Projeto em vistoria'
-            AndamentoDoProjeto.CONCLUIDO.value               # 'Projeto finalizado'
+            AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS.value,
+            AndamentoDoProjeto.EXECUCAO.value,
+            AndamentoDoProjeto.PAGAMENTO_TRT_ART.value,
+            AndamentoDoProjeto.ANALISE_TECNICA.value,
+            AndamentoDoProjeto.APROVADO.value,
+            AndamentoDoProjeto.VISTORIA.value,
+            AndamentoDoProjeto.CONCLUIDO.value
         ]
         
-        # Caso o projeto seja novo e não tenha nenhuma linha de histórico ainda
         if not ultimo_historico:
-            return {
-                'atual': esteira_fluxo[0],
-                'proximo': esteira_fluxo[1]
-            }
+            return {'atual': esteira_fluxo[0], 'proximo': esteira_fluxo[1]}
         
-        # Captura o status bruto gravado no banco (pode ser chave ou valor)
         status_salvo = ultimo_historico.new_status
-        
-        # Normalização: Garante que vamos trabalhar sempre com o texto descritivo (ex: 'Projeto em análise técnica')
         status_atual_display = AndamentoDoProjeto.get_display_name(status_salvo) or status_salvo
         
-        # 🛑 TRATAMENTO DE DESVIO: O status 'REPROVADO' não segue a linha reta da esteira
         if status_salvo in ['REPROVADO', AndamentoDoProjeto.REPROVADO.value]:
             return {
                 'atual': AndamentoDoProjeto.REPROVADO.value,
@@ -349,173 +285,18 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
             }
             
         try:
-            # Descobre a posição (índice) do status atual dentro da nossa fila
             index_atual = esteira_fluxo.index(status_atual_display)
-            
-            # Se não for o último passo da fila, o próximo será o elemento seguinte
             if index_atual + 1 < len(esteira_fluxo):
                 proximo_display = esteira_fluxo[index_atual + 1]
             else:
                 proximo_display = "Nenhum (Projeto Finalizado)"
                 
         except ValueError:
-            # Fallback de segurança caso o texto do banco não exista na nossa esteira por algum motivo
             proximo_display = "Não identificado (Fora do fluxo padrão)"
             
-        return {
-            'atual': status_atual_display,
-            'proximo': proximo_display
-        }
-        
-
-    @action(detail=False, methods=['get'])
-    def meus_projetos(self, request):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-        projeto = serializer.save(created_by=self.request.user)
-        notify_new_project_created(projeto)
-
-    def _check_update_permission(self):
-        user = self.request.user
-        if not (user.is_superuser or user.is_admin or user.is_tecnico):
-             raise PermissionDenied("Apenas Administradores e Técnicos podem atualizar projetos.")
-
-    def _check_financial_permission(self, serializer):
-        user = self.request.user
-        if user.is_authenticated and user.is_tecnico:
-            financial_fields = ['tipo_financeiro', 'valor_financeiro', 'parcelas']
-            if any(field in serializer.validated_data for field in financial_fields):
-                raise PermissionDenied("Você não tem permissão para modificar campos financeiros.")
-
-    def update(self, request, *args, **kwargs):
-         self._check_update_permission()
-         return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-         self._check_update_permission()
-         return super().partial_update(request, *args, **kwargs)
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        old_status = instance.status
-        
-        updated_instance = serializer.save()
-        new_status = updated_instance.status
-
-        if old_status != new_status:
-            ProjectStatusHistory.objects.create(
-                project=updated_instance,
-                changed_by_uuid=str(self.request.user.uuid),
-                old_status=old_status,
-                new_status=new_status
-            )
-            # NOTIFICAÇÃO: Nova função da Camada 4
-            notify_project_status_changed(updated_instance, old_status, new_status)
-
-    @action(detail=True, methods=['get'], url_path='status-history')
-    def status_history(self, request, pk=None):
-        project = self.get_object()
-        history = ProjectStatusHistory.objects.filter(project=project)
-        serializer = ProjectStatusHistorySerializer(history, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def resumo_financeiro(self, request):
-        user = request.user
-        if not (user.is_superuser or user.is_admin):
-            return Response({'message': 'Acesso negado ao resumo financeiro.', 'total_projetos': self.get_queryset().count()}, status=status.HTTP_403_FORBIDDEN)
-        return Response({'status': 'dados calculados'})
-
-    @extend_schema(operation_id="projects_destroy")
-    def destroy(self, request, *args, **kwargs):
-        user = request.user
-        if not (user.is_superuser or user.is_admin):
-            raise PermissionDenied("Ação bloqueada: Apenas Administradores podem excluir projetos do sistema.")
-        return super().destroy(request, *args, **kwargs)
-    
-    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
-    @action(detail=True, methods=['get'], url_path='exportar-excel')
-    def exportar_excel(self, request, pk=None):
-        project = get_object_or_404(ClientProject.objects.prefetch_related('material_lists'), pk=pk)
-        
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Dados do Projeto"
-
-        headers = [
-            "Titular do Projeto", "Classe do Projeto", "Status", 
-            "Código do Cliente", "Data de Ingresso do Cliente",
-            "Potência (kW)", "Valor (R$)"
-        ]
-        ws.append(headers)
-
-        data_ingresso = "Não registrado"
-        if project.created_by and project.created_by.created_at:
-            data_ingresso = localtime(project.created_by.created_at).strftime('%d/%m/%Y %H:%M')
-
-        # 🟢 Agregação com normalização de unidades para o projeto individual
-        total_mod_kw = 0.0
-        total_inv_kw = 0.0
-        for material in project.material_lists.all():
-            qtd = float(material.quantidade or 0)
-            pot_bruta = float(material.potencia or 0)
-            tipo = str(material.tipo or '').lower()
-            unidade = str(material.unidade_de_medida or '').lower().strip()
-            
-            # 🟢 Filtro de Unidade de Medida
-            if 'kw' in unidade:
-                pot_kw = pot_bruta
-            else:
-                pot_kw = pot_bruta / 1000.0
-                
-            total_linha_kw = qtd * pot_kw
-            
-            if 'modulo' in tipo or 'módulo' in tipo:
-                total_mod_kw += total_linha_kw
-            elif 'inversor' in tipo:
-                total_inv_kw += total_linha_kw
-
-        # Invoca a regra matemática pura do utils
-        dados_calculados = calcular_regras_potencia_e_valor({
-            'total_modulos_kw': total_mod_kw,
-            'total_inversores_kw': total_inv_kw
-        })
-
-        row = [
-            project.nomeTitular, 
-            project.classe, 
-            project.get_status_display(), 
-            project.codigoCliente, 
-            data_ingresso,
-            f"{dados_calculados['potencia_calculada']:.2f}",
-            f"{dados_calculados['valor_calculado']:.2f}"
-        ]
-        ws.append(row)
-
-        # Ajuste automático do tamanho das colunas
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            ws.column_dimensions[column].width = (max_length + 2)
-
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        nome_arquivo = f'Projeto_{project.codigoCliente}_Relatorio.xlsx'
-        response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
-        wb.save(response)
-        return response
+        return {'atual': status_atual_display, 'proximo': proximo_display}
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    # 1. ATUALIZADO: Inclui 'energisaproject' para trazer os dados extras em 1 única query
     queryset = ClientProject.objects.select_related('energisaproject').all().order_by('-created_at')
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
@@ -529,24 +310,22 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return ClientProject.objects.none()
         
         user = self.request.user
-        
-        # 2. ATUALIZADO: Inclui 'energisaproject' também nas queries filtradas
+        base_queryset = ClientProject.objects.select_related('created_by', 'energisaproject').prefetch_related(
+            'documents', 'material_lists', 'consumer_units'
+        ).order_by('-created_at')
+
         if user.is_superuser or user.is_admin or user.is_tecnico:
-            return ClientProject.objects.select_related('created_by', 'energisaproject').order_by('-created_at')
+            return base_queryset
         
-        return ClientProject.objects.filter(created_by=user).select_related('created_by', 'energisaproject').order_by('-created_at')
+        return base_queryset.filter(created_by=user)
 
     def get_serializer_class(self):
         if getattr(self, "swagger_fake_view", False):
             return ClientProjectUnifiedSerializer
         
-        # 3. ATUALIZADO: Agora usamos o Serializer Unificado como motor principal.
-        # Ele será responsável por criar, atualizar e listar os projetos dinamicamente 
-        # exibindo os campos extras quando for 'Energisa' e escondendo quando for 'coelba'.
-        if self.action in ['create', 'update', 'partial_update', 'retrieve', 'list', 'meus_projetos']:
-             return ClientProjectUnifiedSerializer
+        if self.action in ['list', 'meus_projetos']:
+            return ProjectListSerializer
              
-        # Fallback de segurança
         return ClientProjectUnifiedSerializer
     
     @action(detail=False, methods=['get'])
@@ -556,7 +335,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def perform_create(self, serializer):
-        # Criação do projeto vinculando ao usuário da requisição
         projeto = serializer.save(created_by=self.request.user)
         notify_new_project_created(projeto)
 
@@ -584,11 +362,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         old_status = instance.status
         
-        # Executa a regra do serializer unificado (que atualiza Energisa ou ClientProject)
         updated_instance = serializer.save()
         new_status = updated_instance.status
 
-        # Mantém a sua regra de negócio de histórico intacta
         if old_status != new_status:
             ProjectStatusHistory.objects.create(
                 project=updated_instance,
@@ -622,8 +398,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="export_project_excel")
     @action(detail=True, methods=['get'], url_path='exportar-excel')
     def exportar_excel(self, request, pk=None):
-        # Este método fica exatamente igual, operando perfeitamente 
-        # porque os dados base ainda estão disponíveis em ClientProject.
         project = get_object_or_404(ClientProject.objects.prefetch_related('material_lists'), pk=pk)
         
         wb = openpyxl.Workbook()
@@ -667,11 +441,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         })
 
         row = [
-            project.nomeTitular, 
-            project.classe, 
-            project.get_status_display(), 
-            project.codigoCliente, 
-            data_ingresso,
+            project.nomeTitular, project.classe, project.get_status_display(), 
+            project.codigoCliente, data_ingresso,
             f"{dados_calculados['potencia_calculada']:.2f}",
             f"{dados_calculados['valor_calculado']:.2f}"
         ]
@@ -701,14 +472,10 @@ class SolicitarVistoriaView(APIView):
         projeto = get_object_or_404(ClientProject, id=project_id, created_by=request.user)
 
         try:
-            # A nova abstração cuida de salvar a notificação, alertar os Admins via WS, e (futuramente) por e-mail.
             notify_inspection_requested(projeto, request.user)
-            
             projeto.pedido_vistoria = True
             projeto.save()
-            
             return Response({"message": "Vistoria solicitada com sucesso!"}, status=status.HTTP_200_OK)
-        
         except Exception as e:
             return Response(
                 {"error": "Erro ao processar a solicitação de vistoria.", "details": str(e)}, 
@@ -719,65 +486,46 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
     serializer_class = DocumentUploadSerializer
     pagination_class = None
 
-    # =========================================================================
-    # HELPERS DE PERMISSÃO (Centralizando a Segurança)
-    # =========================================================================
     def _check_project_read_permission(self, project):
-        """ Garante que apenas a equipe ou o dono do projeto podem visualizá-lo """
         user = self.request.user
         if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user == project.created_by):
             raise PermissionDenied("Você não tem permissão para visualizar ou acessar os documentos deste projeto.")
 
     def _check_client_write_permission(self, project):
-        """ Garante que o cliente só possa enviar/excluir arquivos dos seus PRÓPRIOS projetos """
         user = self.request.user
         if getattr(user, 'is_cliente', False) and project.created_by != user:
             raise PermissionDenied("Você só pode interagir com documentos dos seus próprios projetos.")
 
     def _check_admin_write_permission(self, document_type):
-        """ Garante que apenas o Administrador manipule a Lista VIP de documentos """
         admin_only_docs = [
             'boleto', 'formulario', 'diagrama_unifilar', 
             'dados_geradora', 'unidades_consumidoras_extra', 
             'memorial', 'art_documento'
         ]
-        
         user = self.request.user
         if document_type in admin_only_docs:
             if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):
                 raise PermissionDenied(f"Acesso negado. Apenas administradores podem enviar, editar ou excluir documentos do tipo: '{document_type}'.")
 
-
-    # =========================================================================
-    # OVERRIDES DOS MÉTODOS DO CRUD (GET, POST, PUT/PATCH, DELETE)
-    # =========================================================================
     def get_queryset(self):
-        """ Protege os métodos GET (list, retrieve) """
         project_pk = self.kwargs.get('project_pk')
         if getattr(self, "swagger_fake_view", False) or not project_pk:
             return ProjectDocument.objects.none()
             
         project = get_object_or_404(ClientProject, pk=project_pk)
-        
-        # 1. Checa se o utilizador pode sequer ver este projeto
         self._check_project_read_permission(project)
-
         return ProjectDocument.objects.filter(project=project).order_by('-created_at')
 
     def perform_create(self, serializer):
-        """ Protege o método POST (create) """
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
         
-        # 1. Permissões
         self._check_project_read_permission(project)
         self._check_client_write_permission(project)
         self._check_admin_write_permission(serializer.validated_data.get('document_type'))
         
-        # 2. Salva o documento
         documento = serializer.save(project=project)
         
-        # 3. Notificações
         user_request = self.request.user
         if documento.document_type == 'boleto' and getattr(user_request, 'is_admin', False):
             notify_boleto_added(project, documento)
@@ -785,28 +533,24 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
             notify_comprovante_added(project, documento, user_request)
 
     def perform_update(self, serializer):
-        """ Protege os métodos PUT e PATCH (update) """
         instance = self.get_object()
         project = instance.project
         novo_tipo_doc = serializer.validated_data.get('document_type', instance.document_type)
         
-        # 1. Permissões
         self._check_project_read_permission(project)
         self._check_client_write_permission(project)
-        self._check_admin_write_permission(instance.document_type) # Verifica se tem poder sobre o arquivo atual
+        self._check_admin_write_permission(instance.document_type)
+        
         if novo_tipo_doc != instance.document_type:
-            self._check_admin_write_permission(novo_tipo_doc)      # Verifica se tem poder sobre a nova tipagem escolhida
+            self._check_admin_write_permission(novo_tipo_doc)
 
-        # 2. Salva com registro de data caso aprovado
         novo_status = serializer.validated_data.get('status', instance.status)
         if novo_status == 'APPROVED' and instance.status != 'APPROVED':
             updated_instance = serializer.save(approved_at=timezone.now())
         else:
             updated_instance = serializer.save()
 
-        # 3. Gatilhos de Notificação
         user_request = self.request.user
-        
         if novo_status == ProjectDocument.STATUS_REJECTED and instance.status != ProjectDocument.STATUS_REJECTED:
             notify_document_rejected(project, updated_instance)
         elif novo_status == ProjectDocument.STATUS_APPROVED and instance.status != ProjectDocument.STATUS_APPROVED:
@@ -819,15 +563,12 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
                 notify_comprovante_added(project, updated_instance, user_request)
 
     def perform_destroy(self, instance):
-        """ Protege o método DELETE (destroy) """
         project = instance.project
         
-        # 1. Permissões
         self._check_project_read_permission(project)
         self._check_client_write_permission(project)
         self._check_admin_write_permission(instance.document_type)
         
-        # 2. Exclui o arquivo
         instance.delete()
         
     def get_serializer_context(self):
@@ -837,6 +578,7 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
             if project_pk:
                 context['project'] = get_object_or_404(ClientProject, pk=project_pk)
         return context
+
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
     queryset = ConsumerUnit.objects.all().order_by('id')
@@ -848,12 +590,10 @@ class ConsumerUnitListView(generics.ListCreateAPIView):
             return ConsumerUnit.objects.none()
         return ConsumerUnit.objects.filter(project_id=project_pk).order_by('id')
 
-    # --- ADICIONE ESTE BLOCO ---
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    # ---------------------------
 
     def perform_create(self, serializer):
         project = get_object_or_404(ClientProject, pk=self.kwargs.get('project_pk'))
@@ -874,15 +614,10 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         
         return ListaDeMateriais.objects.filter(project_id=project_pk).order_by('id')
 
-    # --- SOBRESCREVA O MÉTODO CREATE AQUI ---
     def create(self, request, *args, **kwargs):
-        # Verifica se o dado enviado é uma lista
         is_many = isinstance(request.data, list)
-        
-        # Instancia o serializer com many=True se for uma lista
         serializer = self.get_serializer(data=request.data, many=is_many)
         serializer.is_valid(raise_exception=True)
-        
         self.perform_create(serializer)
         
         headers = self.get_success_headers(serializer.data)
@@ -891,7 +626,6 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         project_pk = self.kwargs.get('project_pk')
         project = get_object_or_404(ClientProject, pk=project_pk)
-        # O DRF lida automaticamente com o save em massa quando many=True
         serializer.save(project=project)
 
     def list(self, request, *args, **kwargs):
@@ -924,29 +658,6 @@ class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         return super().patch(request, *args, **kwargs)
 
-class ProjectDocumentDownloadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="download_document")
-    def get(self, request, project_pk, document_pk):
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        document = get_object_or_404(ProjectDocument, pk=document_pk, project=project)
-        
-        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
-            raise PermissionDenied("Sem permissão para download.")
-
-        if not document.arquivo:
-            return Response({"error": "O documento não possui um arquivo anexado."}, status=status.HTTP_404_NOT_FOUND)
-
-        file_path = document.arquivo.path
-
-        if not os.path.exists(file_path):
-            return Response({"error": "Arquivo físico não encontrado."}, status=status.HTTP_404_NOT_FOUND)
-
-        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
-        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
-        return response
-    
 class ProjectDocumentDownloadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -996,7 +707,6 @@ class ProjectDocumentDownloadAllView(APIView):
             arquivos_adicionados = 0
             for doc in documents:
                 if doc.arquivo and os.path.exists(doc.arquivo.path):
-                    # Gera um nome bonito: "cartao_cnpj_arquivo-original.pdf"
                     file_name_in_zip = f"{doc.document_type}_{os.path.basename(doc.arquivo.path)}"
                     zip_file.write(doc.arquivo.path, file_name_in_zip)
                     arquivos_adicionados += 1
