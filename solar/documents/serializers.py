@@ -265,7 +265,7 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
             energisa_instance.save()
             return energisa_instance
         
-        return super(serializers.ModelSerializer, self).update(instance, validated_data)
+        return super().update(instance, validated_data)
 
     def to_representation(self, instance):
         if hasattr(instance, 'energisaproject'):
