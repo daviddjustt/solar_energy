@@ -210,6 +210,11 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
 
 
 class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
+    """
+    O MAESTRO (Polimorfismo):
+    Ao herdar de EnergisaProjectSerializer, o Swagger (DRF) mapeia todos os campos 
+    da Energisa e da Coelba automaticamente sem precisarmos declarar nenhum deles.
+    """
     GRUPO_CHOICES = (
         ('coelba', 'Coelba'),
         ('energisa', 'Energisa'),
@@ -225,9 +230,23 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
 
     class Meta(EnergisaProjectSerializer.Meta):
         model = EnergisaProject
+        # 🟢 A SOLUÇÃO: Relaxa a validação estrita do DRF para permitir projetos Coelba
+        extra_kwargs = {
+            'cabo_mm2': {'required': False, 'allow_null': True},
+            'isolacao_volts': {'required': False, 'allow_null': True},
+            'cabos_por_fase': {'required': False, 'allow_null': True},
+            'disjuntor_amperes': {'required': False, 'allow_null': True},
+            'dps_ka': {'required': False, 'allow_null': True},
+            'tipo_ramal': {'required': False, 'allow_null': True},
+            'tensao_tipo': {'required': False, 'allow_null': True},
+            'tensao_imagem': {'required': False, 'allow_null': True},
+        }
 
     def validate(self, data):
+        # 1. Roda as validações comuns (Abstratas) primeiro
         data = super().validate(data)
+        
+        # 2. Roteamento Polimórfico
         grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
         campos_energisa = [
             'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
@@ -244,6 +263,7 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
             if erros:
                 raise serializers.ValidationError(erros)
         else:
+            # Se for Coelba, removemos os campos sem que o DRF bloqueie antes do tempo
             for campo in campos_energisa:
                 data.pop(campo, None)
 
@@ -276,8 +296,7 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
         data = CoelbaProjectSerializer(context=self.context).to_representation(instance)
         data['grupo'] = 'coelba'
         return data
-
-
+    
 # =========================================================================
 # 4. SERIALIZERS DE LEITURA E ATUALIZAÇÃO (Herdam de Abstract)
 # =========================================================================
