@@ -11,7 +11,7 @@ from .utils import (
     CELULAR_REGEX, VOLTAGEM_CHOICES, DOCUMENT_TYPE_CHOICES_PESSOA,
     DOCUMENT_TYPE_CHOICES, IN_ANALYSIS, WATS_CHOICES,
     APPROVED, REJECTED, get_document_upload_path,
-    validate_file_size, validate_file_extension,
+    validate_file_size, validate_file_extension, CONCESSIONARIA_CHOICES
 )
 
 class AndamentoDoProjeto(models.TextChoices):
@@ -59,12 +59,26 @@ class ClientProject(models.Model):
     bairro = models.CharField(max_length=100, verbose_name="Bairro")
     cidade = models.CharField(max_length=100, verbose_name="Cidade")
     complemento = models.CharField(max_length=200, blank=True, null=True, verbose_name="complementoo")
-    latGraus = models.SmallIntegerField(verbose_name="Latitude (Graus)", help_text="Parte inteira da latitude (-90 a 90)")
-    latMin = models.SmallIntegerField(verbose_name="Latitude (Minutos)", help_text="Minutos da latitude (0 a 59)")
-    latSeg = models.SmallIntegerField(verbose_name="Latitude (Segundos)", help_text="Segundos da latitude (0 a 59)")
-    longGraus = models.SmallIntegerField(verbose_name="Longitude (Graus)", help_text="Parte inteira da longitude (-180 a 180)")
-    longMin = models.SmallIntegerField(verbose_name="Longitude (Minutos)", help_text="Minutos da longitude (0 a 59)")
-    longSeg = models.SmallIntegerField(verbose_name="Longitude (Segundos)", help_text="Segundos da longitude (0 a 59)")
+
+    # 🟢 Alterado para DecimalField para aceitar decimais
+    latGraus = models.DecimalField(
+        max_digits=10, decimal_places=8, 
+        verbose_name="Latitude (Graus/Decimal)", 
+        help_text="Latitude em formato decimal ou graus (-90 a 90)", 
+        null=True, blank=True
+    )
+    latMin = models.SmallIntegerField(verbose_name="Latitude (Minutos)", help_text="Minutos da latitude (0 a 59)", null=True, blank=True, default=0)
+    latSeg = models.SmallIntegerField(verbose_name="Latitude (Segundos)", help_text="Segundos da latitude (0 a 59)", null=True, blank=True, default=0)
+    
+    longGraus = models.DecimalField(
+        max_digits=11, decimal_places=8, 
+        verbose_name="Longitude (Graus/Decimal)", 
+        help_text="Longitude em formato decimal ou graus (-180 a 180)", 
+        null=True, blank=True
+    )
+    longMin = models.SmallIntegerField(verbose_name="Longitude (Minutos)", help_text="Minutos da longitude (0 a 59)", null=True, blank=True, default=0)
+    longSeg = models.SmallIntegerField(verbose_name="Longitude (Segundos)", help_text="Segundos da longitude (0 a 59)", null=True, blank=True, default=0)
+
     documetacaoCompleta = models.BooleanField(default=False, verbose_name="Documentação completa")
     status = models.CharField(
            max_length=43, choices=AndamentoDoProjeto.choices, default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS, verbose_name="Status do Projeto"
@@ -74,6 +88,13 @@ class ClientProject(models.Model):
     observacoes = models.TextField(blank=True, null=True, verbose_name="Observações")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    grupo = models.CharField(
+        max_length=20,
+        choices=CONCESSIONARIA_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Grupo (Concessionária)'
+    )
 
     @property
     def cnpj_or_cpf_do_cliente(self):
@@ -91,17 +112,27 @@ class ClientProject(models.Model):
 
     @property
     def decimal_latitude(self):
-        if self.latGraus is None or self.latMin is None or self.latSeg is None:
+        if self.latGraus is None:
             return None
-        sign = -1 if self.latGraus < 0 else 1
-        return Decimal(sign * (abs(self.latGraus) + (self.latMin / 60) + (self.latSeg / 3600))).quantize(Decimal('0.00000001'))
+        lat_graus = float(self.latGraus)
+        lat_min = self.latMin or 0
+        lat_seg = self.latSeg or 0
+        if lat_min == 0 and lat_seg == 0:
+            return Decimal(str(self.latGraus)).quantize(Decimal('0.00000001'))
+        sign = -1 if lat_graus < 0 else 1
+        return Decimal(sign * (abs(lat_graus) + (lat_min / 60) + (lat_seg / 3600))).quantize(Decimal('0.00000001'))
 
     @property
     def decimal_longitude(self):
-        if self.longGraus is None or self.longMin is None or self.longSeg is None:
+        if self.longGraus is None:
             return None
-        sign = -1 if self.longGraus < 0 else 1
-        return Decimal(sign * (abs(self.longGraus) + (self.longMin / 60) + (self.longSeg / 3600))).quantize(Decimal('0.00000001'))
+        long_graus = float(self.longGraus)
+        long_min = self.longMin or 0
+        long_seg = self.longSeg or 0
+        if long_min == 0 and long_seg == 0:
+            return Decimal(str(self.longGraus)).quantize(Decimal('0.00000001'))
+        sign = -1 if long_graus < 0 else 1
+        return Decimal(sign * (abs(long_graus) + (long_min / 60) + (long_seg / 3600))).quantize(Decimal('0.00000001'))
 
     @property
     def approved_documents_count(self):
@@ -255,6 +286,9 @@ class ListaDeMateriais(models.Model):
     unidade_de_medida = models.CharField(
         max_length=100, choices=WATS_CHOICES, help_text="Unidade de medida", default="wats"
     )
+    # 🟢 NOVOS CAMPOS OPCIONAIS (Tipo Float)
+    tensao_nominal = models.FloatField(verbose_name="Tensão Nominal (V)", blank=True, null=True)
+    disjuntor = models.FloatField(verbose_name="Disjuntor (A)", blank=True, null=True)
     
 class ProjectProtocol(models.Model):
     project = models.ForeignKey(

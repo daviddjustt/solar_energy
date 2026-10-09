@@ -15,6 +15,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # 1º - Criar primeiro o ProjectDocument para que o ClientProject possa referenciá-lo.
+        migrations.CreateModel(
+            name='ProjectDocument',
+            fields=[
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('arquivo', models.FileField(help_text='Arquivo do documento. Máximo 10 MB. Formatos: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX', upload_to=solar.files.utils.get_document_upload_path, validators=[solar.files.utils.validate_file_size, solar.files.utils.validate_file_extension], verbose_name='Arquivo')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')),
+                ('document_name', models.CharField(blank=True, max_length=80, null=True, verbose_name='Nome opcional')),
+                ('document_type', models.CharField(choices=[('documento_cliente', 'Documento do Cliente'), ('unidade_geradora_fatura', 'Unidade Geradora (Fatura)'), ('unidades_consumidoras_fatura', 'Unidades Consumidoras (Fatura)'), ('lista_material', 'Lista de Material'), ('procuracao_assinada', 'Procuração Assinada'), ('pagamento_art', 'Documento que comprove o pagamento da ART'), ('pagamento_trt', 'Documento que comprove o pagamento da TRT'), ('inscricao_municipal', 'Documento que comprove o pagamento da inscrição municipal'), ('inscricao_estadual', 'Documento que comprove o pagamento da inscrição estadual'), ('cartao_cnpj', 'Cartão CNPJ'), ('contrato_social', 'Contrato Social'), ('boleto', 'Boleto'), ('comprovante_de_pagamento', 'Comprovante de Pagamento'), ('outros', 'Outros Documentos')], max_length=80, verbose_name='Tipo do documento')),
+                ('status', models.CharField(choices=[('IN_ANALYSIS', 'Em Análise'), ('APPROVED', 'Aprovado'), ('REJECTED', 'Rejeitado')], default='IN_ANALYSIS', max_length=20, verbose_name='Status')),
+                ('rejection_reason', models.TextField(blank=True, null=True, verbose_name='Motivo da rejeição')),
+                ('approved_at', models.DateTimeField(blank=True, null=True, verbose_name='Data de Aprovação')),
+                # O campo ForeignKey "project" será adicionado depois que ClientProject for criado.
+            ],
+            options={
+                'verbose_name': 'Documento do Projeto',
+                'verbose_name_plural': 'Documentos do Projeto',
+                'ordering': ['-created_at'],
+            },
+        ),
+        
+        # 2º - Criar o ClientProject, que agora pode referenciar com sucesso o ProjectDocument acima.
         migrations.CreateModel(
             name='ClientProject',
             fields=[
@@ -26,10 +49,8 @@ class Migration(migrations.Migration):
                 ('documento', models.CharField(blank=True, max_length=18, null=True, verbose_name='Documento do Cliente (CPF/CNPJ)')),
                 ('voltagem', models.CharField(choices=[('Monofásico - 127V', 'Monofásico - 127V'), ('Monofásico - 220V', 'Monofásico - 220V'), ('Bifásico - 127/220V', 'Bifásico - 127/220V'), ('Bifásico - 220/380V', 'Bifásico - 220/380V'), ('Trifásico - 127/220V', 'Trifásico - 127/220V'), ('Trifásico - 220/380V', 'Trifásico - 220/380V')], help_text='Voltagem do consumidor', max_length=100)),
                 ('email', models.EmailField(max_length=255, verbose_name='Email')),
-                # Enganando as migrações
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_projects', to=settings.AUTH_USER_MODEL, verbose_name='Criado por')),
                 ('related_payment_document', models.ForeignKey(blank=True, help_text='Boleto relacionado', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='payment_proofs', to='documents.projectdocument')),
-                #
                 ('telefone', models.CharField(max_length=11, validators=[django.core.validators.RegexValidator(message='Celular inválido', regex='^\\d{11}$')], verbose_name='Telefone')),
                 ('cep', models.CharField(max_length=9, validators=[django.core.validators.RegexValidator(message='CEP deve estar no formato XXXXX-XXX', regex='^\\d{5}-?\\d{3}$')], verbose_name='CEP')),
                 ('rua', models.CharField(max_length=200, verbose_name='Logradouro')),
@@ -54,6 +75,15 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
             },
         ),
+
+        # 3º - Agora que ClientProject existe, adicionamos o campo 'project' (ForeignKey) na tabela ProjectDocument.
+        migrations.AddField(
+            model_name='projectdocument',
+            name='project',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='documents', to='documents.clientproject'),
+        ),
+
+        # 4º - Criar os outros modelos que dependem de ClientProject.
         migrations.CreateModel(
             name='ConsumerUnit',
             fields=[
@@ -62,7 +92,6 @@ class Migration(migrations.Migration):
                 ('porcentagem', models.DecimalField(blank=True, decimal_places=2, max_digits=5, null=True, verbose_name='Porcentagem (%)')),
                 ('priority_level', models.PositiveSmallIntegerField(blank=True, help_text='Um valor inteiro...', null=True, verbose_name='Nível de Prioridade')),
                 ('prioridade_is_porcentagem', models.BooleanField(default=True, help_text='Se marcado...', verbose_name='Prioridade baseada em porcentagem')),
-                # CORREÇÃO: Permitindo nulo para ConsumerUnit
                 ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='consumer_units', to='documents.clientproject')),
             ],
             options={
@@ -71,6 +100,7 @@ class Migration(migrations.Migration):
                 'ordering': ['priority_level'],
             },
         ),
+        
         migrations.CreateModel(
             name='ListaDeMateriais',
             fields=[
@@ -83,26 +113,5 @@ class Migration(migrations.Migration):
                 ('unidade_de_medida', models.CharField(choices=[('W', 'Wats'), ('kW', 'KiloWats')], default='wats', help_text='Unidade de medida', max_length=100)),
                 ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='material_lists', to='documents.clientproject')),
             ],
-        ),
-        migrations.CreateModel(
-            name='ProjectDocument',
-            fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('arquivo', models.FileField(help_text='Arquivo do documento. Máximo 10 MB. Formatos: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX', upload_to=solar.files.utils.get_document_upload_path, validators=[solar.files.utils.validate_file_size, solar.files.utils.validate_file_extension], verbose_name='Arquivo')),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Data de Criação')),
-                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Data de Atualização')),
-                ('document_name', models.CharField(blank=True, max_length=80, null=True, verbose_name='Nome opcional')),
-                ('document_type', models.CharField(choices=[('documento_cliente', 'Documento do Cliente'), ('unidade_geradora_fatura', 'Unidade Geradora (Fatura)'), ('unidades_consumidoras_fatura', 'Unidades Consumidoras (Fatura)'), ('lista_material', 'Lista de Material'), ('procuracao_assinada', 'Procuração Assinada'), ('pagamento_art', 'Documento que comprove o pagamento da ART'), ('pagamento_trt', 'Documento que comprove o pagamento da TRT'), ('inscricao_municipal', 'Documento que comprove o pagamento da inscrição municipal'), ('inscricao_estadual', 'Documento que comprove o pagamento da inscrição estadual'), ('cartao_cnpj', 'Cartão CNPJ'), ('contrato_social', 'Contrato Social'), ('boleto', 'Boleto'), ('comprovante_de_pagamento', 'Comprovante de Pagamento'), ('outros', 'Outros Documentos')], max_length=80, verbose_name='Tipo do documento')),
-                ('status', models.CharField(choices=[('IN_ANALYSIS', 'Em Análise'), ('APPROVED', 'Aprovado'), ('REJECTED', 'Rejeitado')], default='IN_ANALYSIS', max_length=20, verbose_name='Status')),
-                ('rejection_reason', models.TextField(blank=True, null=True, verbose_name='Motivo da rejeição')),
-                ('approved_at', models.DateTimeField(blank=True, null=True, verbose_name='Data de Aprovação')),
-                # CORREÇÃO: Permitindo nulo para ProjectDocument
-                ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='documents', to='documents.clientproject')),
-            ],
-            options={
-                'verbose_name': 'Documento do Projeto',
-                'verbose_name_plural': 'Documentos do Projeto',
-                'ordering': ['-created_at'],
-            },
         ),
     ]

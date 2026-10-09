@@ -81,7 +81,7 @@ DOCUMENT_TYPE_CHOICES = [
 
         # 🟢 NOVOS DOCUMENTOS EXCLUSIVOS PARA PROJETOS DA ENERGISA
 
-        ('documento_de_posse', 'Documento de Posse')
+        ('documento_de_posse', 'Documento de Posse'),
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]
@@ -90,6 +90,12 @@ FILE_TYPE_CHOICES = [
         ('pdf', 'PDF'),
         ('other', 'Outro'),
     ]
+
+# Caso queria acrescentar mais concessionárias no futuro, precisa adicionar também em serializers -> ProjectUnifiedSerializer -> validate_grupo
+CONCESSIONARIA_CHOICES = [
+        ('energisa', 'Energisa'),
+        ('coelba', 'Coelba'),
+]
 
 def get_document_upload_path(instance, filename):
     """

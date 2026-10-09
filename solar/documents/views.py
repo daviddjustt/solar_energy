@@ -7,6 +7,7 @@ import logging
 import concurrent.futures
 
 # Django imports
+import django_filters
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
 from django.utils.timezone import localtime
@@ -61,7 +62,8 @@ from solar.notifications.services import (
     notify_project_status_changed,
     notify_protocol_updated,
     notify_inspection_requested,
-    notify_new_project_created
+    notify_new_project_created,
+    notify_client_document_uploaded,
 )
 
 User = get_user_model()
@@ -151,19 +153,21 @@ class ProjectExportExcelView(APIView):
                 qtd = float(material.quantidade or 0)
                 pot_bruta = float(material.potencia or 0)
                 tipo = str(material.tipo or '').lower()
-                unidade = str(material.unidade_de_medida or '').lower().strip()
-                
-                if 'kw' in unidade:
-                    pot_kw = pot_bruta
-                else:
-                    pot_kw = pot_bruta / 1000.0
-                
-                total_linha_kw = qtd * pot_kw
                 
                 if 'modulo' in tipo or 'módulo' in tipo:
-                    total_mod_kw += total_linha_kw
+                    # Módulos são EXCLUSIVAMENTE em W. 
+                    # Divide-se logo por 1000 para obter kW (kWp).
+                    total_mod_kw += (qtd * pot_bruta) / 1000.0
+                    
                 elif 'inversor' in tipo:
-                    total_inv_kw += total_linha_kw
+                    # Inversores mantêm a verificação de unidade (podem ser kW ou W)
+                    unidade = str(material.unidade_de_medida or '').lower().strip()
+                    if 'kw' in unidade:
+                        pot_kw = pot_bruta
+                    else:
+                        pot_kw = pot_bruta / 1000.0
+                    
+                    total_inv_kw += (qtd * pot_kw)
 
             projetos_para_processar.append({
                 'nome_titular': getattr(p, 'nomeTitular', "N/A"),
@@ -296,38 +300,21 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
             
         return {'atual': status_atual_display, 'proximo': proximo_display}
 
-@extend_schema_view(
-    list=extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="grupo",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filtra a listagem pelo grupo do projeto.",
-                enum=['coelba', 'energisa'],
-                required=False
-            )
-        ]
-    ),
-    meus_projetos=extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="grupo",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filtra a listagem pelo grupo do projeto.",
-                enum=['coelba', 'energisa'],
-                required=False
-            )
-        ]
-    )
-)
+class ClientProjectFilter(django_filters.FilterSet):
+    # CharFilter com lookup_expr='iexact' ignora maiúsculas/minúsculas 
+    # e contorna a validação estrita do ChoiceFilter original
+    grupo = django_filters.CharFilter(field_name='grupo', lookup_expr='iexact')
+
+    class Meta:
+        model = ClientProject
+        fields = ['created_by', 'codigoCliente', 'grupo']
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = ClientProject.objects.select_related('energisaproject').all().order_by('-created_at')
     filter_backends = [DjangoFilterBackend]
     pagination_class = None
-    filterset_fields = ['created_by', 'codigoCliente']
+    
+    filterset_class = ClientProjectFilter
 
     def get_permissions(self):
         return [permissions.IsAuthenticated()]
@@ -344,17 +331,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if user.is_superuser or user.is_admin or user.is_tecnico:
             return base_queryset
 
-        # 🟢 NOVO FILTRO: Filtragem por Grupo
-        grupo_filtro = self.request.query_params.get('grupo', None)
-        
-        if grupo_filtro == 'energisa':
-            # Traz apenas os que TÊM a tabela filha preenchida
-            base_queryset = base_queryset.filter(energisaproject__isnull=False)
-        elif grupo_filtro == 'coelba':
-            # Traz apenas os que NÃO TÊM a tabela filha preenchida (são só ClientProject base)
-            base_queryset = base_queryset.filter(energisaproject__isnull=True)
-
-        return base_queryset
         return base_queryset.filter(created_by=user)
 
     def get_serializer_class(self):
@@ -459,19 +435,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qtd = float(material.quantidade or 0)
             pot_bruta = float(material.potencia or 0)
             tipo = str(material.tipo or '').lower()
-            unidade = str(material.unidade_de_medida or '').lower().strip()
-            
-            if 'kw' in unidade:
-                pot_kw = pot_bruta
-            else:
-                pot_kw = pot_bruta / 1000.0
-                
-            total_linha_kw = qtd * pot_kw
             
             if 'modulo' in tipo or 'módulo' in tipo:
-                total_mod_kw += total_linha_kw
+                # Regra exclusiva: módulos sempre em W
+                total_mod_kw += (qtd * pot_bruta) / 1000.0
+                
             elif 'inversor' in tipo:
-                total_inv_kw += total_linha_kw
+                unidade = str(material.unidade_de_medida or '').lower().strip()
+                if 'kw' in unidade:
+                    pot_kw = pot_bruta
+                else:
+                    pot_kw = pot_bruta / 1000.0
+                    
+                total_inv_kw += (qtd * pot_kw)
 
         dados_calculados = calcular_regras_potencia_e_valor({
             'total_modulos_kw': total_mod_kw,
@@ -563,12 +539,18 @@ class ProjectDocumentListView(viewsets.ModelViewSet):
         self._check_admin_write_permission(serializer.validated_data.get('document_type'))
         
         documento = serializer.save(project=project)
-        
         user_request = self.request.user
-        if documento.document_type == 'boleto' and getattr(user_request, 'is_admin', False):
-            notify_boleto_added(project, documento)
-        elif documento.document_type == 'comprovante_de_pagamento' and user_request == project.created_by:
-            notify_comprovante_added(project, documento, user_request)
+        
+        # Lógica de Notificações
+        if getattr(user_request, 'is_admin', False) or getattr(user_request, 'is_superuser', False):
+            if documento.document_type == 'boleto':
+                notify_boleto_added(project, documento)
+        elif user_request == project.created_by: # Se for o cliente
+            if documento.document_type == 'comprovante_de_pagamento':
+                notify_comprovante_added(project, documento, user_request)
+            else:
+                # 🟢 NOVA REGRA: Dispara a notificação para os admins relatando o novo documento do cliente
+                notify_client_document_uploaded(project, documento, user_request)
 
     def perform_update(self, serializer):
         instance = self.get_object()

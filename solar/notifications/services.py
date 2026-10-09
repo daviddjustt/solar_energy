@@ -264,6 +264,22 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
             'context': {'cliente': cliente_direto, 'url_painel': url}
         }
 
+    elif evento == 'documento_adicionado':
+        publico_alvo = 'admins'
+        category = "NOVO_DOCUMENTO"
+        documento = context.get('documento')
+        nome_doc = documento.get_document_type_display() if documento else "documento"
+        nome_cliente = sender.get_full_name() if sender else (projeto.created_by.get_full_name() if projeto.created_by else "Um cliente")
+        
+        title = "Novo Documento Enviado"
+        message = f"O cliente {nome_cliente} enviou o documento '{nome_doc}' para o projeto {projeto.codigoCliente}."
+        url = f"/admin/projetos/{projeto.pk}/"
+        email_data = {
+            'subject': f"[SISTEMA] Novo Documento Recebido - {projeto.codigoCliente}",
+            'template': 'email/admin/novo_documento.html', # Terá de criar este ficheiro HTML se quiser que o e-mail funcione
+            'context': {'projeto': projeto, 'nome_documento': nome_doc, 'url_painel': url}
+        }
+        
     else:
         logger.error(f"Evento desconhecido: {evento}")
         return
@@ -330,3 +346,6 @@ def notify_comprovante_added(projeto, documento, cliente_remetente):
 
 def notify_inspection_requested(projeto, usuario_solicitante):
     _construir_mensagem_notificacao(projeto, 'vistoria_solicitada', context={}, sender=usuario_solicitante)
+
+def notify_client_document_uploaded(projeto, documento, cliente_remetente):
+    _construir_mensagem_notificacao(projeto, 'documento_adicionado', context={'documento': documento}, sender=cliente_remetente)
