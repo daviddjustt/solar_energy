@@ -21,11 +21,8 @@ echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
 # Forçamos a criação para evitar o aviso "models have changes not reflected"
 
 # 4. APLICAÇÃO DE MIGRAÇÕES
-echo "🔄 Sincronizando histórico das notificações..."
-# Essa linha abaixo é o antídoto! Ela avisa o Django que a tabela já existe antes do erro acontecer.
-python manage.py migrate notifications --fake
-python manage.py migrate documents --fake
-echo "🔄 Aplicando demais migrações..."
+echo "🔄 Aplicando migrações do sistema..."
+# Removemos o --fake da app documents para que o Django execute o SQL de criação da coluna grupo
 python manage.py migrate --noinput
 echo "✅ Banco de dados atualizado com sucesso!"
 
