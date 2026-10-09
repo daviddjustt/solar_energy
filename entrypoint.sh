@@ -16,46 +16,6 @@ until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
   sleep 3
 done
 
-# 4. SINCRONIZAÇÃO AUTOMÁTICA (Resolve o aviso do Log)
-echo "🔄 Gerando migrações automáticas para sincronizar models.py..."
-# Forçamos a criação para evitar o aviso "models have changes not reflected"
-
-# 4. APLICAÇÃO DE MIGRAÇÕES
-echo "🔄 Sincronizando histórico das notificações..."
-python manage.py migrate notifications --fake
-
-echo "🔄 Aplicando migrações reais do banco de dados..."
-python manage.py migrate --noinput
-echo "✅ Banco de dados atualizado com sucesso!"
-
-# =========================================================================
-# 4. CORREÇÃO FORÇADA DE SCHEMA (AUTO-CURA DO BANCO)
-# =========================================================================
-echo "🛠️ Aplicando correções forçadas de Schema (Energisa e Pagamentos)..."
-python manage.py shell << 'EOF'
-from django.db import connection, transaction
-from solar.documents.models import EnergisaProject, ProjectDocument
-
-# 1. Tenta criar a tabela da Energisa de forma isolada
-try:
-    with transaction.atomic():
-        with connection.schema_editor() as schema_editor:
-            schema_editor.create_model(EnergisaProject)
-    print("✅ Tabela 'EnergisaProject' construída com sucesso no banco!")
-except Exception:
-    print("ℹ️ Tabela 'EnergisaProject' já existe e está pronta para uso.")
-        
-# 2. Tenta recriar a coluna de pagamento de forma isolada
-try:
-    with transaction.atomic():
-        with connection.schema_editor() as schema_editor:
-            field = ProjectDocument._meta.get_field('related_payment_document')
-            schema_editor.add_field(ProjectDocument, field)
-    print("✅ Coluna 'related_payment_document' adicionada com sucesso!")
-except Exception:
-    print("ℹ️ Coluna 'related_payment_document' já existe e está pronta para uso.")
-EOF
-# =========================================================================
 
 # 5. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
