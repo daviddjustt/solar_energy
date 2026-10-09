@@ -52,6 +52,7 @@ class Migration(migrations.Migration):
                     ('unidades_consumidoras_extra', 'Unidades Consumidoras Extra'),
                     ('memorial', 'Memorial'),
                     ('art_documento', 'Art Documento'),
+                    ('documento_de_posse', 'Documento de Posse')
                 ], 
                 default='Em análise de documentos', 
                 max_length=43, 

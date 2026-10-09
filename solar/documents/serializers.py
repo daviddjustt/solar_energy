@@ -126,6 +126,18 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
             'dados_geradora', 'unidades_consumidoras_extra', 
             'memorial', 'art_documento'
         ]
+
+        energisa_only_docs = [
+            'documento_de_posse'
+        ]
+
+        if document_type in energisa_only_docs:
+            # O hasattr verifica se a tabela filha "EnergisaProject" está ligada a este projeto
+            if not hasattr(project, 'energisaproject'):
+                raise serializers.ValidationError({
+                    'document_type': f"Acesso negado. O documento '{document_type}' é exclusivo para projetos do grupo Energisa."
+                })
+    
         if document_type in admin_only_docs:
             user = request.user
             if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):

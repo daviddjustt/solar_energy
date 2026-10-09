@@ -78,6 +78,10 @@ DOCUMENT_TYPE_CHOICES = [
         ('unidades_consumidoras_extra', 'Unidades Consumidoras (Opcional)'),
         ('memorial', 'Memorial'),
         ('art_documento', 'ART'),
+
+        # 🟢 NOVOS DOCUMENTOS EXCLUSIVOS PARA PROJETOS DA ENERGISA
+
+        ('documento_de_posse', 'Documento de Posse')
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]
