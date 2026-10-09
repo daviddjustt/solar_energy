@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 # DRF & Rest imports
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, extend_schema_view
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.decorators import action
@@ -296,6 +296,33 @@ class ProjectSpecificProtocolViewSet(viewsets.ModelViewSet):
             
         return {'atual': status_atual_display, 'proximo': proximo_display}
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="grupo",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filtra a listagem pelo grupo do projeto.",
+                enum=['coelba', 'energisa'],
+                required=False
+            )
+        ]
+    ),
+    meus_projetos=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="grupo",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filtra a listagem pelo grupo do projeto.",
+                enum=['coelba', 'energisa'],
+                required=False
+            )
+        ]
+    )
+)
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = ClientProject.objects.select_related('energisaproject').all().order_by('-created_at')
     filter_backends = [DjangoFilterBackend]
@@ -316,7 +343,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         if user.is_superuser or user.is_admin or user.is_tecnico:
             return base_queryset
+
+        # 🟢 NOVO FILTRO: Filtragem por Grupo
+        grupo_filtro = self.request.query_params.get('grupo', None)
         
+        if grupo_filtro == 'energisa':
+            # Traz apenas os que TÊM a tabela filha preenchida
+            base_queryset = base_queryset.filter(energisaproject__isnull=False)
+        elif grupo_filtro == 'coelba':
+            # Traz apenas os que NÃO TÊM a tabela filha preenchida (são só ClientProject base)
+            base_queryset = base_queryset.filter(energisaproject__isnull=True)
+
+        return base_queryset
         return base_queryset.filter(created_by=user)
 
     def get_serializer_class(self):
