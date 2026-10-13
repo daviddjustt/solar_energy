@@ -203,8 +203,8 @@ class AbstractProjectSerializer(serializers.ModelSerializer):
             data = data.copy()
 
         # Normaliza campos de coordenadas (substitui vírgula por ponto e converte)
-        coord_fields_decimal = ['latGraus', 'longGraus']
-        coord_fields_int = ['latMin', 'latSeg', 'longMin', 'longSeg']
+        coord_fields_decimal = ['latSeg','longSeg']
+        coord_fields_int = ['latMin', 'latGraus', 'longMin', 'longGraus']
 
         for field in coord_fields_decimal:
             if field in data and data[field] is not None:
