@@ -16,7 +16,6 @@ until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
   sleep 3
 done
 
-
 # 5. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
 python manage.py shell << EOF

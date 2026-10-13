@@ -61,24 +61,15 @@ class ClientProject(models.Model):
     complemento = models.CharField(max_length=200, blank=True, null=True, verbose_name="complementoo")
 
     # 🟢 Alterado para DecimalField para aceitar decimais
-    latGraus = models.DecimalField(
-        max_digits=10, decimal_places=8, 
-        verbose_name="Latitude (Graus/Decimal)", 
-        help_text="Latitude em formato decimal ou graus (-90 a 90)", 
-        null=True, blank=True
-    )
-    latMin = models.SmallIntegerField(verbose_name="Latitude (Minutos)", help_text="Minutos da latitude (0 a 59)", null=True, blank=True, default=0)
-    latSeg = models.SmallIntegerField(verbose_name="Latitude (Segundos)", help_text="Segundos da latitude (0 a 59)", null=True, blank=True, default=0)
+    latGraus = models.SmallIntegerField(verbose_name="Latitude (Graus)", help_text="Parte inteira da latitude (-90 a 90)", null=True, blank=True)
+    latMin = models.SmallIntegerField(verbose_name="Latitude (Minutos)", help_text="Minutos da latitude (0 a 59)", null=True, blank=True)
+    latSeg = models.FloatField(verbose_name="Latitude (Segundos)", help_text="Segundos da latitude (aceita decimais)", null=True, blank=True)
     
-    longGraus = models.DecimalField(
-        max_digits=11, decimal_places=8, 
-        verbose_name="Longitude (Graus/Decimal)", 
-        help_text="Longitude em formato decimal ou graus (-180 a 180)", 
-        null=True, blank=True
-    )
-    longMin = models.SmallIntegerField(verbose_name="Longitude (Minutos)", help_text="Minutos da longitude (0 a 59)", null=True, blank=True, default=0)
-    longSeg = models.SmallIntegerField(verbose_name="Longitude (Segundos)", help_text="Segundos da longitude (0 a 59)", null=True, blank=True, default=0)
+    longGraus = models.SmallIntegerField(verbose_name="Longitude (Graus)", help_text="Parte inteira da longitude (-180 a 180)", null=True, blank=True)
+    longMin = models.SmallIntegerField(verbose_name="Longitude (Minutos)", help_text="Minutos da longitude (0 a 59)", null=True, blank=True)
+    longSeg = models.FloatField(verbose_name="Longitude (Segundos)", help_text="Segundos da longitude (aceita decimais)", null=True, blank=True)
 
+    
     documetacaoCompleta = models.BooleanField(default=False, verbose_name="Documentação completa")
     status = models.CharField(
            max_length=43, choices=AndamentoDoProjeto.choices, default=AndamentoDoProjeto.ANALISE_DE_DOCUMENTOS, verbose_name="Status do Projeto"
