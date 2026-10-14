@@ -35,7 +35,8 @@ from solar.documents.views import (
     ProjectViewSet,
     SolicitarVistoriaView,
     ProjectProtocolViewSet,
-    ProjectSpecificProtocolViewSet
+    ProjectSpecificProtocolViewSet,
+    ListaDeMateriasDetailView
 )
 
 # --- Apps: Files ---
@@ -120,7 +121,8 @@ urlpatterns = [
 
     # 2. Material Lists
     path('api/v1/projects/<int:project_pk>/lista_materiais/', ListaDeMateriasListView.as_view(), name='project-material_list-list-create'),
-
+    path('api/v1/projects/<int:project_pk>/lista_materiais/<int:pk>/', ListaDeMateriasDetailView.as_view(), name='project-material_list-detail'),
+    
     # 3. Project Documents (CRUD)
     path('api/v1/projects/<int:project_pk>/documents/', ProjectDocumentListView.as_view({'get': 'list', 'post': 'create'}), name='project-document-list-create'),
     path('api/v1/projects/<int:project_pk>/documents/<int:pk>/', ProjectDocumentListView.as_view({'get': 'retrieve', 'patch': 'partial_update', 'delete': 'destroy'}), name='project-document-detail'),

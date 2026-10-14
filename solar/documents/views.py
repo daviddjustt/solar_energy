@@ -652,7 +652,17 @@ class ListaDeMateriasListView(generics.ListCreateAPIView):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-     
+
+class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ListaDeMateriaisSerializer
+    
+    def get_queryset(self):
+        project_pk = self.kwargs.get('project_pk')
+        if getattr(self, "swagger_fake_view", False) or not project_pk:
+            return ListaDeMateriais.objects.none()
+            
+        return ListaDeMateriais.objects.filter(project_id=project_pk)
+       
 class PaymentDocumentView(generics.RetrieveUpdateAPIView):
     serializer_class = PaymentDocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
