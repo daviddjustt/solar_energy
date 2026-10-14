@@ -285,6 +285,7 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
             'cabos_por_fase': {'required': False, 'allow_null': True},
             'disjuntor_amperes': {'required': False, 'allow_null': True},
             'dps_ka': {'required': False, 'allow_null': True},
+            'dps_isolacao': {'required': False, 'allow_null': True},
             'tipo_ramal': {'required': False, 'allow_null': True},
             'tensao_tipo': {'required': False, 'allow_null': True},
             'tensao_imagem': {'required': False, 'allow_null': True},
@@ -298,7 +299,7 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
         grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
         campos_energisa = [
             'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
-            'disjuntor_amperes', 'dps_ka', 'tipo_ramal',
+            'disjuntor_amperes', 'dps_ka', 'dps_isolacao', 'tipo_ramal',
             'tensao_tipo', 'tensao_imagem'
         ]
 

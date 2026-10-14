@@ -451,7 +451,8 @@ class EnergisaProject(ClientProject):
     isolacao_volts = models.IntegerField('Isolação do Cabo (V)', choices=ISOLACAO_CHOICES)
     cabos_por_fase = models.IntegerField('Cabos por Fase')
     disjuntor_amperes = models.FloatField('Disjuntor (A)')
-    dps_ka = models.FloatField('Dispositivo de Proteção contra Surtos - DPS (kA)')
+    dps_ka = models.FloatField('Dispositivo de Proteção contra Surtos - DPS (Amperagem)', null=True, blank=True)
+    dps_isolacao = models.IntegerField('Isolação do DPS (V)', choices=ISOLACAO_CHOICES, null=True, blank=True)
     tipo_ramal = models.CharField('Tipo de Ramal', max_length=15, choices=TIPO_RAMAL_CHOICES)
 
     class Meta:
