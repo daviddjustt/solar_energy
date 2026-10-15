@@ -278,7 +278,7 @@ class ListaDeMateriais(models.Model):
         max_length=100, choices=WATS_CHOICES, help_text="Unidade de medida", default="wats"
     )
     # 🟢 NOVOS CAMPOS OPCIONAIS (Tipo Float)
-    tensao_nominal = models.FloatField(verbose_name="Tensão Nominal (V)", blank=True, null=True)
+    tensao_nominal = models.CharField(verbose_name="Tensão Nominal (V)", max_length=10, blank=True, null=True)
     disjuntor = models.FloatField(verbose_name="Disjuntor (A)", blank=True, null=True)
     
 class ProjectProtocol(models.Model):
@@ -452,7 +452,7 @@ class EnergisaProject(ClientProject):
     cabos_por_fase = models.IntegerField('Cabos por Fase')
     disjuntor_amperes = models.FloatField('Disjuntor (A)')
     dps_ka = models.FloatField('Dispositivo de Proteção contra Surtos - DPS (Amperagem)', null=True, blank=True)
-    dps_isolacao = models.IntegerField('Isolação do DPS (V)', choices=ISOLACAO_CHOICES, null=True, blank=True)
+    dps_isolacao = models.FloatField('Isolação do DPS (V)', null=True, blank=True)
     tipo_ramal = models.CharField('Tipo de Ramal', max_length=15, choices=TIPO_RAMAL_CHOICES)
 
     class Meta:
