@@ -16,7 +16,13 @@ until psql "$DATABASE_URL" -c '\q' > /dev/null 2>&1; do
   sleep 3
 done
 
-# 5. Verificação de Superuser (Script inline rápido)
+# 3. APLICAÇÃO REAL E AUTOMÁTICA DE MIGRAÇÕES
+echo "🔄 Aplicando migrações reais no banco de dados..."
+python manage.py migrate --noinput
+echo "✅ Banco de dados atualizado com sucesso!"
+
+
+# 4. Verificação de Superuser (Script inline rápido)
 echo "👤 Verificando Superuser..."
 python manage.py shell << EOF
 import os
@@ -37,6 +43,12 @@ else:
     print(f"ℹ️ Superuser {email} já existe.")
 EOF
 python manage.py collectstatic --noinput
+
+# 5. Coleta de Arquivos Estáticos
+echo "📦 Coletando arquivos estáticos..."
+python manage.py collectstatic --noinput
+
+
 # 6. Execução do Servidor ASGI (Daphne) com Debug Ativado
 echo "✅ Tudo pronto! Iniciando servidor ASGI (Daphne) em modo Verboso... 🛠️"
 exec daphne -v 3 -b 0.0.0.0 -p ${PORT:-8080} solar.asgi:application
