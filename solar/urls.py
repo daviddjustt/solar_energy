@@ -140,6 +140,8 @@ urlpatterns = [
     path('projects/<int:project_pk>/protocols/', ProjectSpecificProtocolViewSet.as_view({'get': 'list','post': 'create'}), name='project-protocols-list'),
     path('projects/<int:project_pk>/protocols/<int:pk>/', ProjectSpecificProtocolViewSet.as_view({'get': 'retrieve','put': 'update','patch': 'partial_update','delete': 'destroy'}), name='project-protocols-detail'),
 
+    # 7. Services
+    path('api/v1/services/', include('solar.services.urls')),
     # --------------------------------------------------------------------------
     # USERS: NESTED RESOURCES
     # --------------------------------------------------------------------------

@@ -2,14 +2,23 @@ from django.conf import settings
 from django.db import models
 
 class Notification(models.Model):
-    # Contexto obrigatório do projeto
+    # Contexto obrigatório do projeto, pode ser uma notificação ligada a um projeto ou a um serviço específico.
     project = models.ForeignKey(
-        'documents.ClientProject',
-        on_delete=models.CASCADE,
-        related_name='notifications',
-        verbose_name="Projeto Relacionado"
+        'documents.ClientProject', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='notificacoes'
     )
     
+    # Adicione a nova chave estrangeira para o serviço
+    service = models.ForeignKey(
+        'services.ServiceRequest',
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='notificacoes'
+    )
     # Usuários envolvidos no fluxo
     # Quem envia
     sender = models.ForeignKey(

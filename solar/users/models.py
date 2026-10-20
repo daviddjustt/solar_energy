@@ -105,6 +105,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True,
         blank=True,
     )
+    
     cpf = models.CharField(
         max_length=14, # 11 dígitos + 3 caracteres de formatação (XXX.XXX.XXX-XX)
         unique=True,
@@ -112,6 +113,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True,
         blank=True,
     )
+    
     celular = models.CharField(
         max_length=11,
         verbose_name='Celular'
@@ -133,6 +135,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name='Atualizado em'
     )
     is_pessoa_juridica = models.BooleanField(default=False, verbose_name="É Pessoa Jurídica")
+
+    is_externo = models.BooleanField(
+        "É usuário externo?",
+        default=False,
+        help_text="Designa se este usuário tem acesso restrito ao módulo de serviços."
+    )
+    
+    tipos_servico = models.ManyToManyField(
+        'services.ServiceType',
+        blank=True,
+        related_name='usuarios_externos',
+        help_text="Tipos de serviço que este usuário externo pode atender."
+    )
+    
     objects = UserManager()
     
     USERNAME_FIELD = 'email'
