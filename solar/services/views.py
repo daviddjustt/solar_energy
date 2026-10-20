@@ -107,5 +107,6 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
         return User.objects.filter(is_externo=True)
 
     def perform_create(self, serializer):
-        # Força o campo is_externo a True aquando da criação por esta via
-        serializer.save(is_externo=True)
+        # Forçamos cnpj=None (e cpf=None, se existir) para contornar a restrição
+        # de strings vazias (UNIQUE) no banco de dados.
+        serializer.save(is_externo=True, cnpj=None, cpf=None)
