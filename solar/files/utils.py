@@ -57,7 +57,7 @@ def validate_file_extension(file):
     allowed_extensions = [
         '.pdf', '.jpg', '.jpeg', '.png', 
         '.doc', '.docx', '.xls', '.xlsx',
-        'heic', 'heif',
+        '.heic', '.heif',
     ]
     
     ext = os.path.splitext(file.name)[1].lower()

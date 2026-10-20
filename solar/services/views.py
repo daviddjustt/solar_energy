@@ -3,6 +3,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+from django.db import transaction
 
 from solar.services.models import ServiceType, ServiceRequest
 from .serializers import ServiceTypeSerializer, ServiceRequestSerializer, ExternalUserSerializer
@@ -45,12 +46,14 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         # Cliente vê apenas as suas próprias solicitações[cite: 1].
         return ServiceRequest.objects.filter(solicitante=user)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         user = self.request.user
-        # O cliente cria a solicitação[cite: 1].
-        service = serializer.save(solicitante=user)
         
-        # Dispara notificação no sino e e-mail para os externos logo após a gravação
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or user.is_staff:
+            raise PermissionDenied("Apenas os clientes podem abrir novas solicitações.")
+            
+        service = serializer.save(solicitante=user)
         notificar_nova_solicitacao(service)
 
     @action(detail=True, methods=['post'])

@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 
-from solar.documents.models import BaseModel 
+from solar.documents.models import BaseModel, ArquivoMixin 
 
 class ServiceType(BaseModel):
     codigo = models.SlugField("Código", max_length=50, unique=True)
@@ -106,7 +106,7 @@ class ServicePendency(BaseModel):
     criada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.ABERTA)
 
-class ServiceAttachment(BaseModel): # Assumindo que junta com o ArquivoMixin posteriormente
+class ServiceAttachment(BaseModel, ArquivoMixin): # Assumindo que junta com o ArquivoMixin posteriormente
     class CategoriaChoices(models.TextChoices):
         SOLICITACAO = 'SOLICITACAO', 'Solicitação'
         PENDENCIA_EQUIPE = 'PENDENCIA_EQUIPE', 'Pendência da Equipe'

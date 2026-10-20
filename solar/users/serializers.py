@@ -77,7 +77,8 @@ class UserSerializer(DjoserUserSerializer):
         model = User
         fields = DjoserUserSerializer.Meta.fields + (
             'name', 'cnpj', 'celular',
-            'is_admin', 'is_active', 'cpf', 'is_pessoa_juridica', 'cnpj'
+            'is_admin', 'is_active', 'cpf', 'is_pessoa_juridica', 'cnpj',
+            'is_tecnico', 'is_externo', 'tipos_servico',
         )
 
         def validate_name(self, value):
