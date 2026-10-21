@@ -5,6 +5,7 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 from decimal import Decimal
 from django.contrib.auth import get_user_model
+from django.db import transaction, connection
 
 from .models import ClientProject, ConsumerUnit, ProjectDocument, ListaDeMateriais, ProjectStatusHistory, ProjectProtocol, EnergisaProject
 from .utils import VOLTAGEM_MAP, VOLTAGEM_CHOICES
@@ -264,21 +265,24 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
 
 class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
     """
-    O MAESTRO (Polimorfismo):
-    Ao herdar de EnergisaProjectSerializer, o Swagger (DRF) mapeia todos os campos 
-    da Energisa e da Coelba automaticamente sem precisarmos declarar nenhum deles.
+    O MAESTRO (Polimorfismo e MTI Protegida):
+    Garante suporte unificado para criação e atualização de projetos Coelba e Energisa,
+    com transações atômicas e proteção contra sobrescrita de snapshots na MTI do Django.
     """
-    from solar.documents.utils import CONCESSIONARIA_CHOICES
-    
     grupo = serializers.CharField(
         required=False, 
         default='coelba',
         help_text="Defina se o projeto é Coelba ou Energisa."
     )
 
+    CAMPOS_ENERGISA = [
+        'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
+        'disjuntor_amperes', 'dps_ka', 'dps_isolacao', 
+        'tipo_ramal', 'tensao_tipo', 'tensao_imagem'
+    ]
+
     class Meta(EnergisaProjectSerializer.Meta):
         model = EnergisaProject
-        # 🟢 A SOLUÇÃO: Relaxa a validação estrita do DRF para permitir projetos Coelba
         extra_kwargs = {
             'cabo_mm2': {'required': False, 'allow_null': True},
             'isolacao_volts': {'required': False, 'allow_null': True},
@@ -292,74 +296,119 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
         }
 
     def validate(self, data):
-        # 1. Validações padrão (CPF, CNPJ, etc.)
+        # 1. Executa as validações base da classe abstrata (CPF, CNPJ, coordenadas)
         data = super().validate(data)
         
-        # 2. Descobre para qual grupo o projeto está a ir
         grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
-        campos_energisa = [
-            'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
-            'disjuntor_amperes', 'dps_ka', 'dps_isolacao', 'tipo_ramal',
-            'tensao_tipo', 'tensao_imagem'
-        ]
 
         if grupo == 'energisa':
-            # Se for uma TROCA de Coelba para Energisa, garantimos que 
-            # não vai dar erro 400 injetando valores padrão nos campos obrigatórios
-            if self.instance and not hasattr(self.instance, 'energisaproject'):
-                data.setdefault('cabo_mm2', 10)
-                data.setdefault('isolacao_volts', 750)
-                data.setdefault('cabos_por_fase', 1)
-                data.setdefault('disjuntor_amperes', 40)
-                data.setdefault('dps_ka', 20)
-                data.setdefault('tipo_ramal', 'aereo')
-                data.setdefault('tensao_tipo', 'individual')
+            # Preenche valores padrão nos campos obrigatórios caso não venham no formulário
+            data.setdefault('cabo_mm2', 10.0)
+            data.setdefault('isolacao_volts', 750)
+            data.setdefault('cabos_por_fase', 1)
+            data.setdefault('disjuntor_amperes', 40.0)
+            data.setdefault('dps_ka', 20.0)
+            data.setdefault('tipo_ramal', 'aereo')
+            data.setdefault('tensao_tipo', 'individual')
         else:
-            # Se for Coelba, removemos os campos exclusivos da Energisa do JSON
-            for campo in campos_energisa:
+            # Se for Coelba, remove os campos exclusivos da Energisa para não dar erro na query do pai
+            for campo in self.CAMPOS_ENERGISA:
                 data.pop(campo, None)
 
         return data
 
+    @transaction.atomic
     def create(self, validated_data):
-        # Apenas pega o valor do grupo sem removê-lo (pop) do dicionário
+        """
+        CRIAÇÃO ATÔMICA:
+        Cria o projeto dentro de um bloco atômico. Se marcado como 'energisa',
+        o ORM do Django insere a linha na tabela pai e na tabela filha em uma única transação.
+        """
         grupo = validated_data.get('grupo', 'coelba') 
         if grupo == 'energisa':
+            # O ORM grava automaticamente em ClientProject e EnergisaProject
             return EnergisaProject.objects.create(**validated_data)
+            
+        # Projeto Coelba tradicional
         return ClientProject.objects.create(**validated_data)
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        """
+        ATUALIZAÇÃO ATÔMICA E PROTEGIDA:
+        Cobre os 3 cenários de atualização garantindo integridade no banco de dados.
+        """
         novo_grupo = validated_data.get('grupo', instance.grupo)
-        campos_energisa = ['cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 'disjuntor_amperes', 'dps_ka', 'tipo_ramal', 'tensao_tipo', 'tensao_imagem']
 
-        # CASO 1: Transição de Coelba para Energisa pela primeira vez
+        # ---------------------------------------------------------------------
+        # CASO 1: Transição de Coelba -> Energisa (Criando o registro filho)
+        # ---------------------------------------------------------------------
         if novo_grupo == 'energisa' and not hasattr(instance, 'energisaproject'):
-            # (Seu código existente do CASO 1 continua igual) ...
-            pass
+            # Separa os dados específicos da Energisa
+            energisa_data = {
+                c: validated_data.pop(c) for c in self.CAMPOS_ENERGISA if c in validated_data
+            }
             
-        # 🟢 CASO 2: Atualização normal de um projeto que JÁ É da Energisa (CÓDIGO CORRIGIDO)
+            # Atualiza o modelo Pai (ClientProject)
+            instance = super().update(instance, validated_data)
+
+            # Insere o registro na tabela filha (documents_energisaproject) apontando para o pai
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO documents_energisaproject "
+                    "(clientproject_ptr_id, cabo_mm2, isolacao_volts, cabos_por_fase, "
+                    "disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, tensao_imagem) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    [
+                        instance.id,
+                        energisa_data.get('cabo_mm2', 10.0),
+                        energisa_data.get('isolacao_volts', 750),
+                        energisa_data.get('cabos_por_fase', 1),
+                        energisa_data.get('disjuntor_amperes', 40.0),
+                        energisa_data.get('dps_ka', 20.0),
+                        energisa_data.get('dps_isolacao', None),
+                        energisa_data.get('tipo_ramal', 'aereo'),
+                        energisa_data.get('tensao_tipo', 'individual'),
+                        ''
+                    ]
+                )
+            
+            # Recarrega a instância completa sincronizando a memória Python com o banco
+            return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
+
+        # ---------------------------------------------------------------------
+        # CASO 2: Atualização de um projeto que JÁ É Energisa
+        # ---------------------------------------------------------------------
         if novo_grupo == 'energisa' and hasattr(instance, 'energisaproject'):
             energisa_instance = instance.energisaproject
             
-            # 1. Identifica apenas os campos exclusivos da Energisa que foram de facto alterados
-            changed = [attr for attr in campos_energisa if attr in validated_data]
-            
-            # 2. Retira os dados do dicionário e aplica-os no objeto filho
-            for attr in changed:
+            # 1. Isola apenas os campos da Energisa que foram efetivamente alterados
+            changed_fields = [attr for attr in self.CAMPOS_ENERGISA if attr in validated_data]
+            for attr in changed_fields:
                 setattr(energisa_instance, attr, validated_data.pop(attr))
-            
-            # 3. Salva a tabela PAI (ClientProject) para gravar as mudanças genéricas, como o novo Status
+
+            # 2. Atualiza a tabela PAI (ClientProject) para persistir status, nome, etc.
             instance = super().update(instance, validated_data)
-            
-            # 4. Salva a tabela FILHA (EnergisaProject) limitando a query de UPDATE
-            # estritamente aos seus campos, sem afetar o pai.
-            if changed:
-                energisa_instance.save(update_fields=changed)
-                
-            return instance
-        
+
+            # 3. Atualiza a tabela FILHA (EnergisaProject) LIMITANDO aos seus próprios campos
+            # (O update_fields é a chave: impede que o Django dispare UPDATE no pai com dados antigos)
+            if changed_fields:
+                energisa_instance.save(update_fields=changed_fields)
+
+            # 4. Recarrega o projeto do banco de dados para a resposta JSON conter o status atualizado
+            return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
+
+        # ---------------------------------------------------------------------
+        # CASO 3: Atualização de projeto Coelba (ou retorno de Energisa para Coelba)
+        # ---------------------------------------------------------------------
+        for campo in self.CAMPOS_ENERGISA:
+            validated_data.pop(campo, None)
+
+        instance = super().update(instance, validated_data)
+        return instance
+
     def to_representation(self, instance):
-        # O método de visualização passa agora a basear-se ESTRITAMENTE na variável de grupo
+        # A serialização baseia-se na propriedade de grupo e na existência da relação filha
         grupo = getattr(instance, 'grupo', 'coelba')
 
         if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
@@ -372,10 +421,8 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
         return data
 
     def validate_grupo(self, value):
-        # Transforma "COELBA" em "coelba" para o banco de dados aceitar
         if value:
             value = value.lower()
-            # Garante que, após converter, o valor é realmente um dos permitidos
             opcoes_validas = ['energisa', 'coelba']
             if value not in opcoes_validas:
                 raise serializers.ValidationError(f"Faça uma escolha válida. Aceitos: {', '.join(opcoes_validas)}")
