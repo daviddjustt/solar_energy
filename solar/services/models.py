@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 
-from solar.documents.models import BaseModel, ArquivoMixin 
+from solar.documents.models import BaseModel, AbstractDocument 
 
 class ServiceType(BaseModel):
     codigo = models.SlugField("Código", max_length=50, unique=True)
@@ -106,7 +106,17 @@ class ServicePendency(BaseModel):
     criada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.ABERTA)
 
-class ServiceAttachment(BaseModel, ArquivoMixin): # Assumindo que junta com o ArquivoMixin posteriormente
+class ServiceAttachment(AbstractDocument):
+    """
+    Anexo e Documentos de Suporte do Módulo de Serviços.
+    Herda de AbstractDocument:
+      - BaseModel: created_at, updated_at
+      - ArquivoMixin: arquivo (FileField com upload_to e validadores de tamanho/extensão)
+      - AbstractDocument: document_name, document_type, status, rejection_reason,
+                          approved_at, related_payment_document, clean(), delete(),
+                          days_since_upload, is_recent, etc.
+    """
+
     class CategoriaChoices(models.TextChoices):
         SOLICITACAO = 'SOLICITACAO', 'Solicitação'
         PENDENCIA_EQUIPE = 'PENDENCIA_EQUIPE', 'Pendência da Equipe'
@@ -116,22 +126,78 @@ class ServiceAttachment(BaseModel, ArquivoMixin): # Assumindo que junta com o Ar
         BOLETO = 'BOLETO', 'Boleto'
         COMPROVANTE = 'COMPROVANTE_PAGAMENTO', 'Comprovante de Pagamento'
 
-    class StatusChoices(models.TextChoices):
-        IN_ANALYSIS = 'IN_ANALYSIS', 'Em Análise'
-        APPROVED = 'APPROVED', 'Aprovado'
-        REJECTED = 'REJECTED', 'Rejeitado'
+    # --- CAMPOS ESPECÍFICOS DO MÓDULO DE SERVIÇOS ---
 
-    service = models.ForeignKey(ServiceRequest, on_delete=models.CASCADE, related_name='anexos')
-    categoria = models.CharField(max_length=30, choices=CategoriaChoices.choices)
-    document_type = models.CharField(max_length=50) # Deve validar contra as novas opções de DOCUMENT_TYPE_CHOICES
-    document_name = models.CharField(max_length=255, blank=True, null=True)
-    enviado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    pendencia = models.ForeignKey(ServicePendency, on_delete=models.CASCADE, null=True, blank=True, related_name='anexos')
-    status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.IN_ANALYSIS)
-    rejection_reason = models.TextField("Motivo da Rejeição", blank=True, null=True)
-    
-    # Ligação exclusiva para comprovante → boleto
-    related_payment_document = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True)
+    service = models.ForeignKey(
+        'ServiceRequest',
+        on_delete=models.CASCADE,
+        related_name='anexos',
+        verbose_name="Solicitação de Serviço"
+    )
+
+    categoria = models.CharField(
+        max_length=30,
+        choices=CategoriaChoices.choices,
+        verbose_name="Categoria do Anexo"
+    )
+
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='servico_anexos_enviados',
+        verbose_name="Enviado por"
+    )
+
+    pendencia = models.ForeignKey(
+        'ServicePendency',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='anexos',
+        verbose_name="Pendência Relacionada"
+    )
+
+    unidade = models.ForeignKey(
+        'ServiceUnit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='anexos',
+        verbose_name="Unidade Consumidora Relacionada"
+    )
+
+    class Meta(AbstractDocument.Meta):
+        verbose_name = "Anexo de Serviço"
+        verbose_name_plural = "Anexos de Serviços"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['service', 'categoria']),
+            models.Index(fields=['service', 'document_type']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        nome = self.document_name or self.get_categoria_display()
+        return f"{nome} - Serviço #{self.service_id} ({self.get_status_display()})"
+
+    # --- COMPATIBILIDADE E REAPROVEITAMENTO ---
+
+    @property
+    def payment_proofs(self):
+        """
+        Garante compatibilidade com as propriedades de pagamento herdadas de AbstractDocument.
+        Como AbstractDocument define related_name='%(class)s_payment_proofs', a relação
+        reversa neste modelo chama-se 'serviceattachment_payment_proofs'.
+        """
+        return self.serviceattachment_payment_proofs
+
+    @property
+    def is_payment_document(self):
+        """Sobrescreve/extende a verificação para cobrir também o campo 'categoria'."""
+        return (
+            super().is_payment_document or 
+            self.categoria in [self.CategoriaChoices.BOLETO, self.CategoriaChoices.COMPROVANTE]
+        )
 
 class ServiceUnit(BaseModel):
     class PapelChoices(models.TextChoices):

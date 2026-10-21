@@ -311,7 +311,7 @@ class ProjectProtocol(models.Model):
         protocolo_str = self.numero_protocolo if self.numero_protocolo else "Sem protocolo"
         return f"Protocolo {protocolo_str} - Projeto {self.project.codigoCliente}"
 
-class ProjectDocument(BaseModel, ArquivoMixin):
+class AbstractDocument(BaseModel, ArquivoMixin):
     STATUS_CHOICES = [
         ('IN_ANALYSIS', 'Em Análise'),
         ('APPROVED', 'Aprovado'),
@@ -321,33 +321,28 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     STATUS_APPROVED = 'APPROVED'
     STATUS_REJECTED = 'REJECTED'
 
-    project = models.ForeignKey(
-        ClientProject, 
-        on_delete=models.CASCADE, 
-        related_name='documents',
-        null=True,   # Essencial para destravar
-        blank=True
-    )
+    # Campos comuns a todos os documentos
+
     document_name = models.CharField(max_length=80, verbose_name="Nome opcional", blank=True, null=True)
-    document_type = models.CharField(max_length=80, choices=DOCUMENT_TYPE_CHOICES, verbose_name="Tipo do documento")
-    related_payment_document = models.ForeignKey(
-        'self', on_delete=models.CASCADE, null=True, blank=True, related_name='payment_proofs', help_text="Boleto relacionado"
-    )
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=IN_ANALYSIS, verbose_name="Status")
-    rejection_reason = models.TextField(blank=True,null=True,verbose_name="Motivo da rejeição")
+    # A choice list para `document_type` será gerida de forma diferente se os serviços precisarem de opções diferentes
+    document_type = models.CharField(max_length=80, verbose_name="Tipo do documento") 
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_IN_ANALYSIS, verbose_name="Status")
+    rejection_reason = models.TextField(blank=True, null=True, verbose_name="Motivo da rejeição")
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Data de Aprovação")
 
-    class Meta:
-        verbose_name = "Documento do Projeto"
-        verbose_name_plural = "Documentos do Projeto"
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['project', 'document_type']),
-            models.Index(fields=['status']),
-        ]
+    related_payment_document = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, # Ou models.CASCADE
+        null=True, 
+        blank=True, 
+        related_name='%(class)s_payment_proofs', # 👈 O %(class)s previne conflitos de herança
+        help_text="Boleto relacionado"
+    )
 
-    def __str__(self):
-        return f"{self.get_document_type_display()} - {self.project.codigoCliente} ({self.get_status_display()})"
+    class Meta:
+        abstract = True
+        ordering = ['-created_at']
 
     def clean(self):
         super().clean()
@@ -356,14 +351,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
                 validate_file_size(self.arquivo)
             except ValidationError as e:
                 raise ValidationError({'arquivo': e.message})
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-        try:
-            self.project.check_documetacaoCompleta()
-        except Exception as e:
-            pass
 
     def delete(self, *args, **kwargs):
         arquivo_path = self.arquivo.path if self.arquivo else None
@@ -378,15 +365,6 @@ class ProjectDocument(BaseModel, ArquivoMixin):
                     arquivo_storage.delete(arquivo_path)
             except Exception as e:
                 pass
-
-        try:
-            self.project.check_documetacaoCompleta()
-        except Exception as e:
-            pass
-
-    @property
-    def is_payment_document(self):
-        return self.document_type in ['boleto', 'comprovante_de_pagamento']
 
     @property
     def is_payment_complete(self):
@@ -408,6 +386,10 @@ class ProjectDocument(BaseModel, ArquivoMixin):
         return None
 
     @property
+    def is_payment_document(self):
+        return self.document_type in ['boleto', 'comprovante_de_pagamento']
+
+    @property
     def days_since_upload(self):
         if self.created_at:
             delta = timezone.now() - self.created_at
@@ -417,6 +399,44 @@ class ProjectDocument(BaseModel, ArquivoMixin):
     @property
     def is_recent(self):
         return self.days_since_upload <= 7
+
+
+# 2. ADAPTAR A CLASSE PROJECTDOCUMENT PARA HERDAR DA CLASSE ABSTRATA
+class ProjectDocument(AbstractDocument):
+    project = models.ForeignKey(
+        'ClientProject', 
+        on_delete=models.CASCADE, 
+        related_name='documents',
+        null=True,   
+        blank=True
+    )
+
+    class Meta(AbstractDocument.Meta):
+        verbose_name = "Documento do Projeto"
+        verbose_name_plural = "Documentos do Projeto"
+        indexes = [
+            models.Index(fields=['project', 'document_type']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.document_type} - {self.project.codigoCliente if self.project else 'S/P'} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        try:
+            if self.project:
+                self.project.check_documetacaoCompleta()
+        except Exception as e:
+            pass
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        try:
+            if self.project:
+                self.project.check_documetacaoCompleta()
+        except Exception as e:
+            pass
 
 class EnergisaProject(ClientProject):
     """

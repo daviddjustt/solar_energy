@@ -50,7 +50,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         
-        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', True) or user.is_staff:
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or user.is_staff:
             raise PermissionDenied("Apenas os clientes podem abrir novas solicitações.")
             
         service = serializer.save(solicitante=user)
