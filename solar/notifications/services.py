@@ -417,10 +417,14 @@ def notify_boleto_added(projeto, documento):
     _construir_mensagem_notificacao(projeto, 'boleto_adicionado', context={'documento': documento})
 
 def notify_project_status_changed(projeto, status_antigo, status_novo):
-    _construir_mensagem_notificacao(projeto, 'status_projeto_alterado', context={
-        'status_antigo': status_antigo,
-        'status_novo': status_novo
-    })
+    _construir_mensagem_notificacao(
+        projeto=projeto,                           # 👈 Nomear explicitamente
+        evento='status_projeto_alterado',          # 👈 Nomear explicitamente
+        context={
+            'status_antigo': status_antigo,
+            'status_novo': status_novo
+        }
+    )
 
 # --- Sem projeto atrelado, apenas user ---
 def notify_user_boleto_added(cliente, documento):
