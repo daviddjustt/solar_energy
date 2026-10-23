@@ -237,136 +237,81 @@ class AbstractProjectSerializer(serializers.ModelSerializer):
             if doc_type == 'PJ' and not re.match(r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$', doc_val):
                 raise serializers.ValidationError({'documento': 'CNPJ inválido (00.000.000/0000-00).'})
 
-
 class CoelbaProjectSerializer(AbstractProjectSerializer):
+    """
+    Serializer exclusivo para projetos da Coelba.
+    Atua apenas na tabela pai (ClientProject).
+    """
+    grupo = serializers.CharField(required=False, default='coelba')
+
     class Meta:
         model = ClientProject
         fields = '__all__'
-
+        
+    def create(self, validated_data):
+        validated_data['grupo'] = 'coelba'
+        return super().create(validated_data)
+        
+    def update(self, instance, validated_data):
+        validated_data['grupo'] = 'coelba'
+        return super().update(instance, validated_data)
 
 class EnergisaProjectSerializer(AbstractProjectSerializer):
+    """
+    Serializer exclusivo para projetos da Energisa.
+    Lida com a tabela filha e com a transição segura (Coelba -> Energisa).
+    """
+    grupo = serializers.CharField(required=False, default='energisa')
+
     class Meta:
         model = EnergisaProject
         fields = '__all__'
 
-
-class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
-    grupo = serializers.CharField(
-        required=False, 
-        default='coelba',
-        help_text="Defina se o projeto é Coelba ou Energisa."
-    )
-
-    CAMPOS_ENERGISA = [
-        'cabo_mm2', 'isolacao_volts', 'cabos_por_fase', 
-        'disjuntor_amperes', 'dps_ka', 'dps_isolacao', 
-        'tipo_ramal', 'tensao_tipo', 'tensao_imagem'
-    ]
-
-    def _is_energisa_instance(self, instance):
-        """
-        Verifica se a instância é um projeto Energisa, independente de ser
-        um objeto ClientProject (com relação filha) ou EnergisaProject (classe filha).
-        """
-        if isinstance(instance, EnergisaProject):
-            return True
-        return hasattr(instance, 'energisaproject')
-
-    def _get_energisa_instance(self, instance):
-        """Retorna o objeto EnergisaProject correto."""
-        if isinstance(instance, EnergisaProject):
-            return instance
-        if hasattr(instance, 'energisaproject'):
-            return instance.energisaproject
-        return None
-
-    @transaction.atomic
     def create(self, validated_data):
-        grupo = str(validated_data.get('grupo', 'coelba')).lower()
-        if grupo == 'energisa':
-            return EnergisaProject.objects.create(**validated_data)
-        return ClientProject.objects.create(**validated_data)
+        validated_data['grupo'] = 'energisa'
+        return super().create(validated_data)
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        raw_grupo = validated_data.get('grupo', instance.grupo)
-        novo_grupo = str(raw_grupo).lower() if raw_grupo else 'coelba'
+        validated_data['grupo'] = 'energisa'
         
-        ja_eh_energisa = self._is_energisa_instance(instance)
-
         # ---------------------------------------------------------------------
-        # CASO 1: Transição Coelba -> Energisa (Criando registro na tabela filha)
+        # TRANSIÇÃO MTI: Se a instância recebida for estritamente um ClientProject
+        # (classe pai), trata-se de um projeto Coelba a ser promovido a Energisa.
         # ---------------------------------------------------------------------
-        if novo_grupo == 'energisa' and not ja_eh_energisa:
-            energisa_data = {
-                c: validated_data.pop(c) for c in self.CAMPOS_ENERGISA if c in validated_data
-            }
+        if type(instance) is ClientProject:
+            # 1. Isola os campos específicos da tabela filha
+            cabo_mm2 = validated_data.pop('cabo_mm2', 10.0)
+            isolacao_volts = validated_data.pop('isolacao_volts', 750)
+            cabos_por_fase = validated_data.pop('cabos_por_fase', 1)
+            disjuntor_amperes = validated_data.pop('disjuntor_amperes', 40.0)
+            dps_ka = validated_data.pop('dps_ka', 20.0)
+            dps_isolacao = validated_data.pop('dps_isolacao', None)
+            tipo_ramal = validated_data.pop('tipo_ramal', 'aereo')
+            tensao_tipo = validated_data.pop('tensao_tipo', 'individual')
+            tensao_imagem = validated_data.pop('tensao_imagem', '')
             
-            # Atualiza os dados da tabela Pai
+            # 2. Atualiza os dados comuns na tabela pai
             instance = super().update(instance, validated_data)
-
-            # Instancia o filho via ORM sem SQL cru
-            EnergisaProject.objects.create(
-                clientproject_ptr=instance,
-                cabo_mm2=energisa_data.get('cabo_mm2', 10.0),
-                isolacao_volts=energisa_data.get('isolacao_volts', 750),
-                cabos_por_fase=energisa_data.get('cabos_por_fase', 1),
-                disjuntor_amperes=energisa_data.get('disjuntor_amperes', 40.0),
-                dps_ka=energisa_data.get('dps_ka', 20.0),
-                dps_isolacao=energisa_data.get('dps_isolacao'),
-                tipo_ramal=energisa_data.get('tipo_ramal', 'aereo'),
-                tensao_tipo=energisa_data.get('tensao_tipo', 'individual'),
-            )
-
-            return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
-
-        # ---------------------------------------------------------------------
-        # CASO 2: Atualização de projeto que JÁ É Energisa
-        # ---------------------------------------------------------------------
-        if novo_grupo == 'energisa' and ja_eh_energisa:
-            energisa_instance = self._get_energisa_instance(instance)
             
-            changed_fields = [attr for attr in self.CAMPOS_ENERGISA if attr in validated_data]
-            for attr in changed_fields:
-                setattr(energisa_instance, attr, validated_data.pop(attr))
+            # 3. Cria o vínculo na tabela filha forçando SQL puro (evita erros do ORM)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO documents_energisaproject "
+                    "(clientproject_ptr_id, cabo_mm2, isolacao_volts, cabos_por_fase, "
+                    "disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, tensao_imagem) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    [
+                        instance.id, cabo_mm2, isolacao_volts, cabos_por_fase, 
+                        disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, tensao_imagem
+                    ]
+                )
+            # Retorna a instância completa promovida
+            return EnergisaProject.objects.get(pk=instance.id)
 
-            # Salva o Pai
-            instance = super().update(instance, validated_data)
-
-            # Salva o Filho isolando os campos para não reescrever o snapshot do pai
-            if changed_fields:
-                energisa_instance.save(update_fields=changed_fields)
-
-            return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
-
-        # ---------------------------------------------------------------------
-        # CASO 3: Atualização de projeto Coelba
-        # ---------------------------------------------------------------------
-        for campo in self.CAMPOS_ENERGISA:
-            validated_data.pop(campo, None)
-
+        # Se já for EnergisaProject (atualização padrão), o DRF faz o update MTI nativo
         return super().update(instance, validated_data)
 
-    def to_representation(self, instance):
-        grupo = str(getattr(instance, 'grupo', 'coelba') or 'coelba').lower()
-        ja_eh_energisa = self._is_energisa_instance(instance)
-
-        if grupo == 'energisa' and ja_eh_energisa:
-            energisa_obj = self._get_energisa_instance(instance)
-            data = EnergisaProjectSerializer(context=self.context).to_representation(energisa_obj)
-            data['grupo'] = 'energisa'
-            return data
-            
-        data = CoelbaProjectSerializer(context=self.context).to_representation(instance)
-        data['grupo'] = 'coelba'
-        return data
-
-    def validate_grupo(self, value):
-        if value:
-            value = value.lower()
-            if value not in ['energisa', 'coelba']:
-                raise serializers.ValidationError("Escolha inválida. Opções: 'energisa' ou 'coelba'.")
-        return value
 # =========================================================================
 # 4. SERIALIZERS DE LEITURA E ATUALIZAÇÃO (Herdam de Abstract)
 # =========================================================================

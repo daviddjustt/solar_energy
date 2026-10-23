@@ -49,7 +49,8 @@ from .serializers import (
     ListaDeMateriaisSerializer,
     ProjectStatusHistorySerializer,
     ProjectProtocolSerializer,
-    ClientProjectUnifiedSerializer,
+    CoelbaProjectSerializer,
+    EnergisaProjectSerializer,
 )
 
 from solar.notifications.services import (
@@ -308,14 +309,59 @@ class ClientProjectFilter(django_filters.FilterSet):
         fields = ['created_by', 'codigoCliente', 'grupo']
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = ClientProject.objects.select_related('energisaproject').all().order_by('-created_at')
+    queryset = ClientProject.objects.select_related('energisaproject', 'created_by').prefetch_related(
+        'documents', 'material_lists', 'consumer_units'
+    ).all().order_by('-created_at')
+
     filter_backends = [DjangoFilterBackend]
+    filterset_class = ClientProjectFilter
     pagination_class = None
     
     filterset_class = ClientProjectFilter
 
+    def get_object(self):
+        """
+        Interceta a requisição de detalhe. Se o projeto estiver marcado 
+        como Energisa e possuir a tabela filha, entrega o EnergisaProject (filho) ao DRF,
+        impedindo que o serializer receba apenas a casca do ClientProject (pai).
+        """
+        obj = super().get_object()
+        if obj.grupo == 'energisa' and hasattr(obj, 'energisaproject'):
+            return obj.energisaproject
+        return obj
+    
     def get_permissions(self):
         return [permissions.IsAuthenticated()]
+
+    def get_serializer_class(self):
+        """
+        Alternância dinâmica: Lê a requisição e devolve o Serializer correto
+        antes de acionar as validações estritas do DRF.
+        """
+        if getattr(self, "swagger_fake_view", False):
+            return CoelbaProjectSerializer
+            
+        if self.action in ['list', 'meus_projetos']:
+            return ProjectListSerializer
+            
+        grupo = 'coelba'
+        
+        if self.action in ['create', 'update', 'partial_update']:
+            # Na gravação (POST/PUT/PATCH), a intenção no payload (request.data) decide o serializer
+            grupo = self.request.data.get('grupo')
+            
+            # Se for PATCH sem o campo 'grupo' explícito, usamos o que já está salvo no banco
+            if not grupo and self.detail:
+                grupo = self.get_object().grupo 
+                
+        elif self.detail:
+            # Na leitura (GET detalhe), o campo 'grupo' salvo no banco decide o serializer
+            grupo = self.get_object().grupo
+            
+        if str(grupo).lower() == 'energisa':
+            return EnergisaProjectSerializer
+            
+        return CoelbaProjectSerializer
     
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
