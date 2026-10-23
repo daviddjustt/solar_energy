@@ -42,16 +42,14 @@ from .utils import (
 )
 
 from .serializers import (
-    ProjectInfoSerializer,
     ProjectListSerializer,
     DocumentUploadSerializer,
     ConsumerUnitSerializer,
-    TecnicoClientProjectSerializer,
     PaymentDocumentSerializer,
     ListaDeMateriaisSerializer,
     ProjectStatusHistorySerializer,
     ProjectProtocolSerializer,
-    ClientProjectUnifiedSerializer
+    ClientProjectUnifiedSerializer,
 )
 
 from solar.notifications.services import (
@@ -496,109 +494,186 @@ class SolicitarVistoriaView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class ProjectDocumentListView(viewsets.ModelViewSet):
-    serializer_class = DocumentUploadSerializer
+class AbstractDocumentListViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet Abstrato para CRUD de documentos associados a uma entidade Pai (Projeto ou Serviço).
+    """
     pagination_class = None
+    parent_model = None
+    parent_url_kwarg = 'parent_pk'
 
-    def _check_project_read_permission(self, project):
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user == project.created_by):
-            raise PermissionDenied("Você não tem permissão para visualizar ou acessar os documentos deste projeto.")
+    def get_parent_object(self):
+        parent_pk = self.kwargs.get(self.parent_url_kwarg)
+        if not parent_pk:
+            return None
+        return get_object_or_404(self.parent_model, pk=parent_pk)
 
-    def _check_client_write_permission(self, project):
-        user = self.request.user
-        if getattr(user, 'is_cliente', False) and project.created_by != user:
-            raise PermissionDenied("Você só pode interagir com documentos dos seus próprios projetos.")
+    def check_read_permission(self, parent):
+        raise NotImplementedError("Subclasses devem implementar check_read_permission")
 
-    def _check_admin_write_permission(self, document_type):
-        admin_only_docs = [
-            'boleto', 'formulario', 'diagrama_unifilar', 
-            'dados_geradora', 'unidades_consumidoras_extra', 
-            'memorial', 'art_documento'
-        ]
-        user = self.request.user
-        if document_type in admin_only_docs:
-            if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):
-                raise PermissionDenied(f"Acesso negado. Apenas administradores podem enviar, editar ou excluir documentos do tipo: '{document_type}'.")
+    def check_write_permission(self, parent, document_type=None):
+        raise NotImplementedError("Subclasses devem implementar check_write_permission")
 
     def get_queryset(self):
-        project_pk = self.kwargs.get('project_pk')
-        if getattr(self, "swagger_fake_view", False) or not project_pk:
-            return ProjectDocument.objects.none()
+        if getattr(self, "swagger_fake_view", False):
+            return self.model.objects.none()
             
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        self._check_project_read_permission(project)
-        return ProjectDocument.objects.filter(project=project).order_by('-created_at')
+        parent = self.get_parent_object()
+        if not parent:
+            return self.model.objects.none()
 
-    def perform_create(self, serializer):
-        project_pk = self.kwargs.get('project_pk')
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        
-        self._check_project_read_permission(project)
-        self._check_client_write_permission(project)
-        self._check_admin_write_permission(serializer.validated_data.get('document_type'))
-        
-        documento = serializer.save(project=project)
-        user_request = self.request.user
-        
-        # Lógica de Notificações
-        if getattr(user_request, 'is_admin', False) or getattr(user_request, 'is_superuser', False):
-            if documento.document_type == 'boleto':
-                notify_boleto_added(project, documento)
-        elif user_request == project.created_by: # Se for o cliente
-            if documento.document_type == 'comprovante_de_pagamento':
-                notify_comprovante_added(project, documento, user_request)
-            else:
-                # 🟢 NOVA REGRA: Dispara a notificação para os admins relatando o novo documento do cliente
-                notify_client_document_uploaded(project, documento, user_request)
+        self.check_read_permission(parent)
+        filter_kwargs = {self.parent_relation_field: parent}
+        return self.model.objects.filter(**filter_kwargs).order_by('-created_at')
 
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        project = instance.project
-        novo_tipo_doc = serializer.validated_data.get('document_type', instance.document_type)
-        
-        self._check_project_read_permission(project)
-        self._check_client_write_permission(project)
-        self._check_admin_write_permission(instance.document_type)
-        
-        if novo_tipo_doc != instance.document_type:
-            self._check_admin_write_permission(novo_tipo_doc)
-
-        novo_status = serializer.validated_data.get('status', instance.status)
-        if novo_status == 'APPROVED' and instance.status != 'APPROVED':
-            updated_instance = serializer.save(approved_at=timezone.now())
-        else:
-            updated_instance = serializer.save()
-
-        user_request = self.request.user
-        if novo_status == ProjectDocument.STATUS_REJECTED and instance.status != ProjectDocument.STATUS_REJECTED:
-            notify_document_rejected(project, updated_instance)
-        elif novo_status == ProjectDocument.STATUS_APPROVED and instance.status != ProjectDocument.STATUS_APPROVED:
-            notify_document_approved(project, updated_instance)
-
-        if 'arquivo' in serializer.validated_data:
-            if updated_instance.document_type == 'boleto' and getattr(user_request, 'is_admin', False):
-                notify_boleto_added(project, updated_instance)
-            elif updated_instance.document_type == 'comprovante_de_pagamento' and user_request == project.created_by:
-                notify_comprovante_added(project, updated_instance, user_request)
-
-    def perform_destroy(self, instance):
-        project = instance.project
-        
-        self._check_project_read_permission(project)
-        self._check_client_write_permission(project)
-        self._check_admin_write_permission(instance.document_type)
-        
-        instance.delete()
-        
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if not getattr(self, "swagger_fake_view", False):
-            project_pk = self.kwargs.get('project_pk')
-            if project_pk:
-                context['project'] = get_object_or_404(ClientProject, pk=project_pk)
+            parent = self.get_parent_object()
+            if parent:
+                context['parent'] = parent
         return context
 
+# Gestão de documentos
+## Sessão de classes abstratas
+class AbstractPaymentDocumentView(generics.RetrieveUpdateAPIView):
+    """
+    APIView Abstrata para detalhe e atualização de documentos de pagamento.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parent_model = None
+
+    def get_object(self):
+        if getattr(self, "swagger_fake_view", False):
+            return None
+        parent_pk = self.kwargs.get('parent_pk')
+        document_type = self.kwargs.get('document_type')
+        parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        
+        self.check_access_permission(parent)
+        
+        filter_kwargs = {self.parent_relation_field: parent, 'document_type': document_type}
+        return get_object_or_404(self.model, **filter_kwargs)
+
+    def check_access_permission(self, parent):
+        raise NotImplementedError("Subclasses devem implementar check_access_permission")
+
+class AbstractDocumentDownloadView(APIView):
+    """
+    APIView Abstrata para download individual de arquivo com validação física.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    model = None
+    parent_model = None
+
+    def check_download_permission(self, request, parent, document):
+        raise NotImplementedError("Subclasses devem implementar check_download_permission")
+
+    @extend_schema(responses={200: OpenApiTypes.BINARY})
+    def get(self, request, parent_pk, document_pk):
+        parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        document = get_object_or_404(self.model, pk=document_pk)
+
+        self.check_download_permission(request, parent, document)
+
+        if not document.arquivo:
+            return Response({"error": "O documento não possui um arquivo anexado."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_path = document.arquivo.path
+        if not os.path.exists(file_path):
+            return Response({"error": "Arquivo físico não encontrado no servidor."}, status=status.HTTP_404_NOT_FOUND)
+
+        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+        return response
+
+class AbstractDocumentDownloadAllView(APIView):
+    """
+    APIView Abstrata para compactar e baixar todos os documentos de um pai em arquivo ZIP.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    model = None
+    parent_model = None
+
+    def check_download_all_permission(self, request, parent):
+        raise NotImplementedError("Subclasses devem implementar check_download_all_permission")
+
+    @extend_schema(responses={200: OpenApiTypes.BINARY})
+    def get(self, request, parent_pk):
+        parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        self.check_download_all_permission(request, parent)
+
+        filter_kwargs = {self.parent_relation_field: parent}
+        documents = self.model.objects.filter(**filter_kwargs)
+
+        if not documents.exists():
+            return Response({"detail": "Nenhum documento encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as zip_file:
+            arquivos_adicionados = 0
+            for doc in documents:
+                if doc.arquivo and os.path.exists(doc.arquivo.path):
+                    file_name_in_zip = f"{doc.document_type}_{os.path.basename(doc.arquivo.path)}"
+                    zip_file.write(doc.arquivo.path, file_name_in_zip)
+                    arquivos_adicionados += 1
+
+        if arquivos_adicionados == 0:
+            return Response({"detail": "Arquivos físicos não foram encontrados no servidor."}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer.seek(0)
+        response = FileResponse(buffer, content_type='application/zip')
+        identifier = getattr(parent, 'codigoCliente', parent.id)
+        response['Content-Disposition'] = f'attachment; filename="documentos_{identifier}.zip"'
+        return response
+
+## Sesssao de classes concretas
+class ProjectDocumentListView(AbstractDocumentListViewSet):
+    model = ProjectDocument
+    parent_model = ClientProject
+    parent_url_kwarg = 'project_pk'
+    parent_relation_field = 'project'
+    serializer_class = DocumentUploadSerializer
+
+    def check_read_permission(self, project):
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user == project.created_by):
+            raise PermissionDenied("Sem permissão para visualizar estes documentos.")
+
+    def perform_create(self, serializer):
+        project = self.get_parent_object()
+        self.check_read_permission(project)
+        serializer.save(project=project)
+
+class PaymentDocumentView(AbstractPaymentDocumentView):
+    model = ProjectDocument
+    parent_model = ClientProject
+    parent_relation_field = 'project'
+    serializer_class = PaymentDocumentSerializer
+
+    def check_access_permission(self, project):
+        user = self.request.user
+        if user.is_authenticated and user.is_cliente and project.created_by != user:
+            raise PermissionDenied("Acesso negado a este documento.")
+
+class ProjectDocumentDownloadView(AbstractDocumentDownloadView):
+    model = ProjectDocument
+    parent_model = ClientProject
+
+    def check_download_permission(self, request, project, document):
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+            raise PermissionDenied("Sem permissão para download.")
+
+class ProjectDocumentDownloadAllView(AbstractDocumentDownloadAllView):
+    model = ProjectDocument
+    parent_model = ClientProject
+    parent_relation_field = 'project'
+
+    def check_download_all_permission(self, request, project):
+        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+            raise PermissionDenied("Sem permissão para baixar estes documentos.")
+
+# Consumer Units and Material Lists
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
     queryset = ConsumerUnit.objects.all().order_by('id')
@@ -662,91 +737,3 @@ class ListaDeMateriasDetailView(generics.RetrieveUpdateDestroyAPIView):
             return ListaDeMateriais.objects.none()
             
         return ListaDeMateriais.objects.filter(project_id=project_pk)
-       
-class PaymentDocumentView(generics.RetrieveUpdateAPIView):
-    serializer_class = PaymentDocumentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_object(self):
-        if getattr(self, "swagger_fake_view", False):
-            return None
-        project_pk = self.kwargs.get('project_pk')
-        document_type = self.kwargs.get('document_type')
-        user = self.request.user
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        document = get_object_or_404(ProjectDocument, project=project, document_type=document_type)
-        
-        if user.is_authenticated and user.is_cliente and project.created_by != user:
-             raise PermissionDenied("Acesso negado a este documento.")
-        return document
-
-    @extend_schema(operation_id="payment_document_update")
-    def put(self, request, *args, **kwargs):
-        return super().put(request, *args, **kwargs)
-
-    @extend_schema(operation_id="payment_document_partial_update")
-    def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
-
-class ProjectDocumentDownloadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="download_document")
-    def get(self, request, project_pk, document_pk):
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        document = get_object_or_404(ProjectDocument, pk=document_pk, project=project)
-        
-        # 1. Checa a permissão
-        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
-            raise PermissionDenied("Sem permissão para download.")
-
-        # 2. Evita o Erro 500 checando se a referência do arquivo existe
-        if not document.arquivo:
-            return Response({"error": "O documento não possui um arquivo anexado."}, status=status.HTTP_404_NOT_FOUND)
-
-        file_path = document.arquivo.path
-
-        # 3. Evita o Erro 500 checando se o arquivo físico ainda está no servidor
-        if not os.path.exists(file_path):
-            return Response({"error": "Arquivo físico não encontrado. Ele pode ter sido apagado do servidor."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 4. Retorna o arquivo para download
-        response = FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
-        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
-        return response
-
-class ProjectDocumentDownloadAllView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(responses={200: OpenApiTypes.BINARY}, operation_id="download_all_documents")
-    def get(self, request, project_pk):
-        project = get_object_or_404(ClientProject, pk=project_pk)
-        documents = ProjectDocument.objects.filter(project=project)
-
-        # 1. Checa a permissão
-        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
-            raise PermissionDenied("Sem permissão para baixar os documentos deste projeto.")
-
-        # 2. Valida se existem documentos
-        if not documents.exists():
-            return Response({"detail": "Nenhum documento encontrado para este projeto."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 3. Cria o ZIP em memória (sem precisar salvar no disco)
-        buffer = BytesIO()
-        with zipfile.ZipFile(buffer, 'w') as zip_file:
-            arquivos_adicionados = 0
-            for doc in documents:
-                if doc.arquivo and os.path.exists(doc.arquivo.path):
-                    file_name_in_zip = f"{doc.document_type}_{os.path.basename(doc.arquivo.path)}"
-                    zip_file.write(doc.arquivo.path, file_name_in_zip)
-                    arquivos_adicionados += 1
-
-        # 4. Se todos os arquivos físicos foram deletados do servidor, avisa o usuário
-        if arquivos_adicionados == 0:
-             return Response({"detail": "Os arquivos registrados não foram encontrados fisicamente no servidor."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 5. Prepara a resposta para baixar o ZIP
-        buffer.seek(0)
-        response = FileResponse(buffer, content_type='application/zip')
-        response['Content-Disposition'] = f'attachment; filename="projeto_{project.codigoCliente}_documentos.zip"'
-        return response

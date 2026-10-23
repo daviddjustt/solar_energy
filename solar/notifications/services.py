@@ -62,7 +62,7 @@ def _enviar_email_template(to_emails, subject, template_name, context):
 # ==============================================================================
 # 🟡 CAMADA 2: ROTEAMENTO E TRANSAÇÃO
 # ==============================================================================
-def _rotear_e_salvar_notificacao(projeto, sender, publico_alvo, title, message, category, url="", cliente=None, email_data=None):
+def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, publico_alvo=None, title='', message='', category='', url="", cliente=None, email_data=None):
     if publico_alvo == 'cliente':
         usuario_alvo = cliente or (projeto.created_by if projeto else None)
         destinatarios = [usuario_alvo] if usuario_alvo else []
@@ -72,6 +72,18 @@ def _rotear_e_salvar_notificacao(projeto, sender, publico_alvo, title, message, 
         destinatarios = list(User.objects.filter(is_admin=True))
         emails_destino = [admin.email for admin in destinatarios if admin.email]
         group_name = "Administradores"
+        
+    elif publico_alvo == 'externos_tipo':
+        if service and service.tipo:
+            destinatarios = list(User.objects.filter(is_externo=True, tipos_servico=service.tipo).distinct())
+            group_names = [f'user_notifications_{u.pk}' for u in destinatarios]
+
+    elif publico_alvo == 'envolvidos_servico':
+        if service:
+            externos = list(User.objects.filter(is_externo=True, tipos_servico=service.tipo).distinct())
+            solicitante = [service.solicitante] if service.solicitante else []
+            destinatarios = list(set(externos + solicitante))
+            group_names = [f'user_notifications_{u.pk}' for u in destinatarios]
     else:
         logger.error(f"Público alvo '{publico_alvo}' desconhecido.")
         return
@@ -81,10 +93,17 @@ def _rotear_e_salvar_notificacao(projeto, sender, publico_alvo, title, message, 
 
     try:
         with transaction.atomic():
-            # PASSO A: Salvar no Banco
+            # 1. Persistência no Banco de Dados
             notificacoes_para_criar = [
-                Notification(project=projeto, sender=sender, recipient=user, 
-                             title=title, message=message, category=category)
+                Notification(
+                    project=projeto,
+                    service=service,
+                    sender=sender,
+                    recipient=user,
+                    title=title,
+                    message=message,
+                    category=category
+                )
                 for user in destinatarios if user
             ]
             Notification.objects.bulk_create(notificacoes_para_criar)
@@ -112,7 +131,7 @@ def _rotear_e_salvar_notificacao(projeto, sender, publico_alvo, title, message, 
 # ==============================================================================
 # 🟠 CAMADA 3: CENTRAL DE REGRAS 
 # ==============================================================================
-def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
+def _construir_mensagem_notificacao(projeto, service, evento, context, sender=None):
     title = ""
     message = ""
     category = ""
@@ -122,8 +141,94 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
     
     cliente_direto = context.get('cliente')
 
+    # --------------------------------------------------------------------------
+    # EVENTOS DO MÓDULO DE SERVIÇOS
+    # --------------------------------------------------------------------------
+    if evento == 'servico_criado':
+        publico_alvo = 'externos_tipo'
+        category = "SERVICO_NOVO"
+        title = "Nova Solicitação de Serviço"
+        nome_tipo = service.tipo.nome if (service and service.tipo) else "Serviço"
+        prazo = service.tipo.prazo_informativo if (service and service.tipo) else "1 dia útil"
+        
+        message = f"Nova solicitação #{service.id} de {nome_tipo} criada. Prazo informado: {prazo}."
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"[SERVIÇO] Nova Solicitação #{service.id} - {nome_tipo}",
+            'template': 'email/service/nova_solicitacao.html',
+            'context': {'service': service, 'prazo': prazo}
+        }
+
+    elif evento == 'servico_status_alterado':
+        publico_alvo = 'envolvidos_servico'
+        category = "SERVICO_STATUS"
+        title = "Status do Serviço Atualizado"
+        status_disp = service.get_status_display() if hasattr(service, 'get_status_display') else service.status
+        
+        message = f"A solicitação de serviço #{service.id} mudou para o status: {status_disp}."
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"Atualização no Serviço #{service.id}",
+            'template': 'email/service/status_alterado.html',
+            'context': {'service': service, 'status': status_disp}
+        }
+
+    elif evento == 'servico_pendencia':
+        # Se quem criou a pendência foi o cliente, notifica a equipe/externos. Se foi a equipe, notifica o cliente.
+        publico_alvo = 'externos_tipo' if (sender and sender == service.solicitante) else 'cliente'
+        category = "SERVICO_PENDENCIA"
+        title = "Pendência na Solicitação"
+        pend_titulo = context.get('titulo', 'Registrada nova pendência.')
+        
+        message = f"Pendência na solicitação #{service.id}: {pend_titulo}"
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"Pendência na Solicitação #{service.id}",
+            'template': 'email/service/pendencia.html',
+            'context': {'service': service, 'titulo': pend_titulo}
+        }
+
+    elif evento == 'servico_documento_rejeitado':
+        publico_alvo = 'cliente'
+        category = "SERVICO_DOCUMENTO_RECUSADO"
+        title = "Anexo de Serviço Recusado"
+        doc_nome = context.get('nome_documento', 'Anexo')
+        motivo = context.get('motivo', 'Verifique o painel.')
+        
+        message = f"O anexo '{doc_nome}' na solicitação #{service.id} foi recusado. Motivo: {motivo}"
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"Anexo Recusado - Solicitação #{service.id}",
+            'template': 'email/service/documento_rejeitado.html',
+            'context': {'service': service, 'nome_documento': doc_nome, 'motivo': motivo}
+        }
+
+    elif evento == 'servico_boleto_adicionado':
+        publico_alvo = 'cliente'
+        category = "SERVICO_BOLETO_ADICIONADO"
+        title = "Novo Boleto Disponível"
+        message = f"Um novo boleto foi anexado à sua solicitação de serviço #{service.id}."
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"Boleto Disponível - Solicitação #{service.id}",
+            'template': 'email/service/boleto_disponivel.html',
+            'context': {'service': service}
+        }
+
+    elif evento == 'servico_comprovante_adicionado':
+        publico_alvo = 'externos_tipo'
+        category = "SERVICO_COMPROVANTE_ENVIADO"
+        title = "Comprovante de Serviço Recebido"
+        message = f"O cliente enviou um comprovante de pagamento para a solicitação de serviço #{service.id}."
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"[FINANCEIRO] Comprovante Recebido - Serviço #{service.id}",
+            'template': 'email/service/comprovante_recebido.html',
+            'context': {'service': service}
+        }
+
     # --- EVENTOS DE PROJETO ---
-    if evento == 'documento_rejeitado':
+    elif evento == 'documento_rejeitado':
         publico_alvo = 'cliente'
         documento = context.get('documento')
         nome_doc = documento.get_document_type_display() if documento else "documento"
@@ -286,6 +391,7 @@ def _construir_mensagem_notificacao(projeto, evento, context, sender=None):
 
     _rotear_e_salvar_notificacao(
         projeto=projeto,
+        service=service,
         sender=sender,
         publico_alvo=publico_alvo,
         title=title,
@@ -349,3 +455,25 @@ def notify_inspection_requested(projeto, usuario_solicitante):
 
 def notify_client_document_uploaded(projeto, documento, cliente_remetente):
     _construir_mensagem_notificacao(projeto, 'documento_adicionado', context={'documento': documento}, sender=cliente_remetente)
+
+# --- SERVIÇOS ---
+def notificar_nova_solicitacao(service):
+    _construir_mensagem_notificacao(service=service, evento='servico_criado')
+
+def notificar_mudanca_status(service):
+    _construir_mensagem_notificacao(service=service, evento='servico_status_alterado')
+
+def notificar_pendencia(service, titulo):
+    _construir_mensagem_notificacao(service=service, evento='servico_pendencia', context={'titulo': titulo})
+
+def notificar_documento_rejeitado_servico(service, nome_documento, motivo):
+    _construir_mensagem_notificacao(service=service, evento='servico_documento_rejeitado', context={
+        'nome_documento': nome_documento,
+        'motivo': motivo
+    })
+
+def notificar_boleto_anexado_servico(service):
+    _construir_mensagem_notificacao(service=service, evento='servico_boleto_adicionado')
+
+def notificar_comprovante_anexado_servico(service):
+    _construir_mensagem_notificacao(service=service, evento='servico_comprovante_adicionado')

@@ -1,19 +1,39 @@
-from django.conf import settings
-from rest_framework.routers import DefaultRouter, SimpleRouter
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+import rest_framework_nested.routers as routers
 
-# Importe os ViewSets recém-criados
-from solar.services.views import ServiceTypeViewSet, ServiceRequestViewSet, ExternalUserViewSet
+from solar.services.views import (
+    ServiceRequestViewSet,
+    ServiceAttachmentViewSet,
+    ServicePendencyViewSet,
+    ServicePaymentDocumentView,
+    ServiceAttachmentDownloadView,
+    ServiceAttachmentDownloadAllView,
+)
 
-if settings.DEBUG:
-    router = DefaultRouter()
-else:
-    router = SimpleRouter()
+router = DefaultRouter()
+router.register(r'services-view', ServiceRequestViewSet, basename='service')
 
-# Registe as rotas dos serviços
-router.register("service-types", ServiceTypeViewSet, basename="service-type")
-router.register("services-view", ServiceRequestViewSet, basename="service")
-router.register("external-users", ExternalUserViewSet, basename="external-user")
+# Nested Routers para Anexos e Pendências
+services_router = routers.NestedSimpleRouter(router, r'services-view', lookup='service')
+services_router.register(r'attachments', ServiceAttachmentViewSet, basename='service-attachments')
+services_router.register(r'pendencies', ServicePendencyViewSet, basename='service-pendencies')
 
+urlpatterns = [
+    path('', include(router.urls)),
+    path('', include(services_router.urls)),
+    
+    # Download individual e ZIP completo
+    path('services-view/<int:parent_pk>/attachments/<int:document_pk>/download/', 
+         ServiceAttachmentDownloadView.as_view(), 
+         name='service-attachment-download'),
+         
+    path('services-view/<int:parent_pk>/download-all/', 
+         ServiceAttachmentDownloadAllView.as_view(), 
+         name='service-attachment-download-all'),
 
-app_name = "services"
-urlpatterns = router.urls
+    # Documentos de Pagamento
+    path('services-view/<int:parent_pk>/payment-document/<str:document_type>/', 
+         ServicePaymentDocumentView.as_view(), 
+         name='service-payment-document'),
+]

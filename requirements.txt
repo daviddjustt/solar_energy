@@ -7,6 +7,7 @@ setuptools==75.6.0
 djoser==2.3.1
 djangorestframework-simplejwt==5.5.0
 django-cors-headers==4.7.0
+drf-nested-routers==0.93.3
 
 # Emails 
 django-templated-mail==1.1.1

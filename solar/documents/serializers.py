@@ -78,92 +78,79 @@ class ListaDeMateriaisSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['project']
 
-class DocumentUploadSerializer(serializers.ModelSerializer):
-    project = serializers.PrimaryKeyRelatedField(read_only=True)
+class AbstractDocumentUploadSerializer(serializers.ModelSerializer):
+    """
+    Serializer Abstrato Base para qualquer modelo herdado de AbstractDocument.
+    """
     download_url = serializers.SerializerMethodField()
 
     class Meta:
-        model = ProjectDocument
-        fields = "__all__"
+        abstract = True
+        fields = [
+            'id', 'document_name', 'document_type', 'status',
+            'rejection_reason', 'approved_at', 'related_payment_document',
+            'arquivo', 'download_url', 'created_at', 'updated_at'
+        ]
         read_only_fields = ['created_at', 'updated_at', 'approved_at']
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_download_url(self, obj):
         request = self.context.get('request')
-        if request and obj.project_id and obj.id:
-            return request.build_absolute_uri(
-                f'/api/v1/projects/{obj.project_id}/documents/{obj.id}/download/'
-            )
+        download_endpoint_name = getattr(self.Meta, 'download_endpoint_name', None)
+        parent_lookup_field = getattr(self.Meta, 'parent_lookup_field', 'project_id')
+        
+        if request and getattr(obj, parent_lookup_field, None) and obj.id and download_endpoint_name:
+            parent_id = getattr(obj, parent_lookup_field)
+            # Constrói a URL dinamicamente via reverse do DRF
+            from django.urls import reverse
+            try:
+                path = reverse(download_endpoint_name, kwargs={'parent_pk': parent_id, 'document_pk': obj.id})
+                return request.build_absolute_uri(path)
+            except Exception:
+                return None
         return None
 
     def validate(self, data):
         request = self.context.get('request')
-
         if not request or not request.user.is_authenticated:
             return data
 
-        project = self.context.get('project') or (self.instance.project if self.instance else None)
+        parent = self.context.get('parent') or getattr(self.instance, 'parent', None)
         document_type = data.get('document_type') or (self.instance.document_type if self.instance else None)
 
-        if not project:
-            raise serializers.ValidationError("Projeto não identificado no contexto.")
-
+        # Validação financeira base de comprovantes
         if document_type == 'comprovante_de_pagamento':
             related_payment = data.get('related_payment_document')
-            
-            if not related_payment:
-                has_boleto = ProjectDocument.objects.filter(project=project, document_type='boleto').exists()
-                if not has_boleto:
-                    raise serializers.ValidationError({'related_payment_document': 'Crie um boleto antes de enviar o comprovante.'})
-                
-                if request.method != 'PATCH':
-                    raise serializers.ValidationError({'related_payment_document': 'Este campo é obrigatório para comprovantes.'})
+            if related_payment and related_payment.document_type != 'boleto':
+                raise serializers.ValidationError(
+                    {'related_payment_document': 'O documento relacionado deve ser do tipo boleto.'}
+                )
 
-            if related_payment:
-                if related_payment.document_type != 'boleto':
-                    raise serializers.ValidationError({'related_payment_document': 'O documento relacionado deve ser do tipo boleto.'})
-                if related_payment.project_id != project.id:
-                    raise serializers.ValidationError({'related_payment_document': 'O boleto deve pertencer ao mesmo projeto.'})
-
-        admin_only_docs = [
-            'boleto', 'formulario', 'diagrama_unifilar', 
-            'dados_geradora', 'unidades_consumidoras_extra', 
-            'memorial', 'art_documento'
-        ]
-
-        energisa_only_docs = [
-            'documento_de_posse'
-        ]
-
-        if document_type in energisa_only_docs:
-            # O hasattr verifica se a tabela filha "EnergisaProject" está ligada a este projeto
-            if not hasattr(project, 'energisaproject'):
-                raise serializers.ValidationError({
-                    'document_type': f"Acesso negado. O documento '{document_type}' é exclusivo para projetos do grupo Energisa."
-                })
-    
-        if document_type in admin_only_docs:
-            user = request.user
-            if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superuser', False)):
-                raise serializers.ValidationError({
-                    'document_type': f"Acesso negado. Apenas administradores podem enviar documentos do tipo: {document_type}."
-                })
         return data
 
-class PaymentDocumentSerializer(serializers.ModelSerializer):
+class AbstractPaymentDocumentSerializer(serializers.ModelSerializer):
+    """
+    Serializer Abstrato para gestão de Boletos e Comprovantes.
+    """
     class Meta:
-        model = ProjectDocument
-        fields = '__all__'
+        abstract = True
+        fields = ['id', 'document_type', 'status', 'rejection_reason', 'related_payment_document', 'arquivo']
         read_only_fields = ['status']
 
-    def validate(self, data):
-        user = self.context['request'].user
-        if user.is_authenticated and user.is_cliente:
-            if self.instance and self.instance.document_type == 'boleto':
-                raise serializers.ValidationError("Clientes não podem editar boletos.")
-        return data
+class DocumentUploadSerializer(AbstractDocumentUploadSerializer):
+    project = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta(AbstractDocumentUploadSerializer.Meta):
+        model = ProjectDocument
+        fields = AbstractDocumentUploadSerializer.Meta.fields + ['project']
+        download_endpoint_name = 'api:project-document-download'
+        parent_lookup_field = 'project_id'
 
 
+class PaymentDocumentSerializer(AbstractPaymentDocumentSerializer):
+    class Meta(AbstractPaymentDocumentSerializer.Meta):
+        model = ProjectDocument
+        
 # =========================================================================
 # 3. ARQUITETURA POLIMÓRFICA DE PROJETOS (A Magia Acontece Aqui)
 # =========================================================================
@@ -264,11 +251,6 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
 
 
 class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
-    """
-    O MAESTRO (Polimorfismo e MTI Protegida):
-    Garante suporte unificado para criação e atualização de projetos Coelba e Energisa,
-    com transações atômicas e proteção contra sobrescrita de snapshots na MTI do Django.
-    """
     grupo = serializers.CharField(
         required=False, 
         default='coelba',
@@ -281,138 +263,97 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
         'tipo_ramal', 'tensao_tipo', 'tensao_imagem'
     ]
 
-    class Meta(EnergisaProjectSerializer.Meta):
-        model = EnergisaProject
-        extra_kwargs = {
-            'cabo_mm2': {'required': False, 'allow_null': True},
-            'isolacao_volts': {'required': False, 'allow_null': True},
-            'cabos_por_fase': {'required': False, 'allow_null': True},
-            'disjuntor_amperes': {'required': False, 'allow_null': True},
-            'dps_ka': {'required': False, 'allow_null': True},
-            'dps_isolacao': {'required': False, 'allow_null': True},
-            'tipo_ramal': {'required': False, 'allow_null': True},
-            'tensao_tipo': {'required': False, 'allow_null': True},
-            'tensao_imagem': {'required': False, 'allow_null': True},
-        }
+    def _is_energisa_instance(self, instance):
+        """
+        Verifica se a instância é um projeto Energisa, independente de ser
+        um objeto ClientProject (com relação filha) ou EnergisaProject (classe filha).
+        """
+        if isinstance(instance, EnergisaProject):
+            return True
+        return hasattr(instance, 'energisaproject')
 
-    def validate(self, data):
-        # 1. Executa as validações base da classe abstrata (CPF, CNPJ, coordenadas)
-        data = super().validate(data)
-        
-        grupo = data.get('grupo', getattr(self.instance, 'grupo', 'coelba'))
-
-        if grupo == 'energisa':
-            # Preenche valores padrão nos campos obrigatórios caso não venham no formulário
-            data.setdefault('cabo_mm2', 10.0)
-            data.setdefault('isolacao_volts', 750)
-            data.setdefault('cabos_por_fase', 1)
-            data.setdefault('disjuntor_amperes', 40.0)
-            data.setdefault('dps_ka', 20.0)
-            data.setdefault('tipo_ramal', 'aereo')
-            data.setdefault('tensao_tipo', 'individual')
-        else:
-            # Se for Coelba, remove os campos exclusivos da Energisa para não dar erro na query do pai
-            for campo in self.CAMPOS_ENERGISA:
-                data.pop(campo, None)
-
-        return data
+    def _get_energisa_instance(self, instance):
+        """Retorna o objeto EnergisaProject correto."""
+        if isinstance(instance, EnergisaProject):
+            return instance
+        if hasattr(instance, 'energisaproject'):
+            return instance.energisaproject
+        return None
 
     @transaction.atomic
     def create(self, validated_data):
-        """
-        CRIAÇÃO ATÔMICA:
-        Cria o projeto dentro de um bloco atômico. Se marcado como 'energisa',
-        o ORM do Django insere a linha na tabela pai e na tabela filha em uma única transação.
-        """
-        grupo = validated_data.get('grupo', 'coelba') 
+        grupo = str(validated_data.get('grupo', 'coelba')).lower()
         if grupo == 'energisa':
-            # O ORM grava automaticamente em ClientProject e EnergisaProject
             return EnergisaProject.objects.create(**validated_data)
-            
-        # Projeto Coelba tradicional
         return ClientProject.objects.create(**validated_data)
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        """
-        ATUALIZAÇÃO ATÔMICA E PROTEGIDA:
-        Cobre os 3 cenários de atualização garantindo integridade no banco de dados.
-        """
-        novo_grupo = validated_data.get('grupo', instance.grupo)
+        raw_grupo = validated_data.get('grupo', instance.grupo)
+        novo_grupo = str(raw_grupo).lower() if raw_grupo else 'coelba'
+        
+        ja_eh_energisa = self._is_energisa_instance(instance)
 
         # ---------------------------------------------------------------------
-        # CASO 1: Transição de Coelba -> Energisa (Criando o registro filho)
+        # CASO 1: Transição Coelba -> Energisa (Criando registro na tabela filha)
         # ---------------------------------------------------------------------
-        if novo_grupo == 'energisa' and not hasattr(instance, 'energisaproject'):
-            # Separa os dados específicos da Energisa
+        if novo_grupo == 'energisa' and not ja_eh_energisa:
             energisa_data = {
                 c: validated_data.pop(c) for c in self.CAMPOS_ENERGISA if c in validated_data
             }
             
-            # Atualiza o modelo Pai (ClientProject)
+            # Atualiza os dados da tabela Pai
             instance = super().update(instance, validated_data)
 
-            # Insere o registro na tabela filha (documents_energisaproject) apontando para o pai
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO documents_energisaproject "
-                    "(clientproject_ptr_id, cabo_mm2, isolacao_volts, cabos_por_fase, "
-                    "disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, tensao_imagem) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    [
-                        instance.id,
-                        energisa_data.get('cabo_mm2', 10.0),
-                        energisa_data.get('isolacao_volts', 750),
-                        energisa_data.get('cabos_por_fase', 1),
-                        energisa_data.get('disjuntor_amperes', 40.0),
-                        energisa_data.get('dps_ka', 20.0),
-                        energisa_data.get('dps_isolacao', None),
-                        energisa_data.get('tipo_ramal', 'aereo'),
-                        energisa_data.get('tensao_tipo', 'individual'),
-                        ''
-                    ]
-                )
-            
-            # Recarrega a instância completa sincronizando a memória Python com o banco
+            # Instancia o filho via ORM sem SQL cru
+            EnergisaProject.objects.create(
+                clientproject_ptr=instance,
+                cabo_mm2=energisa_data.get('cabo_mm2', 10.0),
+                isolacao_volts=energisa_data.get('isolacao_volts', 750),
+                cabos_por_fase=energisa_data.get('cabos_por_fase', 1),
+                disjuntor_amperes=energisa_data.get('disjuntor_amperes', 40.0),
+                dps_ka=energisa_data.get('dps_ka', 20.0),
+                dps_isolacao=energisa_data.get('dps_isolacao'),
+                tipo_ramal=energisa_data.get('tipo_ramal', 'aereo'),
+                tensao_tipo=energisa_data.get('tensao_tipo', 'individual'),
+            )
+
             return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
 
         # ---------------------------------------------------------------------
-        # CASO 2: Atualização de um projeto que JÁ É Energisa
+        # CASO 2: Atualização de projeto que JÁ É Energisa
         # ---------------------------------------------------------------------
-        if novo_grupo == 'energisa' and hasattr(instance, 'energisaproject'):
-            energisa_instance = instance.energisaproject
+        if novo_grupo == 'energisa' and ja_eh_energisa:
+            energisa_instance = self._get_energisa_instance(instance)
             
-            # 1. Isola apenas os campos da Energisa que foram efetivamente alterados
             changed_fields = [attr for attr in self.CAMPOS_ENERGISA if attr in validated_data]
             for attr in changed_fields:
                 setattr(energisa_instance, attr, validated_data.pop(attr))
 
-            # 2. Atualiza a tabela PAI (ClientProject) para persistir status, nome, etc.
+            # Salva o Pai
             instance = super().update(instance, validated_data)
 
-            # 3. Atualiza a tabela FILHA (EnergisaProject) LIMITANDO aos seus próprios campos
-            # (O update_fields é a chave: impede que o Django dispare UPDATE no pai com dados antigos)
+            # Salva o Filho isolando os campos para não reescrever o snapshot do pai
             if changed_fields:
                 energisa_instance.save(update_fields=changed_fields)
 
-            # 4. Recarrega o projeto do banco de dados para a resposta JSON conter o status atualizado
             return ClientProject.objects.select_related('energisaproject').get(pk=instance.pk)
 
         # ---------------------------------------------------------------------
-        # CASO 3: Atualização de projeto Coelba (ou retorno de Energisa para Coelba)
+        # CASO 3: Atualização de projeto Coelba
         # ---------------------------------------------------------------------
         for campo in self.CAMPOS_ENERGISA:
             validated_data.pop(campo, None)
 
-        instance = super().update(instance, validated_data)
-        return instance
+        return super().update(instance, validated_data)
 
     def to_representation(self, instance):
-        # A serialização baseia-se na propriedade de grupo e na existência da relação filha
-        grupo = getattr(instance, 'grupo', 'coelba')
+        grupo = str(getattr(instance, 'grupo', 'coelba') or 'coelba').lower()
+        ja_eh_energisa = self._is_energisa_instance(instance)
 
-        if grupo == 'energisa' and hasattr(instance, 'energisaproject'):
-            data = EnergisaProjectSerializer(context=self.context).to_representation(instance.energisaproject)
+        if grupo == 'energisa' and ja_eh_energisa:
+            energisa_obj = self._get_energisa_instance(instance)
+            data = EnergisaProjectSerializer(context=self.context).to_representation(energisa_obj)
             data['grupo'] = 'energisa'
             return data
             
@@ -423,9 +364,8 @@ class ClientProjectUnifiedSerializer(EnergisaProjectSerializer):
     def validate_grupo(self, value):
         if value:
             value = value.lower()
-            opcoes_validas = ['energisa', 'coelba']
-            if value not in opcoes_validas:
-                raise serializers.ValidationError(f"Faça uma escolha válida. Aceitos: {', '.join(opcoes_validas)}")
+            if value not in ['energisa', 'coelba']:
+                raise serializers.ValidationError("Escolha inválida. Opções: 'energisa' ou 'coelba'.")
         return value
 # =========================================================================
 # 4. SERIALIZERS DE LEITURA E ATUALIZAÇÃO (Herdam de Abstract)
