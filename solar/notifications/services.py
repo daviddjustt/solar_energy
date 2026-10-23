@@ -449,7 +449,7 @@ def notify_protocol_updated(projeto, numero_protocolo, data_limite):
     })
 
 def notify_new_project_created(projeto):
-    _construir_mensagem_notificacao(projeto, 'novo_projeto_criado', context={})
+    _construir_mensagem_notificacao(projeto=projeto, evento='novo_projeto_criado')
 
 def notify_comprovante_added(projeto, documento, cliente_remetente):
     _construir_mensagem_notificacao(projeto, 'comprovante_adicionado', context={'documento': documento}, sender=cliente_remetente)
