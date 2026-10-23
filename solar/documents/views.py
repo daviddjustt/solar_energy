@@ -377,15 +377,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return base_queryset.filter(created_by=user)
 
-    def get_serializer_class(self):
-        if getattr(self, "swagger_fake_view", False):
-            return ClientProjectUnifiedSerializer
-        
-        if self.action in ['list', 'meus_projetos']:
-            return ProjectListSerializer
-             
-        return ClientProjectUnifiedSerializer
-    
     @action(detail=False, methods=['get'])
     def meus_projetos(self, request):
         queryset = self.get_queryset()
