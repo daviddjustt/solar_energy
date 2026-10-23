@@ -21,6 +21,9 @@ User = get_user_model()
 # ==============================================================================
 def _enviar_payload_websocket(group_name, title, message, url=""):
     channel_layer = get_channel_layer()
+    if not channel_layer:
+        return
+        
     payload = {
         'type': 'send_notification',
         'data': {
@@ -30,7 +33,10 @@ def _enviar_payload_websocket(group_name, title, message, url=""):
             'timestamp': timezone.now().isoformat()
         }
     }
-    async_to_sync(channel_layer.group_send)(group_name, payload)
+    try:
+        async_to_sync(channel_layer.group_send)(group_name, payload)
+    except Exception as e:
+        logger.error(f"Erro ao enviar WebSocket: {str(e)}")
 
 def _enviar_email_template(to_emails, subject, template_name, context):
     try:
@@ -47,10 +53,6 @@ def _enviar_email_template(to_emails, subject, template_name, context):
             to=to_emails
         )
         msg.attach_alternative(html_content, "text/html")
-
-        # 🟢 REMOVIDO: O bloco antigo de anexo MIMEImage que o Brevo rejeitava.
-        # Agora o HTML vai buscar a logo diretamente via URL da web.
-
         msg.send(fail_silently=False)
         logger.info(f"E-mail enviado com sucesso para {to_emails}")
         return True
@@ -63,15 +65,21 @@ def _enviar_email_template(to_emails, subject, template_name, context):
 # 🟡 CAMADA 2: ROTEAMENTO E TRANSAÇÃO
 # ==============================================================================
 def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, publico_alvo=None, title='', message='', category='', url="", cliente=None, email_data=None):
+    destinatarios = []
+    group_names = []
+    emails_destino = []
+    
     if publico_alvo == 'cliente':
-        usuario_alvo = cliente or (projeto.created_by if projeto else None)
-        destinatarios = [usuario_alvo] if usuario_alvo else []
-        emails_destino = [usuario_alvo.email] if (usuario_alvo and usuario_alvo.email) else []
-        group_name = f'user_notifications_{usuario_alvo.pk}' if usuario_alvo else None
+        usuario_alvo = cliente or (projeto.created_by if projeto else (service.solicitante if service else None))
+        if usuario_alvo:
+            destinatarios = [usuario_alvo]
+            emails_destino = [usuario_alvo.email] if usuario_alvo.email else []
+            group_names = [f'user_notifications_{usuario_alvo.pk}']
+            
     elif publico_alvo == 'admins':
         destinatarios = list(User.objects.filter(is_admin=True))
         emails_destino = [admin.email for admin in destinatarios if admin.email]
-        group_name = "Administradores"
+        group_names = ["Administradores"]
         
     elif publico_alvo == 'externos_tipo':
         if service and service.tipo:
@@ -93,7 +101,7 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
 
     try:
         with transaction.atomic():
-            # 1. Persistência no Banco de Dados
+            # PASSO A: Salvar no Banco
             notificacoes_para_criar = [
                 Notification(
                     project=projeto,
@@ -120,9 +128,10 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
                     raise Exception("Rollback ativado: Falha no envio de e-mail.")
 
         # PASSO C: WebSocket
-        if group_name:
-            _enviar_payload_websocket(group_name, title, message, url)
-            logger.info(f"Notificação '{category}' enviada com sucesso para {publico_alvo}.")
+        for g_name in set(group_names):
+            _enviar_payload_websocket(g_name, title, message, url)
+        
+        logger.info(f"Notificação '{category}' enviada com sucesso para {publico_alvo}.")
 
     except Exception as e:
         logger.error(f"Notificação abortada. Motivo: {str(e)}")
@@ -131,7 +140,8 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
 # ==============================================================================
 # 🟠 CAMADA 3: CENTRAL DE REGRAS 
 # ==============================================================================
-def _construir_mensagem_notificacao(projeto, service, evento, context, sender=None):
+def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, context=None, sender=None):
+    context = context or {}
     title = ""
     message = ""
     category = ""
@@ -174,7 +184,6 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
         }
 
     elif evento == 'servico_pendencia':
-        # Se quem criou a pendência foi o cliente, notifica a equipe/externos. Se foi a equipe, notifica o cliente.
         publico_alvo = 'externos_tipo' if (sender and sender == service.solicitante) else 'cliente'
         category = "SERVICO_PENDENCIA"
         title = "Pendência na Solicitação"
@@ -227,7 +236,9 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
             'context': {'service': service}
         }
 
-    # --- EVENTOS DE PROJETO ---
+    # --------------------------------------------------------------------------
+    # EVENTOS DE PROJETO
+    # --------------------------------------------------------------------------
     elif evento == 'documento_rejeitado':
         publico_alvo = 'cliente'
         documento = context.get('documento')
@@ -257,7 +268,6 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
             'context': {'projeto': projeto, 'nome_documento': nome_doc}
         }
     
-    # --- NOVO EVENTO: CRIAÇÃO DE PROJETO ---
     elif evento == 'novo_projeto_criado':
         publico_alvo = 'admins'
         category = "NOVO_PROJETO"
@@ -343,7 +353,9 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
             'context': {'projeto': projeto, 'url_painel': url}
         }
 
-    # --- NOVOS EVENTOS: DOCUMENTOS DIRETOS DO USUÁRIO ---
+    # --------------------------------------------------------------------------
+    # NOVOS EVENTOS: DOCUMENTOS DIRETOS DO USUÁRIO
+    # --------------------------------------------------------------------------
     elif evento == 'user_boleto_adicionado':
         publico_alvo = 'cliente'
         category = "BOLETO_ADICIONADO"
@@ -381,7 +393,7 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
         url = f"/admin/projetos/{projeto.pk}/"
         email_data = {
             'subject': f"[SISTEMA] Novo Documento Recebido - {projeto.codigoCliente}",
-            'template': 'email/admin/novo_documento.html', # Terá de criar este ficheiro HTML se quiser que o e-mail funcione
+            'template': 'email/admin/novo_documento.html',
             'context': {'projeto': projeto, 'nome_documento': nome_doc, 'url_painel': url}
         }
         
@@ -403,62 +415,44 @@ def _construir_mensagem_notificacao(projeto, service, evento, context, sender=No
     )
 
 # ==============================================================================
-# 🔵 CAMADA 4: FUNÇÕES ESPECIALIZADAS
+# 🔵 CAMADA 4: FUNÇÕES ESPECIALIZADAS (Strict Kwargs)
 # ==============================================================================
 
 # --- Destinadas ao Cliente ---
 def notify_document_rejected(projeto, documento):
-    _construir_mensagem_notificacao(projeto, 'documento_rejeitado', context={'documento': documento})
+    _construir_mensagem_notificacao(projeto=projeto, evento='documento_rejeitado', context={'documento': documento})
 
 def notify_document_approved(projeto, documento):
-    _construir_mensagem_notificacao(projeto, 'documento_aprovado', context={'documento': documento})
+    _construir_mensagem_notificacao(projeto=projeto, evento='documento_aprovado', context={'documento': documento})
 
 def notify_boleto_added(projeto, documento):
-    _construir_mensagem_notificacao(projeto, 'boleto_adicionado', context={'documento': documento})
+    _construir_mensagem_notificacao(projeto=projeto, evento='boleto_adicionado', context={'documento': documento})
 
 def notify_project_status_changed(projeto, status_antigo, status_novo):
-    _construir_mensagem_notificacao(
-        projeto=projeto,                           # 👈 Nomear explicitamente
-        evento='status_projeto_alterado',          # 👈 Nomear explicitamente
-        context={
-            'status_antigo': status_antigo,
-            'status_novo': status_novo
-        }
-    )
+    _construir_mensagem_notificacao(projeto=projeto, evento='status_projeto_alterado', context={'status_antigo': status_antigo, 'status_novo': status_novo})
 
 # --- Sem projeto atrelado, apenas user ---
 def notify_user_boleto_added(cliente, documento):
-    _construir_mensagem_notificacao(projeto=None, evento='user_boleto_adicionado', context={
-        'cliente': cliente,
-        'documento': documento
-    })
+    _construir_mensagem_notificacao(evento='user_boleto_adicionado', context={'cliente': cliente, 'documento': documento})
 
 def notify_user_comprovante_added(cliente, documento, cliente_remetente):
-    # Corrigido o nome do evento aqui para bater com o if da Camada 3
-    _construir_mensagem_notificacao(projeto=None, evento='user_comprovante_adicionado', context={
-        'cliente': cliente,
-        'documento': documento
-    }, sender=cliente_remetente)
-    
+    _construir_mensagem_notificacao(evento='user_comprovante_adicionado', context={'cliente': cliente, 'documento': documento}, sender=cliente_remetente)
 
 # --- Destinadas aos Administradores ---
 def notify_protocol_updated(projeto, numero_protocolo, data_limite):
-    _construir_mensagem_notificacao(projeto, 'protocolo_atualizado', context={
-        'numero_protocolo': numero_protocolo,
-        'data_limite': data_limite
-    })
+    _construir_mensagem_notificacao(projeto=projeto, evento='protocolo_atualizado', context={'numero_protocolo': numero_protocolo, 'data_limite': data_limite})
 
 def notify_new_project_created(projeto):
     _construir_mensagem_notificacao(projeto=projeto, evento='novo_projeto_criado')
 
 def notify_comprovante_added(projeto, documento, cliente_remetente):
-    _construir_mensagem_notificacao(projeto, 'comprovante_adicionado', context={'documento': documento}, sender=cliente_remetente)
+    _construir_mensagem_notificacao(projeto=projeto, evento='comprovante_adicionado', context={'documento': documento}, sender=cliente_remetente)
 
 def notify_inspection_requested(projeto, usuario_solicitante):
-    _construir_mensagem_notificacao(projeto, 'vistoria_solicitada', context={}, sender=usuario_solicitante)
+    _construir_mensagem_notificacao(projeto=projeto, evento='vistoria_solicitada', sender=usuario_solicitante)
 
 def notify_client_document_uploaded(projeto, documento, cliente_remetente):
-    _construir_mensagem_notificacao(projeto, 'documento_adicionado', context={'documento': documento}, sender=cliente_remetente)
+    _construir_mensagem_notificacao(projeto=projeto, evento='documento_adicionado', context={'documento': documento}, sender=cliente_remetente)
 
 # --- SERVIÇOS ---
 def notificar_nova_solicitacao(service):
@@ -471,10 +465,7 @@ def notificar_pendencia(service, titulo):
     _construir_mensagem_notificacao(service=service, evento='servico_pendencia', context={'titulo': titulo})
 
 def notificar_documento_rejeitado_servico(service, nome_documento, motivo):
-    _construir_mensagem_notificacao(service=service, evento='servico_documento_rejeitado', context={
-        'nome_documento': nome_documento,
-        'motivo': motivo
-    })
+    _construir_mensagem_notificacao(service=service, evento='servico_documento_rejeitado', context={'nome_documento': nome_documento, 'motivo': motivo})
 
 def notificar_boleto_anexado_servico(service):
     _construir_mensagem_notificacao(service=service, evento='servico_boleto_adicionado')
