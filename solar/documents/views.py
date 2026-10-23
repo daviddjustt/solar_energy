@@ -574,40 +574,42 @@ class AbstractDocumentListViewSet(viewsets.ModelViewSet):
 # Gestão de documentos
 ## Sessão de classes abstratas
 class AbstractPaymentDocumentView(generics.RetrieveUpdateAPIView):
-    """
-    APIView Abstrata para detalhe e atualização de documentos de pagamento.
-    """
     permission_classes = [permissions.IsAuthenticated]
     parent_model = None
+    parent_url_kwarg = 'parent_pk'  # 👈 Variável dinâmica
+    parent_relation_field = None
 
     def get_object(self):
         if getattr(self, "swagger_fake_view", False):
             return None
-        parent_pk = self.kwargs.get('parent_pk')
+        # Busca dinamicamente pelo nome definido na view filha
+        parent_pk = self.kwargs.get(self.parent_url_kwarg)
         document_type = self.kwargs.get('document_type')
-        parent = get_object_or_404(self.parent_model, pk=parent_pk)
         
+        parent = get_object_or_404(self.parent_model, pk=parent_pk)
         self.check_access_permission(parent)
         
         filter_kwargs = {self.parent_relation_field: parent, 'document_type': document_type}
         return get_object_or_404(self.model, **filter_kwargs)
 
     def check_access_permission(self, parent):
-        raise NotImplementedError("Subclasses devem implementar check_access_permission")
+        raise NotImplementedError()
 
 class AbstractDocumentDownloadView(APIView):
-    """
-    APIView Abstrata para download individual de arquivo com validação física.
-    """
     permission_classes = [permissions.IsAuthenticated]
     model = None
     parent_model = None
+    parent_url_kwarg = 'parent_pk'     # 👈 Variável dinâmica
+    document_url_kwarg = 'document_pk' # 👈 Variável dinâmica
 
     def check_download_permission(self, request, parent, document):
-        raise NotImplementedError("Subclasses devem implementar check_download_permission")
+        raise NotImplementedError()
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
-    def get(self, request, parent_pk, document_pk):
+    def get(self, request, *args, **kwargs):  # 👈 Mudança de assinatura aqui
+        parent_pk = kwargs.get(self.parent_url_kwarg)
+        document_pk = kwargs.get(self.document_url_kwarg)
+
         parent = get_object_or_404(self.parent_model, pk=parent_pk)
         document = get_object_or_404(self.model, pk=document_pk)
 
@@ -624,20 +626,22 @@ class AbstractDocumentDownloadView(APIView):
         response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
         return response
 
+
 class AbstractDocumentDownloadAllView(APIView):
-    """
-    APIView Abstrata para compactar e baixar todos os documentos de um pai em arquivo ZIP.
-    """
     permission_classes = [permissions.IsAuthenticated]
     model = None
     parent_model = None
+    parent_url_kwarg = 'parent_pk' # 👈 Variável dinâmica
+    parent_relation_field = None
 
     def check_download_all_permission(self, request, parent):
-        raise NotImplementedError("Subclasses devem implementar check_download_all_permission")
+        raise NotImplementedError()
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
-    def get(self, request, parent_pk):
+    def get(self, request, *args, **kwargs): # 👈 Mudança de assinatura aqui
+        parent_pk = kwargs.get(self.parent_url_kwarg)
         parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        
         self.check_download_all_permission(request, parent)
 
         filter_kwargs = {self.parent_relation_field: parent}
@@ -646,6 +650,8 @@ class AbstractDocumentDownloadAllView(APIView):
         if not documents.exists():
             return Response({"detail": "Nenhum documento encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
+        import zipfile
+        from io import BytesIO
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, 'w') as zip_file:
             arquivos_adicionados = 0
@@ -685,31 +691,35 @@ class ProjectDocumentListView(AbstractDocumentListViewSet):
 class PaymentDocumentView(AbstractPaymentDocumentView):
     model = ProjectDocument
     parent_model = ClientProject
+    parent_url_kwarg = 'project_pk'  # 👈 Adicione isso
     parent_relation_field = 'project'
     serializer_class = PaymentDocumentSerializer
 
     def check_access_permission(self, project):
         user = self.request.user
         if user.is_authenticated and user.is_cliente and project.created_by != user:
-            raise PermissionDenied("Acesso negado a este documento.")
+             raise PermissionDenied("Acesso negado a este documento.")
 
 class ProjectDocumentDownloadView(AbstractDocumentDownloadView):
     model = ProjectDocument
     parent_model = ClientProject
+    parent_url_kwarg = 'project_pk'     # 👈 Adicione isso
+    document_url_kwarg = 'document_pk'  # 👈 Adicione isso
 
     def check_download_permission(self, request, project, document):
-        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
+        if not (request.user.is_superuser or getattr(request.user, 'is_admin', False) or getattr(request.user, 'is_tecnico', False) or request.user == project.created_by):
             raise PermissionDenied("Sem permissão para download.")
 
 class ProjectDocumentDownloadAllView(AbstractDocumentDownloadAllView):
     model = ProjectDocument
     parent_model = ClientProject
+    parent_url_kwarg = 'project_pk'  # 👈 Adicione isso
     parent_relation_field = 'project'
 
     def check_download_all_permission(self, request, project):
-        if not (request.user.is_superuser or request.user.is_admin or request.user.is_tecnico or request.user == project.created_by):
-            raise PermissionDenied("Sem permissão para baixar estes documentos.")
-
+        if not (request.user.is_superuser or getattr(request.user, 'is_admin', False) or getattr(request.user, 'is_tecnico', False) or request.user == project.created_by):
+            raise PermissionDenied("Sem permissão para baixar os documentos deste projeto.")
+        
 # Consumer Units and Material Lists
 class ConsumerUnitListView(generics.ListCreateAPIView):
     serializer_class = ConsumerUnitSerializer
