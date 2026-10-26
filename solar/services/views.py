@@ -56,8 +56,8 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Bloqueio corrigido incluindo o técnico (P1-6)
-        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user.is_superuser:
-            raise PermissionDenied("Apenas clientes podem criar solicitações de serviço.")
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_tecnico', False):
+            raise PermissionDenied("Apenas Admins podem criar solicitações de serviço.")
 
     # Bloqueio para evitar que o cliente edite ou apague a solicitação (P1-8)
     def perform_update(self, serializer):
