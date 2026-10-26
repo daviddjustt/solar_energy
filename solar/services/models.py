@@ -7,10 +7,6 @@ from solar.users.models import User
 from solar.documents.models import BaseModel, AbstractDocument 
 
 class Externo(User):
-    """
-    Perfil de usuário Parceiro Externo (Executores).
-    Acesso restrito ao módulo de serviços.
-    """
     class Meta:
         proxy = True
         verbose_name = 'Parceiro Externo'
@@ -21,6 +17,7 @@ class Externo(User):
         self.is_tecnico = False
         self.is_cliente = False
         self.is_externo = True
+        self.is_pessoa_juridica = False # ou True dependendo da sua regra de negócio
         
         super().save(*args, **kwargs)
 

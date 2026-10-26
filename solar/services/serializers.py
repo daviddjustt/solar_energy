@@ -1,10 +1,12 @@
 from rest_framework import serializers
 from solar.services.models import ServiceType, ServiceRequest
 from solar.users.models import User  # Importe o modelo de utilizador correto
-
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from solar.documents.serializers import AbstractDocumentUploadSerializer, AbstractPaymentDocumentSerializer
 from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory
+
+User = get_user_model()
 
 class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
     service = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -90,8 +92,7 @@ class ServiceTypeSerializer(serializers.ModelSerializer):
 
 class ExternalUserSerializer(serializers.ModelSerializer):
     """
-    Serializer dedicado à gestão de Usuários Externos pelo Admin. (P1-9)
-    Expõe apenas campos explícitos e trata a password em segurança.
+    Serializer dedicado à criação e edição de Usuários Externos pelo Admin.
     """
     password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
     tipos_servico = serializers.PrimaryKeyRelatedField(
@@ -102,46 +103,57 @@ class ExternalUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = [
+        fields = (
             'uuid', 'name', 'email', 'celular', 'cpf', 
             'is_active', 'tipos_servico', 'password'
-        ]
+        )
+
+    def validate_celular(self, value):
+        """Valida e limpa o formato do número de celular."""
+        value = ''.join(filter(str.isdigit, value))
+        if len(value) != 11:
+            raise serializers.ValidationError("O celular deve conter 11 dígitos.")
+        return value
 
     def create(self, validated_data):
-        # Garante que as flags são setadas corretamente (P1-9)
         password = validated_data.pop('password', None)
+        tipos = validated_data.pop('tipos_servico', [])
+
+        # Força as regras de negócio para o Proxy Model Externo
         validated_data['is_externo'] = True
         validated_data['is_cliente'] = False
         validated_data['is_admin'] = False
         validated_data['is_tecnico'] = False
-        
-        tipos = validated_data.pop('tipos_servico', [])
-        
-        # Aproveita o UserManager existente para tratar a criação e normalização
+        validated_data['is_pessoa_juridica'] = False
+
+        # Aproveita o UserManager para normalização e salvamento atômico
         user = User.objects.create_user(**validated_data)
-        
+
         if password:
             user.set_password(password)
             user.save(update_fields=['password'])
-            
+
         if tipos:
             user.tipos_servico.set(tipos)
-            
+
         return user
 
     def update(self, instance, validated_data):
-        # Proteção extra: não permite tirar a flag de externo por este endpoint
-        validated_data.pop('is_externo', None)
-        validated_data.pop('is_cliente', None)
-        
+        # Proteção: Impede a alteração acidental ou intencional das flags base
+        for flag in ['is_externo', 'is_cliente', 'is_admin', 'is_tecnico', 'is_pessoa_juridica']:
+            validated_data.pop(flag, None)
+
         password = validated_data.pop('password', None)
+        tipos = validated_data.pop('tipos_servico', None)
+
         if password:
             instance.set_password(password)
-            
-        tipos = validated_data.pop('tipos_servico', None)
+            instance.save(update_fields=['password'])
+
         if tipos is not None:
             instance.tipos_servico.set(tipos)
-            
+
+        # O ModelSerializer lida com o restante dos campos (name, celular, is_active)
         return super().update(instance, validated_data)
 
 class ServicePendencySerializer(serializers.ModelSerializer):

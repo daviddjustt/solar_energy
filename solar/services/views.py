@@ -1,7 +1,12 @@
 import os
+import logging
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -22,6 +27,10 @@ from solar.documents.views import (
     AbstractDocumentDownloadView, AbstractDocumentDownloadAllView
 )
 
+from solar.users.models import UserChangeLog
+from solar.users.serializers import UserSerializer
+from solar.users.permissions import GeneralUserThrottle
+
 # Integrando as notificações refatoradas em tempo real (WebSocket + E-mail)
 from solar.notifications.services import (
     notificar_nova_solicitacao,
@@ -33,45 +42,98 @@ from solar.notifications.services import (
 )
 
 from django.contrib.auth import get_user_model
+logger = logging.getLogger(__name__)
+
 User = get_user_model()
+
+class IsAdminOrSuperuser(permissions.BasePermission):
+    """Permite acesso apenas a superusuários ou usuários com is_admin=True."""
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and (request.user.is_superuser or getattr(request.user, 'is_admin', False)))
+
+
 class ExternalUserViewSet(viewsets.ModelViewSet):
     """
-    CRUD de Usuários Externos (Exclusivo Admin). RF-05.
+    CRUD completo para gerenciamento de Parceiros Externos.
+    Acesso restrito a administradores.
     """
     serializer_class = ExternalUserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAdminOrSuperuser]
+    throttle_classes = [GeneralUserThrottle]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return User.objects.none()
-        return User.objects.filter(is_externo=True)
+        return User.objects.filter(is_externo=True).prefetch_related('tipos_servico').order_by('name')
 
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        # RF-05: Apenas admins
-        if not (request.user.is_superuser or getattr(request.user, 'is_admin', False)):
-            raise PermissionDenied("Acesso exclusivo a administradores.")
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
-    @transaction.atomic
-    def perform_create(self, serializer):
-        user = self.request.user
-        
-        # Bloqueio corrigido incluindo o técnico (P1-6)
-        if getattr(user, 'is_externo', False) or getattr(user, 'is_tecnico', False):
-            raise PermissionDenied("Apenas Admins podem criar solicitações de serviço.")
+    def create(self, request, *args, **kwargs):
+        try:
+            logger.info(f"Tentativa de criação de usuário externo: {request.data.get('email')} por {request.user.email}")
+            response = super().create(request, *args, **kwargs)
+            logger.info(f"Usuário externo criado com sucesso: {request.data.get('email')}")
+            
+            # TODO (Opcional): Disparar e-mail de boas-vindas aqui
+            # user_criado = User.objects.get(email=request.data.get('email'))
+            # EmailService.send_welcome_email(user_criado, plain_password=request.data.get('password'))
+            
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao criar usuário externo: {str(e)}", exc_info=True)
+            return Response(
+                {'error': 'Erro ao criar usuário externo', 'detail': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-    # Bloqueio para evitar que o cliente edite ou apague a solicitação (P1-8)
-    def perform_update(self, serializer):
-        user = self.request.user
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
-        if not is_equipe:
-            raise PermissionDenied("Clientes não podem editar dados após o envio.")
-        serializer.save()
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        original_instance_values = {field: getattr(instance, field, None) for field in request.data.keys()}
 
-    def perform_destroy(self, instance):
-        if not (self.request.user.is_superuser or getattr(self.request.user, 'is_admin', False)):
-            raise PermissionDenied("Apenas administradores podem apagar solicitações.")
-        instance.delete()
+        response = super().update(request, *args, **kwargs)
+
+        if status.is_success(response.status_code):
+            instance.refresh_from_db()
+            
+            # Reaproveitamento da lógica de auditoria da CustomUserViewSet
+            fields_to_log_manually = ['name', 'celular', 'cpf', 'is_active', 'email']
+            for field_name in request.data.keys():
+                if field_name in fields_to_log_manually:
+                    old_value = original_instance_values.get(field_name)
+                    current_saved_value = getattr(instance, field_name, None)
+
+                    old_val_str = str(old_value) if old_value is not None else ''
+                    new_val_str = str(current_saved_value) if current_saved_value is not None else ''
+
+                    if old_val_str != new_val_str:
+                        try:
+                            UserChangeLog.objects.create(
+                                user=instance,
+                                changed_by=request.user,
+                                field_name=field_name,
+                                old_value=old_val_str,
+                                new_value=new_val_str
+                            )
+                        except Exception as log_exc:
+                            logger.error(f"Erro ao registrar UserChangeLog: {log_exc}")
+
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            logger.warning(f"Deletando usuário externo: {instance.email} por admin {request.user.email}")
+            response = super().destroy(request, *args, **kwargs)
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao deletar usuário externo {instance.email}: {str(e)}")
+            return Response(
+                {'error': 'Erro ao deletar usuário externo'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
