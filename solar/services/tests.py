@@ -26,7 +26,7 @@ class ExternalUserCreationTestCase(APITestCase):
             cpf='11111111111'
         )
         
-        # 3. Criar um Serviço para vincular ao Externo
+        # 3. Criar um Serviço (Módulo Novo) para vincular ao Parceiro Externo
         self.tipo_servico = ServiceType.objects.create(
             codigo="ligacao_nova", 
             nome="Ligação Nova", 
@@ -35,12 +35,13 @@ class ExternalUserCreationTestCase(APITestCase):
             ativo=True
         )
         
-        # URL do router (caso tenha registrado como external-users sem basename explícito, o DRF cria 'user-list')
-        # Ajuste a URL abaixo se o seu basename for diferente
-        self.url = '/api/v1/users/external-users/'
+        # 💡 SOLUÇÃO DO ERRO 301:
+        # Usa o 'reverse' do Django para pegar a URL exata registada no Router,
+        # evitando falhas de trailing slash (barra no final)
+        self.url = reverse('external-user-list')
         
     def test_admin_consegue_criar_usuario_externo(self):
-        """Testa se o Admin cria o usuário e se as flags são forçadas corretamente."""
+        """Testa se o Admin cria o parceiro externo (vinculando serviços) e se as flags são forçadas."""
         self.client.force_authenticate(user=self.admin)
         
         payload = {
@@ -49,28 +50,30 @@ class ExternalUserCreationTestCase(APITestCase):
             "celular": "79999999999",
             "cpf": "12345678901",
             "password": "SenhaForte123!",
+            # Testando a vinculação com o novo módulo de serviços
             "tipos_servico": [self.tipo_servico.id]
         }
         
         response = self.client.post(self.url, payload, format='json')
         
-        # Verifica se criou com sucesso
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # O parâmetro response.data no assertEqual imprimirá o motivo exato caso falhe
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         
         # Busca o usuário criado no banco
         created_user = User.objects.get(email="parceiro@teste.com")
         
-        # Verifica se as regras do Proxy Model foram aplicadas
+        # Verifica se as regras do Proxy Model (is_externo) foram aplicadas e o resto desativado
         self.assertTrue(created_user.is_externo)
         self.assertFalse(created_user.is_cliente)
         self.assertFalse(created_user.is_admin)
         self.assertFalse(created_user.is_tecnico)
         self.assertFalse(created_user.is_pessoa_juridica)
         
-        # Verifica se o serviço foi vinculado
+        # Verifica se o serviço do novo módulo de serviços foi vinculado com sucesso
         self.assertIn(self.tipo_servico, created_user.tipos_servico.all())
+        self.assertEqual(created_user.tipos_servico.count(), 1)
         
-        # Verifica se a senha foi salva corretamente (não pode ser texto puro)
+        # Verifica criptografia
         self.assertNotEqual(created_user.password, "SenhaForte123!")
         self.assertTrue(created_user.check_password("SenhaForte123!"))
 
@@ -87,5 +90,4 @@ class ExternalUserCreationTestCase(APITestCase):
         
         response = self.client.post(self.url, payload, format='json')
         
-        # Deve retornar 403 Forbidden
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
