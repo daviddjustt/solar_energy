@@ -3,7 +3,26 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 
+from solar.users.models import User
 from solar.documents.models import BaseModel, AbstractDocument 
+
+class Externo(User):
+    """
+    Perfil de usuário Parceiro Externo (Executores).
+    Acesso restrito ao módulo de serviços.
+    """
+    class Meta:
+        proxy = True
+        verbose_name = 'Parceiro Externo'
+        verbose_name_plural = 'Parceiros Externos'
+
+    def save(self, *args, **kwargs):
+        self.is_admin = False
+        self.is_tecnico = False
+        self.is_cliente = False
+        self.is_externo = True
+        
+        super().save(*args, **kwargs)
 
 class ServiceType(BaseModel):
     codigo = models.SlugField("Código", max_length=50, unique=True)

@@ -48,6 +48,7 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
 
     def check_permissions(self, request):
         super().check_permissions(request)
+        # RF-05: Apenas admins
         if not (request.user.is_superuser or getattr(request.user, 'is_admin', False)):
             raise PermissionDenied("Acesso exclusivo a administradores.")
 

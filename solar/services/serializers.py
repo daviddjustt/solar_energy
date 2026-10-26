@@ -89,10 +89,60 @@ class ServiceTypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ExternalUserSerializer(serializers.ModelSerializer):
+    """
+    Serializer dedicado à gestão de Usuários Externos pelo Admin. (P1-9)
+    Expõe apenas campos explícitos e trata a password em segurança.
+    """
+    password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    tipos_servico = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=ServiceType.objects.all(),
+        required=False
+    )
+
     class Meta:
         model = User
-        fields = "__all__"
-        # Pode querer definir read_only para certos campos do core user se necessário
+        fields = [
+            'uuid', 'name', 'email', 'celular', 'cpf', 
+            'is_active', 'tipos_servico', 'password'
+        ]
+
+    def create(self, validated_data):
+        # Garante que as flags são setadas corretamente (P1-9)
+        password = validated_data.pop('password', None)
+        validated_data['is_externo'] = True
+        validated_data['is_cliente'] = False
+        validated_data['is_admin'] = False
+        validated_data['is_tecnico'] = False
+        
+        tipos = validated_data.pop('tipos_servico', [])
+        
+        # Aproveita o UserManager existente para tratar a criação e normalização
+        user = User.objects.create_user(**validated_data)
+        
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+            
+        if tipos:
+            user.tipos_servico.set(tipos)
+            
+        return user
+
+    def update(self, instance, validated_data):
+        # Proteção extra: não permite tirar a flag de externo por este endpoint
+        validated_data.pop('is_externo', None)
+        validated_data.pop('is_cliente', None)
+        
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+            
+        tipos = validated_data.pop('tipos_servico', None)
+        if tipos is not None:
+            instance.tipos_servico.set(tipos)
+            
+        return super().update(instance, validated_data)
 
 class ServicePendencySerializer(serializers.ModelSerializer):
     """

@@ -218,6 +218,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         group_cliente, _ = Group.objects.get_or_create(name='Clientes')
         group_pf, _ = Group.objects.get_or_create(name='Clientes PF')
         group_pj, _ = Group.objects.get_or_create(name='Clientes PJ')
+        group_externo, _ = Group.objects.get_or_create(name='Externos')
 
         # 2. Sincroniza o perfil Administrador
         if self.is_admin or self.is_superuser:
@@ -230,6 +231,12 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.groups.add(group_tecnico)
         else:
             self.groups.remove(group_tecnico)
+
+        # Sincroniza o perfil Externo
+        if self.is_externo:
+            self.groups.add(group_externo)
+        else:
+            self.groups.remove(group_externo)
 
         # 4. Sincroniza o perfil Cliente e ramificações PF/PJ
         if self.is_cliente:

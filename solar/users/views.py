@@ -115,6 +115,9 @@ class FilteredUserListView(APIView):
         elif user_type == 'tecnico':
             # Filtra por associação ao grupo 'Tecnicos'
             queryset = queryset.filter(groups__name='Tecnicos')
+        elif user_type == 'externo':
+            # Filtra por associação ao grupo 'Externos'
+            queryset = queryset.filter(groups__name='Externos')
         else:
             return Response(
                 {"detail": "Tipo de usuário inválido. Use 'admin', 'cliente' ou 'tecnico'."},
