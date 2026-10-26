@@ -22,6 +22,7 @@ router.register(r'service-observations', ServiceObservationViewSet, basename='se
 router.register(r'service-status-history', ServiceStatusHistoryViewSet, basename='service-status-history')
 router.register(r'external-users', ExternalUserViewSet, basename='external-users')
 
+
 # Nested Routers para Anexos e Pendências
 services_router = routers.NestedSimpleRouter(router, r'services-view', lookup='service')
 services_router.register(r'attachments', ServiceAttachmentViewSet, basename='service-attachments')

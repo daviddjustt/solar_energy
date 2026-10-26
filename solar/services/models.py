@@ -74,7 +74,7 @@ class ServiceRequest(BaseModel):
     telefone_contato = models.CharField("Telefone de Contato", max_length=20, blank=True, null=True)
     ponto_referencia_1 = models.CharField("Ponto de Referência 1", max_length=255, blank=True, null=True)
     ponto_referencia_2 = models.CharField("Ponto de Referência 2", max_length=255, blank=True, null=True)
-    necessita_obra_rede = models.BooleanField("Necessita obra na rede?", default=False)
+    necessita_obra_rede = models.BooleanField("Necessita obra na rede?")
     observacoes = models.TextField("Observações Iniciais", blank=True, null=True)
 
     # Fluxo

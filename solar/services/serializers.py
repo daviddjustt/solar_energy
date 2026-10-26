@@ -4,21 +4,22 @@ from solar.users.models import User  # Importe o modelo de utilizador correto
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from solar.documents.serializers import AbstractDocumentUploadSerializer, AbstractPaymentDocumentSerializer
-from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory
+from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory, ServiceUnit
 
 User = get_user_model()
 
 class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
     service = serializers.PrimaryKeyRelatedField(read_only=True)
     enviado_por_nome = serializers.CharField(source='enviado_por.get_full_name', read_only=True)
+    status = serializers.CharField(required=False)
 
     class Meta(AbstractDocumentUploadSerializer.Meta):
         model = ServiceAttachment
         fields = AbstractDocumentUploadSerializer.Meta.fields + [
             'service', 'categoria', 'enviado_por', 'enviado_por_nome',
-            'pendencia', 'unidade'
+            'pendencia', 'unidade', 'status',
         ]
-        read_only_fields = AbstractDocumentUploadSerializer.Meta.read_only_fields + ['enviado_por', 'status']
+        read_only_fields = AbstractDocumentUploadSerializer.Meta.read_only_fields + ['enviado_por']
         download_endpoint_name = 'api:service-attachment-download'
         parent_lookup_field = 'service_id'
 
@@ -156,6 +157,10 @@ class ExternalUserSerializer(serializers.ModelSerializer):
         # O ModelSerializer lida com o restante dos campos (name, celular, is_active)
         return super().update(instance, validated_data)
 
+class ServiceUnitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceUnit
+        fields = '__all__'
 class ServicePendencySerializer(serializers.ModelSerializer):
     """
     Serializer para gestão de Pendências Nomeadas no módulo de Serviços.
@@ -238,7 +243,7 @@ class ServiceObservationSerializer(serializers.ModelSerializer):
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
     tipo_detalhe = ServiceTypeSerializer(source='tipo', read_only=True)
-
+    unidades = ServiceUnitSerializer(many=True, required=False, read_only=True)
     class Meta:
         model = ServiceRequest
         # Campos que o utilizador não pode preencher/alterar manualmente:

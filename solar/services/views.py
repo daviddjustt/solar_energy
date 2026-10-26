@@ -193,7 +193,8 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def alterar_status(self, request, pk=None):
         """
-        Transição controlada de status com registro de histórico e notificação WebSocket.
+        Transição controlada de status com registro de histórico, notificação WebSocket
+        e gravação de campos de resultado.
         """
         service = self.get_object()
         user = request.user
@@ -206,32 +207,54 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Você não tem permissão para alterar o status desta solicitação.")
 
         novo_status = request.data.get('status')
-        motivo_reprova = request.data.get('motivo_reprova')
         status_antigo = service.status
 
-        if novo_status == 'REPROVADO' and not motivo_reprova:
+        # 1. Validação de integridade do Status
+        if novo_status not in [c[0] for c in ServiceRequest.StatusChoices.choices]:
+            raise ValidationError({'status': 'Status inválido ou não informado.'})
+
+        # 2. Regra de Negócio: Reprovação exige motivo
+        motivo_reprova = request.data.get('motivo_reprova')
+        if novo_status == ServiceRequest.StatusChoices.REPROVADO and not motivo_reprova:
             raise ValidationError({'motivo_reprova': 'É obrigatório fornecer o motivo da reprovação.'})
 
+        # 3. Aplica o Status e Motivo base
         service.status = novo_status
         if motivo_reprova:
             service.motivo_reprova = motivo_reprova
 
-        # Se for para 'REALIZANDO', registra o executor
-        if novo_status == 'REALIZANDO' and not service.executor:
+        # 4. Regra de Negócio: Define o executor quando entra em realização (P1-7)
+        if novo_status == ServiceRequest.StatusChoices.REALIZANDO and not service.executor:
             service.executor = user
+
+        # 5. Regra de Negócio: Recolha de campos de resultado na Conclusão (P1-7)
+        if novo_status in [ServiceRequest.StatusChoices.CONCLUIDO, ServiceRequest.StatusChoices.SERVICO_SOLICITADO]:
+            # Grava os campos que vierem no request (se existirem, caso contrário mantém os originais)
+            service.protocolo = request.data.get('protocolo', service.protocolo)
+            service.uc_resultado = request.data.get('uc_resultado', service.uc_resultado)
+            
+            # Formata a data se for enviada
+            prazo = request.data.get('prazo_concessionaria')
+            if prazo:
+                service.prazo_concessionaria = prazo
+                
+            service.nota = request.data.get('nota', service.nota)
+            service.carga = request.data.get('carga', service.carga)
+            service.tensao_nominal = request.data.get('tensao_nominal', service.tensao_nominal)
+            service.potencia_transformador = request.data.get('potencia_transformador', service.potencia_transformador)
 
         service.save()
 
-        # Registro no histórico
-        ServiceStatusHistory.objects.create(
-            service=service,
-            changed_by=user,
-            old_status=status_antigo,
-            new_status=novo_status
-        )
-
-        # Disparo da notificação em tempo real via WebSocket
-        notificar_mudanca_status(service)
+        # Registro no histórico (Apenas se o status realmente mudou)
+        if status_antigo != novo_status:
+            ServiceStatusHistory.objects.create(
+                service=service,
+                changed_by=user,
+                old_status=status_antigo,
+                new_status=novo_status
+            )
+            # Disparo da notificação em tempo real via WebSocket
+            notificar_mudanca_status(service)
 
         return Response(self.get_serializer(service).data, status=status.HTTP_200_OK)
 
@@ -326,49 +349,13 @@ class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        instance = self.get_object()
-        service = instance.service
-        user_request = self.request.user
-
-        self.check_read_permission(service)
-        novo_status = serializer.validated_data.get('status', instance.status)
-
-        # Se for reenvio feito pelo cliente
-        if getattr(user_request, 'is_cliente', False):
-            if 'arquivo' in serializer.validated_data:
-                updated_instance = serializer.save(status=ServiceAttachment.STATUS_IN_ANALYSIS)
-            else:
-                updated_instance = serializer.save()
-        else:
-            # Equipe / Admin alterando o status da análise do documento
-            if novo_status == ServiceAttachment.STATUS_APPROVED:
-                updated_instance = serializer.save(approved_at=timezone.now())
-                if instance.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
-                    service.payment_status = 'PAGO'
-                    service.save(update_fields=['payment_status'])
-
-            elif novo_status == ServiceAttachment.STATUS_REJECTED:
-                motivo = serializer.validated_data.get('rejection_reason')
-                if not motivo:
-                    raise ValidationError({'rejection_reason': 'O motivo da rejeição é obrigatório.'})
-
-                updated_instance = serializer.save()
-                if instance.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
-                    service.payment_status = 'PENDENTE'
-                    service.save(update_fields=['payment_status'])
-
-                # Notifica o cliente via WebSocket sobre a rejeição
-                notificar_documento_rejeitado_servico(
-                    service=service,
-                    nome_documento=updated_instance.document_name or updated_instance.get_categoria_display(),
-                    motivo=motivo
-                )
-            else:
-                updated_instance = serializer.save()
+        if getattr(self.request.user, 'is_cliente', False):
+            raise PermissionDenied("Não é possível alterar a solicitação após o envio.")
+        serializer.save()
 
     def perform_destroy(self, instance):
         if getattr(self.request.user, 'is_cliente', False):
-            raise PermissionDenied("Clientes não podem remover anexos do sistema.")
+            raise PermissionDenied("Clientes não podem apagar solicitações.")
         instance.delete()
 
 class ServicePendencyViewSet(viewsets.ModelViewSet):
@@ -379,12 +366,29 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Adicionar filtro de segurança, atualmente qualquer pessoa pode ver pendências alheias
         service_pk = self.kwargs.get('service_pk')
         if getattr(self, "swagger_fake_view", False) or not service_pk:
             return ServicePendency.objects.none()
 
         service = get_object_or_404(ServiceRequest, pk=service_pk)
+        
+        # Bloquear cliente se a solicitação não for dele
+        user = self.request.user
+        if getattr(user, 'is_cliente', False) and service.solicitante != user:
+            return ServicePendency.objects.none()
+
         return ServicePendency.objects.filter(service=service).order_by('-created_at')
+
+    def perform_update(self, serializer):
+        if getattr(self.request.user, 'is_cliente', False):
+            raise PermissionDenied("Clientes não podem alterar o estado das pendências.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if getattr(self.request.user, 'is_cliente', False):
+            raise PermissionDenied("Clientes não podem apagar pendências.")
+        instance.delete()
 
     @transaction.atomic
     def perform_create(self, serializer):
