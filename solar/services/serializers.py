@@ -11,15 +11,18 @@ User = get_user_model()
 class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
     service = serializers.PrimaryKeyRelatedField(read_only=True)
     enviado_por_nome = serializers.CharField(source='enviado_por.get_full_name', read_only=True)
-    status = serializers.CharField(required=False)
+    
+    # R3b: Forçamos a validação de status pelas opções do modelo para fechar a brecha de segurança.
+    status = serializers.ChoiceField(choices=ServiceAttachment.STATUS_CHOICES, required=False)
+    rejection_reason = serializers.CharField(required=False, allow_blank=True)
 
     class Meta(AbstractDocumentUploadSerializer.Meta):
         model = ServiceAttachment
         fields = AbstractDocumentUploadSerializer.Meta.fields + [
             'service', 'categoria', 'enviado_por', 'enviado_por_nome',
-            'pendencia', 'unidade', 'status',
+            'pendencia', 'unidade', 'status', 'rejection_reason'
         ]
-        read_only_fields = AbstractDocumentUploadSerializer.Meta.read_only_fields + ['enviado_por']
+        read_only_fields = AbstractDocumentUploadSerializer.Meta.read_only_fields + ['enviado_por', 'approved_at']
         download_endpoint_name = 'api:service-attachment-download'
         parent_lookup_field = 'service_id'
 
@@ -36,31 +39,25 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
         if not service:
             raise serializers.ValidationError("Serviço não identificado.")
 
-        # --- RF-03 / REGRAS DE MATRIZ DE PERMISSÃO DE CATEGORIAS ---[cite: 10]
         categorias_cliente = ['SOLICITACAO', 'PENDENCIA_CLIENTE', 'COMPROVANTE_PAGAMENTO']
         categorias_equipe = ['PENDENCIA_EQUIPE', 'OBSERVACAO', 'RESULTADO', 'BOLETO']
 
         is_cliente = getattr(user, 'is_cliente', False) and not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False))
         
+        # Bloqueia criação/edição de categorias indevidas pelo cliente
         if is_cliente and categoria not in categorias_cliente:
             raise serializers.ValidationError({'categoria': f"Clientes não podem enviar arquivos da categoria '{categoria}'."})
 
-        if not is_cliente and categoria not in categorias_equipe:
+        # R3: Apenas valida a categoria da equipa na CRIAÇÃO (not self.instance).
+        if not is_cliente and not self.instance and categoria not in categorias_equipe:
             raise serializers.ValidationError({'categoria': f"A equipe não pode enviar arquivos da categoria '{categoria}'."})
 
-        # --- REGRA DE REENVIO DO CLIENTE ---[cite: 10]
+        # REGRA DE REENVIO DO CLIENTE
         if self.instance and is_cliente:
             if self.instance.status != ServiceAttachment.STATUS_REJECTED:
                 raise serializers.ValidationError("Clientes só podem reenviar anexos que foram explicitamente rejeitados.")
-
-        # --- COMPROVANTE SEM BOLETO (PIX) vs COM BOLETO ---[cite: 10]
-        if categoria == 'COMPROVANTE_PAGAMENTO':
-            related_payment = data.get('related_payment_document')
-            if related_payment:
-                if related_payment.categoria != 'BOLETO':
-                    raise serializers.ValidationError({'related_payment_document': 'O documento vinculado deve ser um Boleto.'})
-                if related_payment.service_id != service.id:
-                    raise serializers.ValidationError({'related_payment_document': 'O boleto deve pertencer à mesma solicitação de serviço.'})
+            if 'status' in data or 'rejection_reason' in data:
+                raise serializers.ValidationError("Clientes não podem alterar o status de aprovação.")
 
         return data
 
@@ -161,6 +158,7 @@ class ServiceUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceUnit
         fields = '__all__'
+
 class ServicePendencySerializer(serializers.ModelSerializer):
     """
     Serializer para gestão de Pendências Nomeadas no módulo de Serviços.
@@ -204,37 +202,14 @@ class ServicePendencySerializer(serializers.ModelSerializer):
         return value
 
 class ServiceObservationSerializer(serializers.ModelSerializer):
-    """
-    Serializer para gestão de Observações Livres no módulo de Serviços.
-    Permite o registo de notas pela equipa e executores externos,
-    exibindo a autoria e os anexos vinculados.
-    """
     service = serializers.PrimaryKeyRelatedField(read_only=True)
     autor = serializers.PrimaryKeyRelatedField(read_only=True)
     autor_nome = serializers.CharField(source='autor.get_full_name', read_only=True)
     
-    # Exibe a lista de anexos associados a esta observação (se houver)
-    anexos = ServiceAttachmentSerializer(many=True, read_only=True)
-
     class Meta:
         model = ServiceObservation
-        fields = [
-            'id',
-            'service',
-            'autor',
-            'autor_nome',
-            'texto',
-            'anexos',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = [
-            'id',
-            'service',
-            'autor',
-            'created_at',
-            'updated_at',
-        ]
+        fields = ['id', 'service', 'autor', 'autor_nome', 'texto', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'service', 'autor', 'created_at', 'updated_at']
 
     def validate_texto(self, value):
         if not value or not value.strip():
@@ -243,24 +218,14 @@ class ServiceObservationSerializer(serializers.ModelSerializer):
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
     tipo_detalhe = ServiceTypeSerializer(source='tipo', read_only=True)
-    unidades = ServiceUnitSerializer(many=True, required=False, read_only=True)
+    unidades = ServiceUnitSerializer(many=True, required=False, read_only=True) # R7: Unidades expostas
+
     class Meta:
         model = ServiceRequest
-        # Campos que o utilizador não pode preencher/alterar manualmente:
-        read_only_fields = [
-            'solicitante', 
-            'status', 
-            'executor', 
-            'valor_cobrado', 
-            'payment_status',
-            'motivo_reprova'
-        ]
+        read_only_fields = ['solicitante', 'status', 'executor', 'valor_cobrado', 'payment_status', 'motivo_reprova']
         fields = '__all__'
 
     def create(self, validated_data):
-        # O valor do serviço é copiado para a solicitação no momento da abertura.
-        # Isto garante que mudanças de preço futuras não alterem pedidos antigos.
         tipo = validated_data['tipo']
         validated_data['valor_cobrado'] = tipo.valor
-        
         return super().create(validated_data)

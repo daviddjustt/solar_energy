@@ -101,41 +101,47 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
         return
 
     try:
+        # PASSO A: Preparar a lista de notificações
+        notificacoes_para_criar = [
+            Notification(
+                project=projeto,
+                service=service,
+                sender=sender,
+                recipient=user,
+                title=title,
+                message=message,
+                category=category
+            )
+            for user in destinatarios if user
+        ]
+
+        # Inicia a transação com o banco de dados
         with transaction.atomic():
-            # PASSO A: Salvar no Banco
-            notificacoes_para_criar = [
-                Notification(
-                    project=projeto,
-                    service=service,
-                    sender=sender,
-                    recipient=user,
-                    title=title,
-                    message=message,
-                    category=category
-                )
-                for user in destinatarios if user
-            ]
+            # Grava no banco de dados primeiro
             Notification.objects.bulk_create(notificacoes_para_criar)
 
-            # PASSO B: Disparar E-mail
-            if email_data and emails_destino:
-                sucesso_email = _enviar_email_template(
-                    to_emails=emails_destino,
-                    subject=email_data['subject'],
-                    template_name=email_data['template'],
-                    context=email_data['context']
-                )
-                if not sucesso_email:
-                    raise Exception("Rollback ativado: Falha no envio de e-mail.")
+            # Define o que vai acontecer DEPOIS que o banco salvar
+            def disparar_alertas():
+                # PASSO B: Disparar E-mail (agora não cancela o banco se falhar)
+                if email_data and emails_destino:
+                    _enviar_email_template(
+                        to_emails=emails_destino,
+                        subject=email_data['subject'],
+                        template_name=email_data['template'],
+                        context=email_data['context']
+                    )
 
-        # PASSO C: WebSocket
-        for g_name in set(group_names):
-            _enviar_payload_websocket(g_name, title, message, url)
+                # PASSO C: Disparar WebSocket
+                for g_name in set(group_names):
+                    _enviar_payload_websocket(g_name, title, message, url)
+
+            # Diz ao Django para rodar a função "disparar_alertas" apenas quando o commit acabar
+            transaction.on_commit(disparar_alertas)
         
-        logger.info(f"Notificação '{category}' enviada com sucesso para {publico_alvo}.")
+        logger.info(f"Notificação '{category}' registrada com sucesso para {publico_alvo}.")
 
     except Exception as e:
-        logger.error(f"Notificação abortada. Motivo: {str(e)}")
+        logger.error(f"Notificação abortada no banco de dados. Motivo: {str(e)}")
 
 
 # ==============================================================================
