@@ -14,7 +14,8 @@ from solar.services.models import (
 from solar.services.serializers import (
     ServiceRequestSerializer, ServiceAttachmentSerializer,
     ServicePendencySerializer, ServiceTypeSerializer,
-    ServicePaymentDocumentSerializer, ServiceObservationSerializer, ServiceStatusHistorySerializer
+    ServicePaymentDocumentSerializer, ServiceObservationSerializer, ServiceStatusHistorySerializer,
+    ExternalUserSerializer
 )
 from solar.documents.views import (
     AbstractDocumentListViewSet, AbstractPaymentDocumentView,
@@ -30,6 +31,46 @@ from solar.notifications.services import (
     notificar_boleto_anexado_servico,
     notificar_comprovante_anexado_servico
 )
+
+from django.contrib.auth import get_user_model
+User = get_user_model()
+class ExternalUserViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de Usuários Externos (Exclusivo Admin). RF-05.
+    """
+    serializer_class = ExternalUserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return User.objects.none()
+        return User.objects.filter(is_externo=True)
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not (request.user.is_superuser or getattr(request.user, 'is_admin', False)):
+            raise PermissionDenied("Acesso exclusivo a administradores.")
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        user = self.request.user
+        
+        # Bloqueio corrigido incluindo o técnico (P1-6)
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user.is_superuser:
+            raise PermissionDenied("Apenas clientes podem criar solicitações de serviço.")
+
+    # Bloqueio para evitar que o cliente edite ou apague a solicitação (P1-8)
+    def perform_update(self, serializer):
+        user = self.request.user
+        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        if not is_equipe:
+            raise PermissionDenied("Clientes não podem editar dados após o envio.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not (self.request.user.is_superuser or getattr(self.request.user, 'is_admin', False)):
+            raise PermissionDenied("Apenas administradores podem apagar solicitações.")
+        instance.delete()
 
 class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -72,8 +113,8 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         
-        # RF-06: Apenas o cliente pode abrir solicitações
-        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or user.is_superuser:
+        # Bloqueio corrigido incluindo o técnico (P1-6)
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user.is_superuser:
             raise PermissionDenied("Apenas clientes podem criar solicitações de serviço.")
 
         service_type = serializer.validated_data.get('tipo')

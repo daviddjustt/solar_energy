@@ -27,6 +27,7 @@ class ServiceRequest(BaseModel):
         PENDENCIAS = 'PENDENCIAS', 'Pendências'
         CONCLUIDO = 'CONCLUIDO', 'Concluído'
         REPROVADO = 'REPROVADO', 'Reprovado'
+        SERVICO_SOLICITADO = 'SERVICO_SOLICITADO', 'Serviço Solicitado'
 
     class PaymentStatusChoices(models.TextChoices):
         PENDENTE = 'PENDENTE', 'Pendente'
