@@ -36,9 +36,9 @@ from solar.notifications.services import (
     notificar_nova_solicitacao,
     notificar_mudanca_status,
     notificar_pendencia,
-    notificar_documento_rejeitado_servico,
     notificar_boleto_anexado_servico,
-    notificar_comprovante_anexado_servico
+    notificar_comprovante_anexado_servico,
+    notificar_criacao_usuario_externo
 )
 
 from django.contrib.auth import get_user_model
@@ -74,12 +74,17 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         try:
             logger.info(f"Tentativa de criação de usuário externo: {request.data.get('email')} por {request.user.email}")
+            
+            # 1. Cria o usuário
             response = super().create(request, *args, **kwargs)
             logger.info(f"Usuário externo criado com sucesso: {request.data.get('email')}")
             
-            # TODO (Opcional): Disparar e-mail de boas-vindas aqui
-            # user_criado = User.objects.get(email=request.data.get('email'))
-            # EmailService.send_welcome_email(user_criado, plain_password=request.data.get('password'))
+            # 2. Busca o utilizador no banco e captura a senha do payload
+            user_criado = User.objects.get(email=request.data.get('email'))
+            senha_provisoria = request.data.get('password')
+            
+            # 3. Dispara a notificação via WebSocket e o e-mail de boas-vindas
+            notificar_criacao_usuario_externo(user_criado, senha_provisoria)
             
             return response
         except Exception as e:

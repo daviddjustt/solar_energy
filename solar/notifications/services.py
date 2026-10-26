@@ -75,6 +75,7 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
             destinatarios = [usuario_alvo]
             emails_destino = [usuario_alvo.email] if usuario_alvo.email else []
             group_names = [f'user_notifications_{usuario_alvo.pk}']
+
             
     elif publico_alvo == 'admins':
         destinatarios = list(User.objects.filter(is_admin=True))
@@ -167,6 +168,27 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
             'subject': f"[SERVIÇO] Nova Solicitação #{service.id} - {nome_tipo}",
             'template': 'email/service/nova_solicitacao.html',
             'context': {'service': service, 'prazo': prazo}
+        }
+
+    elif evento == 'usuario_externo_criado':
+        publico_alvo = 'cliente' # O roteador envia para 'cliente_direto'
+        category = "ACESSO_LIBERADO"
+        title = "Acesso de Parceiro Liberado"
+        message = "O seu perfil de Parceiro Executor foi criado e o acesso está liberado."
+        url = "/servicos/"
+        
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://www.sntecsolar.com.br/login')
+        
+        email_data = {
+            'subject': "Bem-vindo à equipe parceira da SN Solar Tech!",
+            'template': 'email/admin/novo_usuario_externo.html',
+            'context': {
+                'nome_usuario': cliente_direto.get_short_name() if cliente_direto else "Parceiro",
+                'email': cliente_direto.email if cliente_direto else "",
+                'senha_provisoria': context.get('senha_provisoria'),
+                'servicos_habilitados': cliente_direto.tipos_servico.all() if cliente_direto else [],
+                'url_painel': f"{frontend_url}/login/"
+            }
         }
 
     elif evento == 'servico_status_alterado':
@@ -430,6 +452,16 @@ def notify_boleto_added(projeto, documento):
 
 def notify_project_status_changed(projeto, status_antigo, status_novo):
     _construir_mensagem_notificacao(projeto=projeto, evento='status_projeto_alterado', context={'status_antigo': status_antigo, 'status_novo': status_novo})
+
+# Informar o usuário externo do acesso liberado e enviar senha provisória
+def notificar_criacao_usuario_externo(usuario, senha_provisoria):
+    """
+    Notifica o parceiro externo recém-criado, enviando o e-mail com as credenciais.
+    """
+    _construir_mensagem_notificacao(
+        evento='usuario_externo_criado', 
+        context={'cliente': usuario, 'senha_provisoria': senha_provisoria}
+    )
 
 # --- Sem projeto atrelado, apenas user ---
 def notify_user_boleto_added(cliente, documento):
