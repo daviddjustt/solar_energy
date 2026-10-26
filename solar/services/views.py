@@ -9,11 +9,11 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from solar.services.models import (
     ServiceRequest, ServiceAttachment, ServicePendency, 
-    ServiceObservation, ServiceStatusHistory
+    ServiceObservation, ServiceStatusHistory, ServiceType
 )
 from solar.services.serializers import (
     ServiceRequestSerializer, ServiceAttachmentSerializer,
-    ServicePendencySerializer, ServiceObservationSerializer,
+    ServicePendencySerializer, ServiceTypeSerializer,
     ServicePaymentDocumentSerializer
 )
 from solar.documents.views import (
@@ -116,6 +116,54 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
         return Response(self.get_serializer(service).data, status=status.HTTP_200_OK)
 
+class ServiceTypeViewSet(viewsets.ModelViewSet):
+    """
+    Gestão do Catálogo de Tipos de Serviço (Tabela de Preços e Prazos).
+    """
+    serializer_class = ServiceTypeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # Desativa a paginação para devolver a lista completa para o frontend de uma vez
+
+    def get_queryset(self):
+        """
+        Admins vêm tudo (para poderem reativar inativos).
+        Clientes e Externos só veem serviços ativos.
+        """
+        if getattr(self, "swagger_fake_view", False):
+            return ServiceType.objects.none()
+
+        user = self.request.user
+        
+        # Apenas superusers e administradores veem todos os registos
+        if user.is_superuser or getattr(user, 'is_admin', False):
+            return ServiceType.objects.all().order_by('nome')
+            
+        # O resto do sistema (Clientes, Externos, Técnicos) só vê os que estão disponíveis
+        return ServiceType.objects.filter(ativo=True).order_by('nome')
+
+    def _check_admin_write_permission(self):
+        """Helper para bloquear escrita a não-administradores."""
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, 'is_admin', False)):
+            raise PermissionDenied("Acesso restrito: Apenas administradores podem criar ou alterar os Tipos de Serviço.")
+
+    def perform_create(self, serializer):
+        self._check_admin_write_permission()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._check_admin_write_permission()
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Bloqueia a exclusão física do banco de dados (DELETE) para não quebrar
+        solicitações antigas que dependem do ServiceType.
+        """
+        raise PermissionDenied(
+            "A exclusão de tipos de serviço é bloqueada por segurança. "
+            "Para retirar um serviço de circulação, edite-o e altere o campo 'ativo' para falso."
+        )
 
 class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
     """
@@ -204,7 +252,6 @@ class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
             raise PermissionDenied("Clientes não podem remover anexos do sistema.")
         instance.delete()
 
-
 class ServicePendencyViewSet(viewsets.ModelViewSet):
     """
     Gerenciamento de pendências nomeadas abertas pela equipe.
@@ -239,7 +286,6 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
         # Dispara notificação no sino e WebSocket do cliente
         notificar_pendencia(service, pendencia.titulo)
 
-
 class ServicePaymentDocumentView(AbstractPaymentDocumentView):
     model = ServiceAttachment
     parent_model = ServiceRequest
@@ -250,7 +296,6 @@ class ServicePaymentDocumentView(AbstractPaymentDocumentView):
         user = self.request.user
         if getattr(user, 'is_cliente', False) and service.solicitante != user:
             raise PermissionDenied("Acesso negado.")
-
 
 class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
     model = ServiceAttachment
@@ -263,7 +308,6 @@ class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
 
         if not (is_equipe or is_dono):
             raise PermissionDenied("Sem permissão para download.")
-
 
 class ServiceAttachmentDownloadAllView(AbstractDocumentDownloadAllView):
     model = ServiceAttachment
