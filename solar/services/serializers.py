@@ -63,28 +63,22 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
 
 class ServiceStatusHistorySerializer(serializers.ModelSerializer):
     service = serializers.PrimaryKeyRelatedField(read_only=True)
-    alterado_por_nome = serializers.CharField(source='alterado_por.get_full_name', read_only=True)
+    changed_by_nome = serializers.CharField(source='changed_by.get_full_name', read_only=True)
 
     class Meta:
         model = ServiceStatusHistory
         fields = [
             'id',
             'service',
-            'status_anterior',
-            'status_novo',
-            'alterado_por',
-            'alterado_por_nome',
-            'motivo_alteracao',
-            'created_at',
+            'old_status',
+            'new_status',
+            'changed_by',
+            'changed_by_nome',
+            'changed_at',
         ]
-        read_only_fields = [
-            'id',
-            'service',
-            'status_anterior',
-            'status_novo',
-            'alterado_por',
-            'created_at',
-        ]
+        # Como é apenas leitura, podemos colocar todos os campos como read_only
+        read_only_fields = fields
+
 class ServicePaymentDocumentSerializer(AbstractPaymentDocumentSerializer):
     class Meta(AbstractPaymentDocumentSerializer.Meta):
         model = ServiceAttachment

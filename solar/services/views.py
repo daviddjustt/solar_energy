@@ -31,7 +31,22 @@ from solar.notifications.services import (
     notificar_comprovante_anexado_servico
 )
 
+class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Histórico de mudanças de status das solicitações de serviço.
+    """
+    serializer_class = ServiceStatusHistorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None # Remove a paginação para exibir o histórico completo na linha do tempo
 
+    def get_queryset(self):
+        service_pk = self.kwargs.get('service_pk')
+        
+        if getattr(self, "swagger_fake_view", False) or not service_pk:
+            return ServiceStatusHistory.objects.none()
+
+        service = get_object_or_404(ServiceRequest, pk=service_pk)
+        return ServiceStatusHistory.objects.filter(service=service).order_by('-changed_at')
 class ServiceRequestViewSet(viewsets.ModelViewSet):
     """
     ViewSet principal para solicitações de serviços.
@@ -312,20 +327,7 @@ class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
         if not (is_equipe or is_dono):
             raise PermissionDenied("Sem permissão para download.")
 
-class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Histórico de mudanças de status das solicitações de serviço.
-    """
-    serializer_class = ServiceStatusHistorySerializer
-    permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        service_pk = self.kwargs.get('service_pk')
-        if getattr(self, "swagger_fake_view", False) or not service_pk:
-            return ServiceStatusHistory.objects.none()
-
-        service = get_object_or_404(ServiceRequest, pk=service_pk)
-        return ServiceStatusHistory.objects.filter(service=service).order_by('-changed_at')
 class ServiceObservationViewSet(viewsets.ModelViewSet):
     """
     Gerenciamento de observações livres feitas pela equipe e executores externos.
