@@ -10,11 +10,15 @@ from solar.services.views import (
     ServiceAttachmentDownloadView,
     ServiceAttachmentDownloadAllView,
     ServiceTypeViewSet,
+    ServiceObservationViewSet,
+    ServiceStatusHistoryViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'services-view', ServiceRequestViewSet, basename='service')
 router.register(r'service-types', ServiceTypeViewSet, basename='service-types')
+router.register(r'service-observations', ServiceObservationViewSet, basename='service-observations')
+router.register(r'service-status-history', ServiceStatusHistoryViewSet, basename='service-status-history')
 
 # Nested Routers para Anexos e Pendências
 services_router = routers.NestedSimpleRouter(router, r'services-view', lookup='service')

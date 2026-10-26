@@ -14,7 +14,7 @@ from solar.services.models import (
 from solar.services.serializers import (
     ServiceRequestSerializer, ServiceAttachmentSerializer,
     ServicePendencySerializer, ServiceTypeSerializer,
-    ServicePaymentDocumentSerializer
+    ServicePaymentDocumentSerializer, ServiceObservationSerializer, ServiceStatusHistorySerializer
 )
 from solar.documents.views import (
     AbstractDocumentListViewSet, AbstractPaymentDocumentView,
@@ -289,6 +289,7 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
 class ServicePaymentDocumentView(AbstractPaymentDocumentView):
     model = ServiceAttachment
     parent_model = ServiceRequest
+    parent_url_kwarg = 'parent_pk'
     parent_relation_field = 'service'
     serializer_class = ServicePaymentDocumentSerializer
 
@@ -300,6 +301,8 @@ class ServicePaymentDocumentView(AbstractPaymentDocumentView):
 class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
     model = ServiceAttachment
     parent_model = ServiceRequest
+    parent_url_kwarg = 'parent_pk'
+    document_url_kwarg = 'document_pk'
 
     def check_download_permission(self, request, service, document):
         user = request.user
@@ -309,10 +312,50 @@ class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
         if not (is_equipe or is_dono):
             raise PermissionDenied("Sem permissão para download.")
 
+class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Histórico de mudanças de status das solicitações de serviço.
+    """
+    serializer_class = ServiceStatusHistorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        service_pk = self.kwargs.get('service_pk')
+        if getattr(self, "swagger_fake_view", False) or not service_pk:
+            return ServiceStatusHistory.objects.none()
+
+        service = get_object_or_404(ServiceRequest, pk=service_pk)
+        return ServiceStatusHistory.objects.filter(service=service).order_by('-changed_at')
+class ServiceObservationViewSet(viewsets.ModelViewSet):
+    """
+    Gerenciamento de observações livres feitas pela equipe e executores externos.
+    """
+    serializer_class = ServiceObservationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        service_pk = self.kwargs.get('service_pk')
+        if getattr(self, "swagger_fake_view", False) or not service_pk:
+            return ServiceObservation.objects.none()
+
+        service = get_object_or_404(ServiceRequest, pk=service_pk)
+        return ServiceObservation.objects.filter(service=service).order_by('-created_at')
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        service_pk = self.kwargs.get('service_pk')
+        service = get_object_or_404(ServiceRequest, pk=service_pk)
+        user = self.request.user
+
+        if getattr(user, 'is_cliente', False):
+            raise PermissionDenied("Apenas administradores e executores externos podem adicionar observações.")
+
+        serializer.save(service=service, criada_por=user)
 class ServiceAttachmentDownloadAllView(AbstractDocumentDownloadAllView):
     model = ServiceAttachment
     parent_model = ServiceRequest
     parent_relation_field = 'service'
+    parent_url_kwarg = 'parent_pk'
 
     def check_download_all_permission(self, request, service):
         user = request.user
