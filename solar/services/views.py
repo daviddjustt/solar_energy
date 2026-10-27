@@ -42,11 +42,41 @@ from solar.notifications.services import (
     notificar_documento_rejeitado_servico,
 )
 
+
 from django.contrib.auth import get_user_model
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
+
+class ServiceAccessMixin:
+    """
+    Mixin para centralizar a lógica de permissão baseada em escopo de serviços.
+    Pode ser herdado por qualquer ViewSet do módulo de serviços.
+    """
+    def check_access_permission(self, service):
+        user = self.request.user
+
+        # 1. Bloqueia usuários não autenticados por segurança
+        if not user or not user.is_authenticated:
+            raise PermissionDenied("Autenticação necessária.")
+
+        # 2. Se o usuário for o dono (cliente que solicitou o serviço)
+        if service.solicitante == user:
+            return
+
+        # 3. Se o usuário for Administrador ou Superuser
+        if user.is_superuser or getattr(user, 'is_admin', False):
+            return
+
+        # 4. Se o usuário for Externo, valida se o Tipo de Serviço está liberado para ele
+        if getattr(user, 'is_externo', False):
+            # O prefetch_related ou acesso direto ao M2M já resolve isso
+            if service.tipo in user.tipos_servico.all():
+                return
+
+        # 5. Fallback: Acesso negado
+        raise PermissionDenied("Acesso negado a este serviço.")
 class IsAdminOrSuperuser(permissions.BasePermission):
     """Permite acesso apenas a superusuários ou usuários com is_admin=True."""
     def has_permission(self, request, view):
@@ -141,13 +171,14 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+# Adicionamos ServiceAccessMixin como primeira herança
+class ServiceStatusHistoryViewSet(ServiceAccessMixin, viewsets.ReadOnlyModelViewSet):
     """
     Histórico de mudanças de status das solicitações de serviço.
     """
     serializer_class = ServiceStatusHistorySerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = None # Remove a paginação para exibir o histórico completo na linha do tempo
+    pagination_class = None
 
     def get_queryset(self):
         service_pk = self.kwargs.get('service_pk')
@@ -156,7 +187,12 @@ class ServiceStatusHistoryViewSet(viewsets.ReadOnlyModelViewSet):
             return ServiceStatusHistory.objects.none()
 
         service = get_object_or_404(ServiceRequest, pk=service_pk)
+        
+        # Chama a validação centralizada do Mixin (Resolve o R6)
+        self.check_access_permission(service)
+
         return ServiceStatusHistory.objects.filter(service=service).order_by('-changed_at')
+
 class ServiceRequestViewSet(viewsets.ModelViewSet):
     """
     ViewSet principal para solicitações de serviços.
@@ -212,6 +248,10 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
     def alterar_status(self, request, pk=None):
         service = self.get_object()
         user = request.user
+
+        def extract_value(key):
+            val = request.data.get(key)
+            return val if val not in ["", "null", None] else None
         
         is_admin_or_super = user.is_superuser or getattr(user, 'is_admin', False)
         is_externo_autorizado = getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all()
@@ -243,9 +283,29 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         if novo_status in [ServiceRequest.StatusChoices.CONCLUIDO, ServiceRequest.StatusChoices.SERVICO_SOLICITADO]:
             service.protocolo = request.data.get('protocolo', service.protocolo)
             service.uc_resultado = request.data.get('uc_resultado', service.uc_resultado)
-            service.prazo_concessionaria = request.data.get('prazo_concessionaria', service.prazo_concessionaria)
             service.nota = request.data.get('nota', service.nota)
-            service.carga = request.data.get('carga', service.carga)
+            service.tensao_nominal = request.data.get('tensao_nominal', service.tensao_nominal)
+
+            service.prazo_concessionaria = extract_value('prazo_concessionaria')
+            service.carga = extract_value('carga')
+            service.potencia_transformador = extract_value('potencia_transformador')
+            
+            # --- INÍCIO DA RESOLUÇÃO DO R10 ---
+            
+            # 1. Tratamento para evitar erro 500 com strings vazias em DateField e DecimalField
+            prazo = request.data.get('prazo_concessionaria')
+            service.prazo_concessionaria = None if prazo in ["", "null"] else (prazo or service.prazo_concessionaria)
+            
+            carga = request.data.get('carga')
+            service.carga = None if carga in ["", "null"] else (carga or service.carga)
+
+            # 2. Inclusão da captura dos dados de engenharia
+            service.tensao_nominal = request.data.get('tensao_nominal', service.tensao_nominal)
+            
+            potencia = request.data.get('potencia_transformador')
+            service.potencia_transformador = None if potencia in ["", "null"] else (potencia or service.potencia_transformador)
+            
+            # --- FIM DA RESOLUÇÃO DO R10 ---
 
         service.save()
 
@@ -304,7 +364,7 @@ class ServiceTypeViewSet(viewsets.ModelViewSet):
             "Para retirar um serviço de circulação, edite-o e altere o campo 'ativo' para falso."
         )
 
-class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
+class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
     """
     Gerenciador de anexos do serviço (Upload, Aprovação e Substituição).
     """
@@ -314,22 +374,40 @@ class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
     parent_relation_field = 'service'
     serializer_class = ServiceAttachmentSerializer
 
-    def check_read_permission(self, service):
-        user = self.request.user
-        is_admin_or_super = user.is_superuser or getattr(user, 'is_admin', False)
-        is_externo_autorizado = getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all()
-        is_dono = (user == service.solicitante)
-
-        if not (is_admin_or_super or is_externo_autorizado or is_dono):
-            raise PermissionDenied("Acesso negado a este serviço.")
 
     @transaction.atomic
     def perform_create(self, serializer):
         service = self.get_parent_object()
-        self.check_read_permission(service)
-
-        documento = serializer.save(service=service, enviado_por=self.request.user)
+        self.check_access_permission(service)
         user_request = self.request.user
+
+        categoria = serializer.validated_data.get('categoria')
+        
+        # O campo herdado de AbstractDocument normalmente armazena o vínculo ao boleto
+        related_boleto = serializer.validated_data.get('related_payment_document')
+
+        # --- REGRA R9: Validação do Comprovante e Boleto ---
+        if categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE and related_boleto:
+            # 1. Garante que o boleto sendo pago pertence a este mesmo serviço
+            if related_boleto.service != service:
+                raise ValidationError({'related_payment_document': 'O boleto selecionado não pertence a este serviço.'})
+            
+            # 2. Impede anexar comprovante se o boleto já foi pago/aprovado
+            if related_boleto.status == ServiceAttachment.STATUS_APPROVED:
+                raise ValidationError({'related_payment_document': 'Este boleto já consta como pago e aprovado.'})
+
+        # --- REGRA R3b: Forçar status do anexo para o Cliente ---
+        # Garante que o payload malicioso não crie o arquivo já como aprovado
+        if getattr(user_request, 'is_cliente', False):
+
+            documento = serializer.save(
+            service=service, 
+            enviado_por=user_request,
+            status=ServiceAttachment.STATUS_IN_ANALYSIS,
+            rejection_reason=None
+        )
+        else:
+            documento = serializer.save(service=service, enviado_por=user_request)
 
         # Notificações e atalhos operacionais baseados na categoria do anexo
         if documento.categoria == ServiceAttachment.CategoriaChoices.BOLETO:
@@ -346,44 +424,91 @@ class ServiceAttachmentViewSet(AbstractDocumentListViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        
         instance = self.get_object()
         service = instance.service
         user_request = self.request.user
 
         self.check_read_permission(service)
         
-        # R3: Restaura a lógica da equipa vs cliente
-        if getattr(user_request, 'is_cliente', False):
+        # --- CORREÇÃO R4: Detecção forte de cliente ---
+        # Evita que um Admin/Externo com is_cliente=True caia nas regras do cliente
+        is_cliente = getattr(user_request, 'is_cliente', False) and not (
+            user_request.is_superuser or 
+            getattr(user_request, 'is_admin', False) or 
+            getattr(user_request, 'is_externo', False)
+        )
+
+        if is_cliente:
+            # Removemos da requisição qualquer tentativa de mudar status ou motivo
+            serializer.validated_data.pop('status', None)
+            serializer.validated_data.pop('rejection_reason', None)
+            
             if 'arquivo' in serializer.validated_data:
-                # Cliente atualiza arquivo = Volta pra análise
-                updated_instance = serializer.save(status=ServiceAttachment.STATUS_IN_ANALYSIS)
+                # Cliente atualiza arquivo = Volta pra análise forçadamente e limpa motivo
+                updated_instance = serializer.save(
+                    status=ServiceAttachment.STATUS_IN_ANALYSIS,
+                    rejection_reason=None
+                )
+                
+                # --- CORREÇÃO R4: Pagamento no reenvio ---
+                # Se for comprovante, volta o status do pagamento para análise
+                if updated_instance.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
+                    service.payment_status = 'COMPROVANTE_EM_ANALISE'
+                    service.save(update_fields=['payment_status'])
+                
+                # --- CORREÇÃO R4: Notificar o reenvio ---
+                # Dispara notificação para a equipe informando que o cliente reenviou o arquivo
+                # (Assumindo que você crie/tenha esta função no notifications/services.py)
+                try:
+                    from solar.notifications.services import notificar_documento_reenviado_servico
+                    notificar_documento_reenviado_servico(service, updated_instance.document_name or updated_instance.get_categoria_display())
+                except ImportError:
+                    pass # Caso a notificação ainda não tenha sido implementada
             else:
                 updated_instance = serializer.save()
         else:
             novo_status = serializer.validated_data.get('status', instance.status)
+            
             if novo_status == ServiceAttachment.STATUS_APPROVED:
-                updated_instance = serializer.save(approved_at=timezone.now())
+                # --- CORREÇÃO R4: Limpeza do motivo antigo ---
+                # Garante que o rejection_reason fique None ao aprovar
+                updated_instance = serializer.save(
+                    approved_at=timezone.now(),
+                    rejection_reason=None
+                )
+                
+                # Se aprovou comprovante, finaliza o pagamento do serviço
                 if instance.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
                     service.payment_status = 'PAGO'
                     service.save(update_fields=['payment_status'])
+                    
             elif novo_status == ServiceAttachment.STATUS_REJECTED:
                 motivo = serializer.validated_data.get('rejection_reason')
                 if not motivo:
                     raise ValidationError({'rejection_reason': 'O motivo da rejeição é obrigatório.'})
+                
                 updated_instance = serializer.save()
+                
+                # Se rejeitou comprovante, volta pagamento para pendente
                 if instance.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
                     service.payment_status = 'PENDENTE'
                     service.save(update_fields=['payment_status'])
-                notificar_documento_rejeitado_servico(service, updated_instance.document_name or updated_instance.get_categoria_display(), motivo)
+                
+                notificar_documento_rejeitado_servico(
+                    service, 
+                    updated_instance.document_name or updated_instance.get_categoria_display(), 
+                    motivo
+                )
             else:
                 updated_instance = serializer.save()
-
+            
     def perform_destroy(self, instance):
         if getattr(self.request.user, 'is_cliente', False):
             raise PermissionDenied("Clientes não podem apagar solicitações.")
         instance.delete()
 
-class ServicePendencyViewSet(viewsets.ModelViewSet):
+class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     """
     Gerenciamento de pendências nomeadas abertas pela equipe.
     """
@@ -396,11 +521,11 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
             return ServicePendency.objects.none()
 
         service = get_object_or_404(ServiceRequest, pk=service_pk)
-        user = self.request.user
         
-        # R5: Filtra acesso de leitura seguro
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        if not is_equipe and service.solicitante != user:
+        # Filtra o acesso utilizando o Mixin
+        try:
+            self.check_access_permission(service)
+        except PermissionDenied:
             return ServicePendency.objects.none()
 
         return ServicePendency.objects.filter(service=service).order_by('-created_at')
@@ -411,22 +536,41 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
         service = get_object_or_404(ServiceRequest, pk=service_pk)
         user = self.request.user
 
+        # 1. Validação de segurança (Apenas equipa/admin cria)
         is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
         if not is_equipe:
-            raise PermissionDenied("Acesso negado.")
+            raise PermissionDenied("Acesso negado. Apenas a equipe técnica pode abrir pendências.")
 
+        # --- INÍCIO DA RESOLUÇÃO DO R5 ---
+        # 2. Bloqueia abertura em serviços que não suportam pendências (Finalizados ou Solicitados)
+        status_finais = [
+            ServiceRequest.StatusChoices.CONCLUIDO, 
+            ServiceRequest.StatusChoices.REPROVADO,
+            ServiceRequest.StatusChoices.SERVICO_SOLICITADO
+        ]
+        
+        if service.status in status_finais:
+            raise ValidationError(
+                {"detail": f"Não é possível abrir pendências. Este serviço já encontra-se '{service.get_status_display()}'."}
+            )
+        # --- FIM DA RESOLUÇÃO DO R5 ---
+        
+        # 3. Cria a pendência
         pendencia = serializer.save(service=service, criada_por=user, status='ABERTA')
 
+        # 4. Altera o status do serviço para PENDENCIAS (agora de forma segura)
         if service.status != 'PENDENCIAS':
             status_antigo = service.status
             service.status = 'PENDENCIAS'
             service.save(update_fields=['status'])
-            ServiceStatusHistory.objects.create(service=service, changed_by=user, old_status=status_antigo, new_status='PENDENCIAS')
+            ServiceStatusHistory.objects.create(
+                service=service, changed_by=user, old_status=status_antigo, new_status='PENDENCIAS'
+            )
 
         notificar_pendencia(service, pendencia.titulo)
 
     def perform_destroy(self, instance):
-        # R5: Apenas admins excluem pendências
+        # Apenas admins excluem pendências
         if not (self.request.user.is_superuser or getattr(self.request.user, 'is_admin', False)):
             raise PermissionDenied("Apenas administradores podem apagar pendências.")
         instance.delete()
@@ -435,8 +579,7 @@ class ServicePendencyViewSet(viewsets.ModelViewSet):
         if getattr(self.request.user, 'is_cliente', False):
             raise PermissionDenied("Clientes não podem alterar o estado das pendências.")
         serializer.save()
-
-class ServicePaymentDocumentView(AbstractPaymentDocumentView):
+class ServicePaymentDocumentView(ServiceAccessMixin, AbstractPaymentDocumentView):
     model = ServiceAttachment
     parent_model = ServiceRequest
     parent_url_kwarg = 'parent_pk'

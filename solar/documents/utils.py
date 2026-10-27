@@ -129,12 +129,25 @@ def get_document_upload_path(instance, filename):
     month = now.strftime('%m')
     day = now.strftime('%d')
     
-    # 7. Construir caminho completo
+    # 7. Descobrir a qual módulo este documento pertence (Projetos ou Serviços)
+    if hasattr(instance, 'project') and instance.project:
+        pasta_modulo = 'projects'
+        codigo_identificador = instance.project.codigoCliente
+    elif hasattr(instance, 'service') and instance.service:
+        pasta_modulo = 'services'
+        # Usa o ID do serviço ou gera um código padrão caso não exista
+        codigo_identificador = f"SRV-{instance.service.id}"
+    else:
+        # Fallback genérico caso seja um documento sem pai
+        pasta_modulo = 'avulsos'
+        codigo_identificador = 'geral'
+
+    # 8. Construir caminho completo polimórfico
     path = os.path.join(
-        'projects',
-        instance.project.codigoCliente,
+        pasta_modulo,
+        str(codigo_identificador),
         'documents',
-        instance.document_type,
+        str(instance.document_type),
         year,
         month,
         day,
@@ -177,6 +190,7 @@ def validate_file_extension(file):
             f'Tipo de arquivo não permitido: {ext}. '
             f'Formatos aceitos: {", ".join(allowed_extensions)}'
         )
+
 
 def convert_voltage_value_to_label(value):
     """Converte value em label"""

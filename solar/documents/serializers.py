@@ -279,6 +279,7 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
         # TRANSIÇÃO MTI: Se a instância recebida for estritamente um ClientProject
         # (classe pai), trata-se de um projeto Coelba a ser promovido a Energisa.
         # ---------------------------------------------------------------------
+
         if type(instance) is ClientProject:
             # 1. Isola os campos específicos da tabela filha
             cabo_mm2 = validated_data.pop('cabo_mm2', 10.0)
@@ -289,12 +290,15 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
             dps_isolacao = validated_data.pop('dps_isolacao', None)
             tipo_ramal = validated_data.pop('tipo_ramal', 'aereo')
             tensao_tipo = validated_data.pop('tensao_tipo', 'individual')
-            tensao_imagem = validated_data.pop('tensao_imagem', '')
+            
+            # RETIRAMOS o arquivo da payload para não quebrar o RAW SQL
+            tensao_imagem = validated_data.pop('tensao_imagem', None)
             
             # 2. Atualiza os dados comuns na tabela pai
             instance = super().update(instance, validated_data)
             
-            # 3. Cria o vínculo na tabela filha forçando SQL puro (evita erros do ORM)
+            # 3. Cria o vínculo na tabela filha forçando SQL puro
+            # Passamos '' (string vazia) no lugar da imagem
             with connection.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO documents_energisaproject "
@@ -303,15 +307,23 @@ class EnergisaProjectSerializer(AbstractProjectSerializer):
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     [
                         instance.id, cabo_mm2, isolacao_volts, cabos_por_fase, 
-                        disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, tensao_imagem
+                        disjuntor_amperes, dps_ka, dps_isolacao, tipo_ramal, tensao_tipo, ''
                     ]
                 )
+                
+            # 4. Recupera a instância já promovida
+            promoted_instance = EnergisaProject.objects.get(pk=instance.id)
+            
+            # 5. Se houver imagem, salva usando o ORM do Django (que processa o upload físico do arquivo)
+            if tensao_imagem:
+                promoted_instance.tensao_imagem = tensao_imagem
+                promoted_instance.save(update_fields=['tensao_imagem'])
+                
             # Retorna a instância completa promovida
-            return EnergisaProject.objects.get(pk=instance.id)
+            return promoted_instance
 
         # Se já for EnergisaProject (atualização padrão), o DRF faz o update MTI nativo
         return super().update(instance, validated_data)
-
 # =========================================================================
 # 4. SERIALIZERS DE LEITURA E ATUALIZAÇÃO (Herdam de Abstract)
 # =========================================================================

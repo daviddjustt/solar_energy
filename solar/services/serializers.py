@@ -1,3 +1,5 @@
+import os
+from decimal import Decimal
 from rest_framework import serializers
 from solar.services.models import ServiceType, ServiceRequest
 from solar.users.models import User  # Importe o modelo de utilizador correto
@@ -26,38 +28,51 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
         download_endpoint_name = 'api:service-attachment-download'
         parent_lookup_field = 'service_id'
 
+
+    def validate_arquivo(self, value):
+        ""
+        from documents.utils import validate_file_size, validate_file_extension
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        if value:
+            try:
+                # Dispara as funções exatas do seu ArquivoMixin
+                validate_file_size(value)
+                validate_file_extension(value)
+            except DjangoValidationError as e:
+                # Converte o erro do Django Model para o erro do DRF
+                raise serializers.ValidationError(e.messages)
+        return value
+    
     def validate(self, data):
         data = super().validate(data)
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return data
-
         user = request.user
         service = self.context.get('parent') or (self.instance.service if self.instance else None)
-        categoria = data.get('categoria') or (self.instance.categoria if self.instance else None)
 
-        if not service:
-            raise serializers.ValidationError("Serviço não identificado.")
+        # Definição precisa e imune à falha default=True do R4
+        is_cliente = getattr(user, 'is_cliente', False) and not (user.is_superuser or getattr(user, 'is_admin', False))
 
-        categorias_cliente = ['SOLICITACAO', 'PENDENCIA_CLIENTE', 'COMPROVANTE_PAGAMENTO']
-        categorias_equipe = ['PENDENCIA_EQUIPE', 'OBSERVACAO', 'RESULTADO', 'BOLETO']
+        # R9: Validação forte do boleto
+        related_payment_document = data.get('related_payment_document')
+        if related_payment_document:
+            if related_payment_document.categoria != ServiceAttachment.CategoriaChoices.BOLETO:
+                raise serializers.ValidationError({'related_payment_document': "O documento relacionado deve ser obrigatoriamente um BOLETO."})
+            if related_payment_document.service != service:
+                raise serializers.ValidationError({'related_payment_document': "O boleto selecionado pertence a outra solicitação."})
 
-        is_cliente = getattr(user, 'is_cliente', False) and not (user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False))
-        
-        # Bloqueia criação/edição de categorias indevidas pelo cliente
-        if is_cliente and categoria not in categorias_cliente:
-            raise serializers.ValidationError({'categoria': f"Clientes não podem enviar arquivos da categoria '{categoria}'."})
+        # R4: Valida se Pendência e Unidade pertencem à mesma solicitação
+        if data.get('pendencia') and data.get('pendencia').service != service:
+            raise serializers.ValidationError({'pendencia': "Esta pendência pertence a outro serviço."})
+        if data.get('unidade') and data.get('unidade').service != service:
+            raise serializers.ValidationError({'unidade': "Esta unidade pertence a outro serviço."})
 
-        # R3: Apenas valida a categoria da equipa na CRIAÇÃO (not self.instance).
-        if not is_cliente and not self.instance and categoria not in categorias_equipe:
-            raise serializers.ValidationError({'categoria': f"A equipe não pode enviar arquivos da categoria '{categoria}'."})
-
-        # REGRA DE REENVIO DO CLIENTE
+        # R4: Reenvio pelo cliente só pode alterar o arquivo
         if self.instance and is_cliente:
-            if self.instance.status != ServiceAttachment.STATUS_REJECTED:
-                raise serializers.ValidationError("Clientes só podem reenviar anexos que foram explicitamente rejeitados.")
-            if 'status' in data or 'rejection_reason' in data:
-                raise serializers.ValidationError("Clientes não podem alterar o status de aprovação.")
+            campos_bloqueados = ['document_name', 'document_type', 'categoria', 'pendencia', 'unidade', 'related_payment_document']
+            for campo in campos_bloqueados:
+                if campo in data and data.get(campo) != getattr(self.instance, campo):
+                    raise serializers.ValidationError({campo: "Clientes não podem alterar este campo durante o reenvio de um anexo reprovado."})
 
         return data
 
@@ -158,6 +173,7 @@ class ServiceUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceUnit
         fields = '__all__'
+        read_only_fields = ['service']
 
 class ServicePendencySerializer(serializers.ModelSerializer):
     """
@@ -218,14 +234,59 @@ class ServiceObservationSerializer(serializers.ModelSerializer):
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
     tipo_detalhe = ServiceTypeSerializer(source='tipo', read_only=True)
-    unidades = ServiceUnitSerializer(many=True, required=False, read_only=True) # R7: Unidades expostas
+    
+    # --- INÍCIO DA RESOLUÇÃO DO R7 ---
+    # Removemos o read_only=True para que o DRF passe a aceitar a lista no payload
+    unidades = ServiceUnitSerializer(many=True, required=False)
 
     class Meta:
         model = ServiceRequest
         read_only_fields = ['solicitante', 'status', 'executor', 'valor_cobrado', 'payment_status', 'motivo_reprova']
         fields = '__all__'
 
+    def validate(self, data):
+        unidades = data.get('unidades', [])
+        rateio = data.get('modalidade_rateio')
+        
+        if unidades:
+            geradoras = [u for u in unidades if u.get('papel') == 'GERADORA']
+            if len(geradoras) != 1:
+                raise serializers.ValidationError({'unidades': "É obrigatória exatamente uma unidade GERADORA."})
+                
+            if rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
+                beneficiarias = [u for u in unidades if u.get('papel') == 'BENEFICIARIA']
+                soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
+                if beneficiarias and soma != Decimal('100.00'):
+                    raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser 100%."})
+        
+        return data
+    
     def create(self, validated_data):
+        # 1. Removemos (pop) as unidades do dicionário antes de guardar o serviço
+        unidades_data = validated_data.pop('unidades', [])
+        
         tipo = validated_data['tipo']
         validated_data['valor_cobrado'] = tipo.valor
-        return super().create(validated_data)
+        
+        # 2. Criamos o serviço principal
+        service = super().create(validated_data)
+        
+        # 3. Iteramos sobre a lista e guardamos cada unidade associada ao novo serviço
+        for unidade_data in unidades_data:
+            ServiceUnit.objects.create(service=service, **unidade_data)
+            
+        return service
+
+    def update(self, instance, validated_data):
+        # Tratamento de unidades também na atualização (PUT/PATCH)
+        unidades_data = validated_data.pop('unidades', None)
+        
+        instance = super().update(instance, validated_data)
+        
+        if unidades_data is not None:
+            # Abordagem de substituição total: apaga as antigas e recria as novas
+            instance.unidades.all().delete()
+            for unidade_data in unidades_data:
+                ServiceUnit.objects.create(service=instance, **unidade_data)
+                
+        return instance
