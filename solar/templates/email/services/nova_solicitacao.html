@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .header { background-color: #1a365d; color: #ffffff; padding: 20px; text-align: center; }
+        .content { padding: 30px; }
+        .box { background: #f4f7f6; padding: 15px; border-left: 4px solid #2b6cb0; margin: 20px 0; border-radius: 4px; }
+        .footer { font-size: 12px; color: #718096; text-align: center; padding: 20px; border-top: 1px solid #edf2f7; }
+        .btn { display: inline-block; padding: 10px 20px; background-color: #2b6cb0; color: #ffffff; text-decoration: none; border-radius: 4px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="margin:0;">Nova Solicitação de Serviço</h2>
+        </div>
+        <div class="content">
+            <p>Olá, equipe,</p>
+            <p>Uma nova solicitação foi criada no sistema e requer a vossa atenção.</p>
+            
+            <div class="box">
+                <p><strong>Nº da Solicitação:</strong> #{{ servico.id }}</p>
+                <p><strong>Tipo de Serviço:</strong> {{ servico.tipo.nome }}</p>
+                <p><strong>Cliente:</strong> {{ servico.solicitante.name }} ({{ servico.tipo_pessoa }})</p>
+                <p><strong>Prazo Informativo:</strong> {{ servico.tipo.prazo_informativo }}</p>
+            </div>
+            
+            <p>{{ mensagem }}</p>
+            
+            <center><a href="#" class="btn">Acessar Painel</a></center>
+        </div>
+        <div class="footer">
+            Este é um aviso automático. Por favor, não responda a este e-mail.
+        </div>
+    </div>
+</body>
+</html>

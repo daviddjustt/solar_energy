@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .header { background-color: #38a169; color: #ffffff; padding: 20px; text-align: center; } /* Verde para financeiro */
+        .content { padding: 30px; }
+        .box { background: #f0fff4; padding: 15px; border-left: 4px solid #38a169; margin: 20px 0; border-radius: 4px; }
+        .footer { font-size: 12px; color: #718096; text-align: center; padding: 20px; border-top: 1px solid #edf2f7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="margin:0;">Boleto Disponível para Pagamento</h2>
+        </div>
+        <div class="content">
+            <p>Olá, {{ servico.solicitante.name }},</p>
+            <p>Informamos que a fatura referente à solicitação <strong>#{{ servico.id }}</strong> ({{ servico.tipo.nome }}) foi emitida.</p>
+            
+            <div class="box">
+                <p><strong>Valor do Serviço:</strong> R$ {{ servico.valor_cobrado }}</p>
+            </div>
+            
+            <p>Após realizar o pagamento, você poderá anexar o comprovante diretamente no detalhe do serviço dentro do seu painel.</p>
+        </div>
+        <div class="footer">
+            Este é um aviso automático. Por favor, não responda a este e-mail.
+        </div>
+    </div>
+</body>
+</html>

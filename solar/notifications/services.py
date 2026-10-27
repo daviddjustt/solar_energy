@@ -510,3 +510,10 @@ def notificar_boleto_anexado_servico(service):
 
 def notificar_comprovante_anexado_servico(service):
     _construir_mensagem_notificacao(service=service, evento='servico_comprovante_adicionado')
+
+def notificar_documento_reenviado_servico(service, nome_documento):
+    _construir_mensagem_notificacao(
+        service=service, 
+        evento='servico_documento_reenviado', 
+        context={'nome_documento': nome_documento}
+    )

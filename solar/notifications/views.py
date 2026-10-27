@@ -1,12 +1,11 @@
-# solar/notifications/views.py
 import time
+import json # <-- Injetado para serializar os dados em tempo real com segurança
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import StreamingHttpResponse
-from rest_framework.permissions import IsAuthenticated
 
 from .models import Notification
 from .serializers import NotificationSerializer  
@@ -61,11 +60,25 @@ def event_stream(user_id):
             recipient_id=user_id, 
             is_read=False, 
             created_at__gt=last_checked
-        )
+        ).select_related('project', 'service', 'service__tipo') # Otimização de queries
         
         if new_notifications.exists():
             for notif in new_notifications:
-                yield f"data: {{'id': {notif.id}, 'title': '{notif.title}', 'project_id': {notif.project_id}}}\n\n"
+                # Montamos o dicionário contemplando tanto Projetos quanto Serviços
+                payload = {
+                    'id': notif.id,
+                    'title': notif.title,
+                    'message': notif.message,
+                    'category': notif.category,
+                    'project_id': notif.project_id,
+                    'service_id': notif.service_id,
+                    # Adiciona o nome do tipo caso exista
+                    'service_tipo': notif.service.tipo.nome if notif.service_id and getattr(notif.service, 'tipo', None) else None
+                }
+                
+                # json.dumps resolve o problema de aspas simples nos textos quebrando o JavaScript
+                yield f"data: {json.dumps(payload)}\n\n"
+                
             last_checked = timezone.now()
             
         time.sleep(3) # Aguarda 3 segundos para a próxima checagem ativa

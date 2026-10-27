@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .header { background-color: #c53030; color: #ffffff; padding: 20px; text-align: center; } /* Cabeçalho vermelho para urgência */
+        .content { padding: 30px; }
+        .box { background: #fff5f5; padding: 15px; border-left: 4px solid #e53e3e; margin: 20px 0; border-radius: 4px; color: #9b2c2c; }
+        .footer { font-size: 12px; color: #718096; text-align: center; padding: 20px; border-top: 1px solid #edf2f7; }
+        .btn { display: inline-block; padding: 10px 20px; background-color: #e53e3e; color: #ffffff; text-decoration: none; border-radius: 4px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="margin:0;">Ação Necessária: Pendência Aberta</h2>
+        </div>
+        <div class="content">
+            <p>Olá, {{ servico.solicitante.name }},</p>
+            <p>A equipe técnica identificou uma pendência para prosseguir com a sua solicitação <strong>#{{ servico.id }}</strong>.</p>
+            
+            <div class="box">
+                <p><strong>Pendência requisitada:</strong><br> {{ titulo }}</p>
+            </div>
+            
+            <p>Para evitar atrasos no prazo estipulado, pedimos que acesse a plataforma o mais breve possível para enviar os dados ou documentos solicitados.</p>
+            
+            <center><a href="#" class="btn">Resolver Pendência</a></center>
+        </div>
+        <div class="footer">
+            Este é um aviso automático. Por favor, não responda a este e-mail.
+        </div>
+    </div>
+</body>
+</html>

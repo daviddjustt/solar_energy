@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Mesmos estilos da pendencia.html (cabeçalho e box vermelho/alerta) -->
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .header { background-color: #c53030; color: #ffffff; padding: 20px; text-align: center; }
+        .content { padding: 30px; }
+        .box { background: #fff5f5; padding: 15px; border-left: 4px solid #e53e3e; margin: 20px 0; border-radius: 4px; color: #9b2c2c; }
+        .footer { font-size: 12px; color: #718096; text-align: center; padding: 20px; border-top: 1px solid #edf2f7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="margin:0;">Aviso: Documento Rejeitado</h2>
+        </div>
+        <div class="content">
+            <p>Olá, {{ servico.solicitante.name }},</p>
+            <p>Durante a análise da sua solicitação <strong>#{{ servico.id }}</strong>, nossa equipe encontrou uma não-conformidade num dos documentos anexados.</p>
+            
+            <div class="box">
+                <p><strong>Documento:</strong> {{ nome_doc }}</p>
+                <p><strong>Motivo da rejeição:</strong><br> {{ motivo }}</p>
+            </div>
+            
+            <p>Por favor, acesse o portal e faça o reenvio do arquivo corrigido, respeitando as observações acima.</p>
+        </div>
+        <div class="footer">
+            Este é um aviso automático. Por favor, não responda a este e-mail.
+        </div>
+    </div>
+</body>
+</html>
