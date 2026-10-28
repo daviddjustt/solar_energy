@@ -6,6 +6,7 @@ from solar.users.models import User  # Importe o modelo de utilizador correto
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from solar.documents.serializers import AbstractDocumentUploadSerializer, AbstractPaymentDocumentSerializer
+from solar.documents.utils import validate_file_size, validate_file_extension
 from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory, ServiceUnit
 
 User = get_user_model()
@@ -14,7 +15,6 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
     service = serializers.PrimaryKeyRelatedField(read_only=True)
     enviado_por_nome = serializers.CharField(source='enviado_por.get_full_name', read_only=True)
     
-    # R3b: Forçamos a validação de status pelas opções do modelo para fechar a brecha de segurança.
     status = serializers.ChoiceField(choices=ServiceAttachment.STATUS_CHOICES, required=False)
     rejection_reason = serializers.CharField(required=False, allow_blank=True)
 
@@ -28,32 +28,65 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
         download_endpoint_name = 'api:service-attachment-download'
         parent_lookup_field = 'service_id'
 
-
     def validate_arquivo(self, value):
-        ""
-        from documents.utils import validate_file_size, validate_file_extension
-        from django.core.exceptions import ValidationError as DjangoValidationError
-
         if value:
             try:
-                # Dispara as funções exatas do seu ArquivoMixin
                 validate_file_size(value)
                 validate_file_extension(value)
             except DjangoValidationError as e:
-                # Converte o erro do Django Model para o erro do DRF
-                raise serializers.ValidationError(e.messages)
+                raise serializers.ValidationError(list(e.messages))
         return value
-    
+
     def validate(self, data):
         data = super().validate(data)
         request = self.context.get('request')
+        
+        if not request or not request.user.is_authenticated:
+            return data
+
         user = request.user
         service = self.context.get('parent') or (self.instance.service if self.instance else None)
+        categoria = data.get('categoria') or (self.instance.categoria if self.instance else None)
 
-        # Definição precisa e imune à falha default=True do R4
-        is_cliente = getattr(user, 'is_cliente', False) and not (user.is_superuser or getattr(user, 'is_admin', False))
+        if not service:
+            raise serializers.ValidationError("Serviço não identificado.")
 
-        # R9: Validação forte do boleto
+        # --- R4 e R11: Deteção forte de cliente ---
+        is_cliente = getattr(user, 'is_cliente', False) and not (
+            user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        )
+
+        # --- R11: Restaurar regras de categoria por perfil ---
+        categorias_cliente = [
+            ServiceAttachment.CategoriaChoices.SOLICITACAO, 
+            ServiceAttachment.CategoriaChoices.PENDENCIA_CLIENTE, 
+            ServiceAttachment.CategoriaChoices.COMPROVANTE
+        ]
+        categorias_equipe = [
+            ServiceAttachment.CategoriaChoices.PENDENCIA_EQUIPE, 
+            ServiceAttachment.CategoriaChoices.OBSERVACAO, 
+            ServiceAttachment.CategoriaChoices.RESULTADO, 
+            ServiceAttachment.CategoriaChoices.BOLETO
+        ]
+
+        if is_cliente and categoria not in categorias_cliente:
+            raise serializers.ValidationError({'categoria': f"Clientes não podem enviar arquivos da categoria '{categoria}'."})
+
+        if not is_cliente and not self.instance and categoria not in categorias_equipe:
+            raise serializers.ValidationError({'categoria': f"A equipa não pode enviar arquivos da categoria '{categoria}'."})
+
+        # --- R11 e R4: Restaurar regra de reenvio do cliente ---
+        if self.instance and is_cliente:
+            if self.instance.status != ServiceAttachment.STATUS_REJECTED:
+                raise serializers.ValidationError("Clientes só podem reenviar anexos que foram explicitamente rejeitados.")
+            
+            # Garante que o cliente só altera o ficheiro, preservando o resto
+            campos_bloqueados = ['document_name', 'document_type', 'categoria', 'pendencia', 'unidade', 'related_payment_document']
+            for campo in campos_bloqueados:
+                if campo in data and data.get(campo) != getattr(self.instance, campo):
+                    raise serializers.ValidationError({campo: "Clientes não podem alterar este campo durante o reenvio de um anexo reprovado."})
+
+        # --- R9: Validação do boleto ---
         related_payment_document = data.get('related_payment_document')
         if related_payment_document:
             if related_payment_document.categoria != ServiceAttachment.CategoriaChoices.BOLETO:
@@ -61,18 +94,11 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
             if related_payment_document.service != service:
                 raise serializers.ValidationError({'related_payment_document': "O boleto selecionado pertence a outra solicitação."})
 
-        # R4: Valida se Pendência e Unidade pertencem à mesma solicitação
+        # --- R4: Valida se Pendência e Unidade pertencem à mesma solicitação ---
         if data.get('pendencia') and data.get('pendencia').service != service:
             raise serializers.ValidationError({'pendencia': "Esta pendência pertence a outro serviço."})
         if data.get('unidade') and data.get('unidade').service != service:
             raise serializers.ValidationError({'unidade': "Esta unidade pertence a outro serviço."})
-
-        # R4: Reenvio pelo cliente só pode alterar o arquivo
-        if self.instance and is_cliente:
-            campos_bloqueados = ['document_name', 'document_type', 'categoria', 'pendencia', 'unidade', 'related_payment_document']
-            for campo in campos_bloqueados:
-                if campo in data and data.get(campo) != getattr(self.instance, campo):
-                    raise serializers.ValidationError({campo: "Clientes não podem alterar este campo durante o reenvio de um anexo reprovado."})
 
         return data
 
