@@ -382,41 +382,53 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
         user_request = self.request.user
 
         categoria = serializer.validated_data.get('categoria')
-        
-        # O campo herdado de AbstractDocument normalmente armazena o vínculo ao boleto
         related_boleto = serializer.validated_data.get('related_payment_document')
 
-        # --- REGRA R9: Validação do Comprovante e Boleto ---
+        # --- REGRA R9: Validação extra de Comprovante e Boleto ---
         if categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE and related_boleto:
-            # 1. Garante que o boleto sendo pago pertence a este mesmo serviço
-            if related_boleto.service != service:
-                raise ValidationError({'related_payment_document': 'O boleto selecionado não pertence a este serviço.'})
-            
-            # 2. Impede anexar comprovante se o boleto já foi pago/aprovado
+            # Impede anexar comprovante se o boleto já foi pago/aprovado
             if related_boleto.status == ServiceAttachment.STATUS_APPROVED:
                 raise ValidationError({'related_payment_document': 'Este boleto já consta como pago e aprovado.'})
 
-        # --- REGRA R3b: Forçar status do anexo para o Cliente ---
-        # Garante que o payload malicioso não crie o arquivo já como aprovado
-        if getattr(user_request, 'is_cliente', False):
-
-            documento = serializer.save(
-            service=service, 
-            enviado_por=user_request,
-            status=ServiceAttachment.STATUS_IN_ANALYSIS,
-            rejection_reason=None
+        # --- CORREÇÃO R4 e R3b: Detecção Forte de Cliente ---
+        # Garante que um externo/admin com is_cliente=True não sofra as travas do cliente
+        is_cliente = getattr(user_request, 'is_cliente', False) and not (
+            user_request.is_superuser or 
+            getattr(user_request, 'is_admin', False) or 
+            getattr(user_request, 'is_externo', False)
         )
+
+        if is_cliente:
+            # Trava o status inicial e limpa motivos antigos forçadamente
+            documento = serializer.save(
+                service=service, 
+                enviado_por=user_request,
+                status=ServiceAttachment.STATUS_IN_ANALYSIS,
+                rejection_reason=None
+            )
         else:
             documento = serializer.save(service=service, enviado_por=user_request)
 
-        # Notificações e atalhos operacionais baseados na categoria do anexo
+        # --- CORREÇÃO R4: Preencher ServiceUnit.fatura ---
+        if documento.unidade:
+            unidade = documento.unidade
+            unidade.fatura = documento
+            unidade.save(update_fields=['fatura'])
+        else: 
+            # Apenas loga se o logger estiver devidamente importado no topo do arquivo
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Anexo {documento.id} criado sem unidade associada para o serviço {service.id}.")
+
+        # --- Notificações e atalhos operacionais ---
         if documento.categoria == ServiceAttachment.CategoriaChoices.BOLETO:
             notificar_boleto_anexado_servico(service)
 
         elif documento.categoria == ServiceAttachment.CategoriaChoices.COMPROVANTE:
             notificar_comprovante_anexado_servico(service)
-            service.payment_status = 'COMPROVANTE_EM_ANALISE'
-            service.save(update_fields=['payment_status'])
+            if service.payment_status != 'COMPROVANTE_EM_ANALISE':
+                service.payment_status = 'COMPROVANTE_EM_ANALISE'
+                service.save(update_fields=['payment_status'])
 
         elif documento.categoria == ServiceAttachment.CategoriaChoices.PENDENCIA_CLIENTE and documento.pendencia:
             documento.pendencia.status = 'RESPONDIDA'
@@ -503,9 +515,23 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
             else:
                 updated_instance = serializer.save()
             
+    @transaction.atomic
     def perform_destroy(self, instance):
-        if getattr(self.request.user, 'is_cliente', False):
-            raise PermissionDenied("Clientes não podem apagar solicitações.")
+        service = instance.service
+        user = self.request.user
+        
+        self.check_access_permission(service)
+
+        # --- CORREÇÃO R4: Deteção forte de cliente ---
+        is_cliente = getattr(user, 'is_cliente', False) and not (
+            user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        )
+
+        if is_cliente:
+            # Clientes só podem apagar aquilo que ainda está em análise
+            if instance.status != ServiceAttachment.STATUS_IN_ANALYSIS:
+                raise PermissionDenied("Clientes só podem apagar documentos que ainda estão Em Análise.")
+                
         instance.delete()
 
 class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
@@ -522,7 +548,7 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
 
         service = get_object_or_404(ServiceRequest, pk=service_pk)
         
-        # Filtra o acesso utilizando o Mixin
+        # Filtra o acesso utilizando o Mixin (R6)
         try:
             self.check_access_permission(service)
         except PermissionDenied:
@@ -536,13 +562,12 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         service = get_object_or_404(ServiceRequest, pk=service_pk)
         user = self.request.user
 
-        # 1. Validação de segurança (Apenas equipa/admin cria)
+        # 1. Validação de segurança: Apenas equipe/admin cria
         is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
         if not is_equipe:
             raise PermissionDenied("Acesso negado. Apenas a equipe técnica pode abrir pendências.")
 
-        # --- INÍCIO DA RESOLUÇÃO DO R5 ---
-        # 2. Bloqueia abertura em serviços que não suportam pendências (Finalizados ou Solicitados)
+        # --- REGRA R5: Bloqueia abertura em serviços finalizados/solicitados ---
         status_finais = [
             ServiceRequest.StatusChoices.CONCLUIDO, 
             ServiceRequest.StatusChoices.REPROVADO,
@@ -553,18 +578,21 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
             raise ValidationError(
                 {"detail": f"Não é possível abrir pendências. Este serviço já encontra-se '{service.get_status_display()}'."}
             )
-        # --- FIM DA RESOLUÇÃO DO R5 ---
         
         # 3. Cria a pendência
         pendencia = serializer.save(service=service, criada_por=user, status='ABERTA')
 
-        # 4. Altera o status do serviço para PENDENCIAS (agora de forma segura)
+        # 4. Altera o status do serviço para PENDENCIAS de forma segura
         if service.status != 'PENDENCIAS':
             status_antigo = service.status
             service.status = 'PENDENCIAS'
             service.save(update_fields=['status'])
+            
             ServiceStatusHistory.objects.create(
-                service=service, changed_by=user, old_status=status_antigo, new_status='PENDENCIAS'
+                service=service, 
+                changed_by=user, 
+                old_status=status_antigo, 
+                new_status='PENDENCIAS'
             )
 
         notificar_pendencia(service, pendencia.titulo)
@@ -575,9 +603,29 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
             raise PermissionDenied("Apenas administradores podem apagar pendências.")
         instance.delete()
 
+    @transaction.atomic
     def perform_update(self, serializer):
-        if getattr(self.request.user, 'is_cliente', False):
-            raise PermissionDenied("Clientes não podem alterar o estado das pendências.")
+        instance = self.get_object()
+        service = instance.service
+        user = self.request.user
+        
+        self.check_access_permission(service)
+
+        # --- REGRA R4: Deteção forte de cliente ---
+        is_cliente = getattr(user, 'is_cliente', False) and not (
+            user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        )
+
+        if is_cliente:
+            # Clientes só podem alterar o status para RESPONDIDA
+            novo_status = serializer.validated_data.get('status')
+            if novo_status and novo_status != 'RESPONDIDA':
+                raise PermissionDenied("Clientes só podem alterar o status para RESPONDIDA.")
+            
+            # Removemos qualquer tentativa maliciosa de mudar o título ou a observação original
+            serializer.validated_data.pop('titulo', None)
+            serializer.validated_data.pop('observacao', None)
+
         serializer.save()
 class ServicePaymentDocumentView(ServiceAccessMixin, AbstractPaymentDocumentView):
     model = ServiceAttachment
