@@ -66,7 +66,7 @@ def notificar_nova_solicitacao(service):
         mensagem=f"Nova solicitação de {service.tipo.nome} criada. Prazo: {service.tipo.prazo_informativo}.",
         assunto=f"Nova Solicitação: {service.tipo.nome}",
         categoria="SERVICO_NOVO",
-        template_name="email/service/nova_solicitacao.html"
+        template_name="email/services/nova_solicitacao.html"
     )
 
 def notificar_mudanca_status(service):
@@ -79,7 +79,7 @@ def notificar_mudanca_status(service):
         mensagem=f"A solicitação #{service.id} mudou para o status: {service.get_status_display()}.",
         assunto=f"Atualização de Status - #{service.id}",
         categoria="SERVICO_STATUS",
-        template_name="email/service/status_alterado.html"
+        template_name="email/services/status_alterado.html"
     )
 
 def notificar_pendencia(service, titulo):
@@ -89,7 +89,7 @@ def notificar_pendencia(service, titulo):
         mensagem=f"Nova pendência na sua solicitação #{service.id}: {titulo}.",
         assunto="Ação Necessária: Pendência em Aberto",
         categoria="SERVICO_PENDENCIA",
-        template_name="email/service/pendencia.html",
+        template_name="email/services/pendencia.html",
         context={'servico': service, 'titulo': titulo, 'mensagem': f"A pendência '{titulo}' foi aberta."}
     )
 
@@ -100,7 +100,7 @@ def notificar_documento_rejeitado_servico(service, nome_doc, motivo):
         mensagem=f"O documento '{nome_doc}' foi rejeitado. Motivo: {motivo}.",
         assunto="Documento Rejeitado - Ação Necessária",
         categoria="SERVICO_REJEICAO",
-        template_name="email/service/documento_rejeitado.html",
+        template_name="email/services/documento_rejeitado.html",
         context={'servico': service, 'nome_doc': nome_doc, 'motivo': motivo}
     )
 
@@ -111,7 +111,7 @@ def notificar_boleto_anexado_servico(service):
         mensagem=f"Um novo boleto foi disponibilizado para a solicitação #{service.id}.",
         assunto="Boleto Disponível para Pagamento",
         categoria="SERVICO_BOLETO",
-        template_name="email/service/boleto_disponivel.html"
+        template_name="email/services/boleto_disponivel.html"
     )
 
 def notificar_comprovante_anexado_servico(service):
@@ -127,7 +127,7 @@ def notificar_comprovante_anexado_servico(service):
         mensagem=f"O cliente anexou um comprovante de pagamento para a solicitação #{service.id}.",
         assunto="Comprovante de Pagamento Recebido",
         categoria="SERVICO_COMPROVANTE",
-        template_name="email/service/comprovante_recebido.html"
+        template_name="email/services/comprovante_recebido.html"
     )
 
 def notificar_documento_reenviado_servico(service, nome_doc):
@@ -143,6 +143,6 @@ def notificar_documento_reenviado_servico(service, nome_doc):
         mensagem=f"O cliente reenviou o documento '{nome_doc}' para análise.",
         assunto=f"Documento Reenviado - #{service.id}",
         categoria="SERVICO_REENVIO",
-        template_name="email/service/documento_reenviado.html",
+        template_name="email/services/documento_reenviado.html",
         context={'servico': service, 'nome_doc': nome_doc}
     )

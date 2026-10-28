@@ -75,7 +75,6 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
             destinatarios = [usuario_alvo]
             emails_destino = [usuario_alvo.email] if usuario_alvo.email else []
             group_names = [f'user_notifications_{usuario_alvo.pk}']
-
             
     elif publico_alvo == 'admins':
         destinatarios = list(User.objects.filter(is_admin=True))
@@ -86,12 +85,27 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
         if service and service.tipo:
             destinatarios = list(User.objects.filter(is_externo=True, tipos_servico=service.tipo).distinct())
             group_names = [f'user_notifications_{u.pk}' for u in destinatarios]
+            
+            # CORREÇÃO: Extrai os e-mails válidos dos destinatários externos
+            emails_destino = [u.email for u in destinatarios if getattr(u, 'email', None)]
 
     elif publico_alvo == 'envolvidos_servico':
         if service:
             externos = list(User.objects.filter(is_externo=True, tipos_servico=service.tipo).distinct())
             solicitante = [service.solicitante] if service.solicitante else []
             destinatarios = list(set(externos + solicitante))
+            group_names = [f'user_notifications_{u.pk}' for u in destinatarios]
+            
+            # CORREÇÃO: Extrai os e-mails válidos de todos os envolvidos (externos + cliente)
+            emails_destino = [u.email for u in destinatarios if getattr(u, 'email', None)]
+            
+    # CORREÇÃO P1-10 e R2: Novo grupo para incluir administradores nos avisos de anexos da equipe
+    elif publico_alvo == 'equipe_e_externos':
+        if service:
+            externos = list(User.objects.filter(is_externo=True, tipos_servico=service.tipo).distinct())
+            admins = list(User.objects.filter(is_admin=True))
+            destinatarios = list(set(externos + admins))
+            emails_destino = [u.email for u in destinatarios if getattr(u, 'email', None)]
             group_names = [f'user_notifications_{u.pk}' for u in destinatarios]
     else:
         logger.error(f"Público alvo '{publico_alvo}' desconhecido.")
@@ -147,6 +161,7 @@ def _rotear_e_salvar_notificacao(projeto=None, service=None, sender=None, public
 # ==============================================================================
 # 🟠 CAMADA 3: CENTRAL DE REGRAS 
 # ==============================================================================
+# ==============================================================================
 def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, context=None, sender=None):
     context = context or {}
     title = ""
@@ -158,6 +173,18 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
     
     cliente_direto = context.get('cliente')
 
+    # CORREÇÃO R2: Estratégia de "Alias" - Injetamos os nomes originais E os novos
+    # dentro do context enviado para o _enviar_email_template, sem alterar a assinatura base
+    context_alias = {
+        'service': service,
+        'servico': service, # Variável usada pelos novos templates de Serviço
+        'nome_documento': context.get('nome_documento', ''),
+        'nome_doc': context.get('nome_documento', ''), # Variável usada pelos novos templates de Serviço
+        'titulo': context.get('titulo', ''),
+        'motivo': context.get('motivo', ''),
+        'prazo': service.tipo.prazo_informativo if (service and service.tipo) else "1 dia útil",
+    }
+
     # --------------------------------------------------------------------------
     # EVENTOS DO MÓDULO DE SERVIÇOS
     # --------------------------------------------------------------------------
@@ -166,18 +193,17 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         category = "SERVICO_NOVO"
         title = "Nova Solicitação de Serviço"
         nome_tipo = service.tipo.nome if (service and service.tipo) else "Serviço"
-        prazo = service.tipo.prazo_informativo if (service and service.tipo) else "1 dia útil"
         
-        message = f"Nova solicitação #{service.id} de {nome_tipo} criada. Prazo informado: {prazo}."
+        message = f"Nova solicitação #{service.id} de {nome_tipo} criada. Prazo informado: {context_alias['prazo']}."
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"[SERVIÇO] Nova Solicitação #{service.id} - {nome_tipo}",
-            'template': 'email/service/nova_solicitacao.html',
-            'context': {'service': service, 'prazo': prazo}
+            'template': 'email/services/nova_solicitacao.html',
+            'context': context_alias
         }
 
     elif evento == 'usuario_externo_criado':
-        publico_alvo = 'cliente' # O roteador envia para 'cliente_direto'
+        publico_alvo = 'cliente' 
         category = "ACESSO_LIBERADO"
         title = "Acesso de Parceiro Liberado"
         message = "O seu perfil de Parceiro Executor foi criado e o acesso está liberado."
@@ -207,37 +233,34 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"Atualização no Serviço #{service.id}",
-            'template': 'email/service/status_alterado.html',
-            'context': {'service': service, 'status': status_disp}
+            'template': 'email/services/status_alterado.html',
+            'context': context_alias
         }
 
     elif evento == 'servico_pendencia':
         publico_alvo = 'externos_tipo' if (sender and sender == service.solicitante) else 'cliente'
         category = "SERVICO_PENDENCIA"
         title = "Pendência na Solicitação"
-        pend_titulo = context.get('titulo', 'Registrada nova pendência.')
         
-        message = f"Pendência na solicitação #{service.id}: {pend_titulo}"
+        message = f"Pendência na solicitação #{service.id}: {context_alias['titulo']}"
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"Pendência na Solicitação #{service.id}",
-            'template': 'email/service/pendencia.html',
-            'context': {'service': service, 'titulo': pend_titulo}
+            'template': 'email/services/pendencia.html', # CORREÇÃO R2: Ficheiro renomeado de pedencia.html para pendencia.html
+            'context': context_alias
         }
 
     elif evento == 'servico_documento_rejeitado':
         publico_alvo = 'cliente'
         category = "SERVICO_DOCUMENTO_RECUSADO"
         title = "Anexo de Serviço Recusado"
-        doc_nome = context.get('nome_documento', 'Anexo')
-        motivo = context.get('motivo', 'Verifique o painel.')
         
-        message = f"O anexo '{doc_nome}' na solicitação #{service.id} foi recusado. Motivo: {motivo}"
+        message = f"O anexo '{context_alias['nome_doc']}' na solicitação #{service.id} foi recusado. Motivo: {context_alias['motivo']}"
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"Anexo Recusado - Solicitação #{service.id}",
-            'template': 'email/service/documento_rejeitado.html',
-            'context': {'service': service, 'nome_documento': doc_nome, 'motivo': motivo}
+            'template': 'email/services/documento_rejeitado.html',
+            'context': context_alias
         }
 
     elif evento == 'servico_boleto_adicionado':
@@ -248,22 +271,41 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"Boleto Disponível - Solicitação #{service.id}",
-            'template': 'email/service/boleto_disponivel.html',
-            'context': {'service': service}
+            'template': 'email/services/boleto_disponivel.html',
+            'context': context_alias
         }
 
     elif evento == 'servico_comprovante_adicionado':
-        publico_alvo = 'externos_tipo'
+        publico_alvo = 'equipe_e_externos' # CORREÇÃO P1-10: Notifica externos e administradores
         category = "SERVICO_COMPROVANTE_ENVIADO"
         title = "Comprovante de Serviço Recebido"
         message = f"O cliente enviou um comprovante de pagamento para a solicitação de serviço #{service.id}."
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"[FINANCEIRO] Comprovante Recebido - Serviço #{service.id}",
-            'template': 'email/service/comprovante_recebido.html',
-            'context': {'service': service}
+            'template': 'email/services/comprovante_recebido.html',
+            'context': context_alias
         }
 
+    # CORREÇÃO R2: Evento 'servico_documento_reenviado' incluído para não disparar log de erro
+    elif evento == 'servico_documento_reenviado':
+        publico_alvo = 'equipe_e_externos' # Vai apenas para a equipa, o cliente não precisa ser avisado que ele mesmo enviou
+        category = "SERVICO_REENVIO"
+        title = "Documento Reenviado"
+        nome_doc = context.get('nome_documento', '')
+        
+        message = f"O cliente reenviou o documento '{nome_doc}' para análise na solicitação #{service.id}."
+        url = f"/servicos/{service.pk}/"
+        email_data = {
+            'subject': f"Documento Reenviado - #{service.id}",
+            'template': 'email/servicea/documento_reenviado.html',
+            'context': {
+                'service': service, 
+                'servico': service, # Alias para os novos templates
+                'nome_doc': nome_doc,
+                'nome_documento': nome_doc
+            }
+        }
     # --------------------------------------------------------------------------
     # EVENTOS DE PROJETO
     # --------------------------------------------------------------------------
