@@ -231,6 +231,11 @@ class ServiceUnit(BaseModel):
     prioridade = models.PositiveIntegerField(blank=True, null=True)
     fatura = models.ForeignKey(ServiceAttachment, on_delete=models.SET_NULL, null=True, blank=True)
 
+    class Meta:
+        ordering = ['ordem']
+        verbose_name = 'Unidade do Serviço'
+        verbose_name_plural = 'Unidades do Serviço'
+
 class ServiceObservation(BaseModel):
     service = models.ForeignKey(ServiceRequest, on_delete=models.CASCADE, related_name='observacoes_livres')
     autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

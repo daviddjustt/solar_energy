@@ -284,7 +284,40 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
                 soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
                 if beneficiarias and soma != Decimal('100.00'):
                     raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser 100%."})
+
+        modalidade_rateio = data.get('modalidade_rateio')
+        unidades_data = data.get('unidades', [])
         
+        # Se houver unidades na requisição e a modalidade for PRIORIDADE
+        if unidades_data and modalidade_rateio == 'PRIORIDADE':
+            prioridades_beneficiarias = []
+            
+            for unidade in unidades_data:
+                papel = unidade.get('papel')
+                prioridade = unidade.get('prioridade')
+                
+                if papel == 'GERADORA':
+                    # A geradora é fixa na prioridade 0
+                    if prioridade != 0:
+                        raise serializers.ValidationError(
+                            {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
+                        )
+                elif papel == 'BENEFICIARIA':
+                    if prioridade is None or prioridade <= 0:
+                        raise serializers.ValidationError(
+                            {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
+                        )
+                    prioridades_beneficiarias.append(prioridade)
+
+            # Verifica se as prioridades das beneficiárias formam uma sequência perfeita sem lacunas (ex: 1, 2, 3)
+            if prioridades_beneficiarias:
+                prioridades_beneficiarias.sort()
+                sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
+                
+                if prioridades_beneficiarias != sequencia_esperada:
+                    raise serializers.ValidationError(
+                        {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetição ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
+                    )
         return data
     
     def create(self, validated_data):
