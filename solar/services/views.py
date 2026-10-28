@@ -429,7 +429,7 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
         service = instance.service
         user_request = self.request.user
 
-        self.check_read_permission(service)
+        self.check_access_permission(service)
         
         # --- CORREÇÃO R4: Detecção forte de cliente ---
         # Evita que um Admin/Externo com is_cliente=True caia nas regras do cliente
