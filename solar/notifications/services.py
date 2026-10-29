@@ -196,10 +196,15 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         
         message = f"Nova solicitação #{service.id} de {nome_tipo} criada. Prazo informado: {context_alias['prazo']}."
         url = f"/servicos/{service.pk}/"
+        
+
+        context_atualizado = dict(context_alias)
+        context_atualizado['mensagem'] = message 
+
         email_data = {
             'subject': f"[SERVIÇO] Nova Solicitação #{service.id} - {nome_tipo}",
             'template': 'email/services/nova_solicitacao.html',
-            'context': context_alias
+            'context': context_atualizado # <--- Usar o contexto atualizado
         }
 
     elif evento == 'usuario_externo_criado':
@@ -231,10 +236,15 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         
         message = f"A solicitação de serviço #{service.id} mudou para o status: {status_disp}."
         url = f"/servicos/{service.pk}/"
+        
+
+        context_atualizado = dict(context_alias)
+        context_atualizado['mensagem'] = message
+
         email_data = {
             'subject': f"Atualização no Serviço #{service.id}",
             'template': 'email/services/status_alterado.html',
-            'context': context_alias
+            'context': context_atualizado # <--- Usar o contexto atualizado
         }
 
     elif evento == 'servico_pendencia':
@@ -298,7 +308,7 @@ def _construir_mensagem_notificacao(projeto=None, service=None, evento=None, con
         url = f"/servicos/{service.pk}/"
         email_data = {
             'subject': f"Documento Reenviado - #{service.id}",
-            'template': 'email/servicea/documento_reenviado.html',
+            'template': 'email/services/documento_reenviado.html',
             'context': {
                 'service': service, 
                 'servico': service, # Alias para os novos templates
