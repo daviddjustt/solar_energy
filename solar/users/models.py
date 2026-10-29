@@ -193,7 +193,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def save(self, *args, **kwargs):
         """Salva o usuário após normalizar os campos e sincronizar grupos."""
-        self.is_active = True 
         self._normalize_text_fields()
         
         # Sincroniza a flag de Pessoa Jurídica baseada no documento preenchido
