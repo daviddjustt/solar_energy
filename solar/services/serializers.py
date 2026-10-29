@@ -146,7 +146,13 @@ class ExternalUserSerializer(serializers.ModelSerializer):
     """
     Serializer dedicado à criação e edição de Usuários Externos pelo Admin.
     """
-    password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    password = serializers.CharField(
+        write_only=True, 
+        required=False, 
+        allow_blank=True, 
+        allow_null=True,
+        style={'input_type': 'password'}
+    )
     tipos_servico = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=ServiceType.objects.all(),
