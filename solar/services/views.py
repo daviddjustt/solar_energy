@@ -475,6 +475,14 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
     parent_relation_field = 'service'
     serializer_class = ServiceAttachmentSerializer
 
+    def check_read_permission(self, parent_obj):
+        """
+        Obrigatório pelo AbstractDocumentListViewSet.
+        Delega a validação de acesso ao ServiceAccessMixin, que já sabe
+        exatamente se o usuário (Admin, Externo ou Cliente) tem permissão
+        para aceder à solicitação (parent_obj).
+        """
+        self.check_access_permission(parent_obj)
 
     @transaction.atomic
     def perform_create(self, serializer):
