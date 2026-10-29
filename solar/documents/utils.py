@@ -79,6 +79,15 @@ DOCUMENT_TYPE_CHOICES = [
         ('memorial', 'Memorial'),
         ('art_documento', 'ART'),
 
+        # --- NOVOS TIPOS DO MÓDULO DE SERVIÇOS (Correção R13) ---
+        ('documento_socio', 'Documento do Sócio'),
+        ('documento_representante', 'Documento do Representante'),
+        ('fatura_referencia', 'Fatura de Referência'),
+        ('fatura_unidade', 'Fatura da Unidade'),
+        ('documento_posse', 'Documento de Posse'),
+        ('foto_medidor', 'Foto do Medidor'),
+        ('inscricao_municipal_doc', 'Documento de Inscrição Municipal'),
+
         # 🟢 NOVOS DOCUMENTOS EXCLUSIVOS PARA PROJETOS DA ENERGISA
 
         ('documento_de_posse', 'Documento de Posse'),
