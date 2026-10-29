@@ -200,6 +200,20 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     serializer_class = ServiceRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def validar_novo_status(novo_status):
+        """
+        Valida se o status fornecido existe na classe de choices do ServiceRequest.
+        Lança um erro 400 automático (ValidationError) caso seja inválido.
+        """
+        status_validos = [choice[0] for choice in ServiceRequest.StatusChoices.choices]
+        
+        if not novo_status or novo_status not in status_validos:
+            raise ValidationError({
+                "status": f"Status inválido ou não informado. Escolhas permitidas: {', '.join(status_validos)}"
+            })
+            
+        return novo_status
+
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return ServiceRequest.objects.none()
@@ -278,12 +292,20 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def alterar_status(self, request, pk=None):
         service = self.get_object()
-        
-        # --- CORREÇÃO P1-7: Uso do Mixin centralizado de permissão ---
-        self.check_access_permission(service)
-        
         user = request.user
-        novo_status = request.data.get('status')
+
+        # 1. Permissão estrita: Apenas equipe, bloqueando o cliente
+        is_admin = user.is_superuser or getattr(user, 'is_admin', False)
+        is_externo_valido = getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all()
+        
+        if not (is_admin or is_externo_valido):
+            raise PermissionDenied("Apenas administradores e técnicos responsáveis podem alterar o status da solicitação.")
+
+        # 2. Bloqueio de redundância (Evita histórico e notificação duplicados)
+        if novo_status == service.status:
+            return Response({"detail": f"A solicitação já está no status {service.get_status_display()}."}, status=status.HTTP_200_OK)
+
+        novo_status = self.validar_novo_status(request.data.get('status'))
         
         # --- CORREÇÃO P1-7: SERVICO_SOLICITADO como status final/bloqueado ---
         status_finais = [
@@ -333,15 +355,51 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
                 if not protocolo and tipo_codigo != 'troca_titularidade':
                     return Response({"protocolo": "O número do protocolo da concessionária é obrigatório para a conclusão."}, status=status.HTTP_400_BAD_REQUEST)
 
+
         # Atribuição dos campos de resultado enviados no request
         campos_resultado = [
             'protocolo', 'uc_resultado', 'prazo_concessionaria', 
             'nota', 'carga', 'tensao_nominal', 'potencia_transformador', 'executor'
         ]
+        
         for campo in campos_resultado:
             if campo in request.data:
-                setattr(service, campo, request.data.get(campo))
+                valor = request.data.get(campo)
+                # Converte strings vazias para None para campos Date/Decimal
+                if valor == "":
+                    valor = None
+                setattr(service, campo, valor)
 
+        # 5. Preenchimento automático (e não manual) do Executor
+        if novo_status == ServiceRequest.StatusChoices.REALIZANDO_SERVICO and not service.executor:
+            service.executor = user
+
+        # 6. Exigência de campos obrigatórios por Tipo e Status
+        tipo_codigo = service.tipo.codigo if service.tipo else ""
+        erros = {}
+        
+        if novo_status == ServiceRequest.StatusChoices.CONCLUIDO:
+            if tipo_codigo == 'consulta_carga':
+                if service.carga is None: erros['carga'] = "Carga é obrigatória."
+                if not service.tensao_nominal: erros['tensao_nominal'] = "Tensão nominal é obrigatória."
+                if service.potencia_transformador is None: erros['potencia_transformador'] = "Potência do transformador é obrigatória."
+            
+            elif tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase', 'alteracao_carga']:
+                if not service.uc_resultado: erros['uc_resultado'] = "A UC Resultado é obrigatória para conclusão."
+                if not service.prazo_concessionaria: erros['prazo_concessionaria'] = "O prazo da concessionária é obrigatório."
+                
+            elif tipo_codigo == 'troca_titularidade':
+                unidades = service.unidades.all()
+                if not unidades.exists() or any(not u.uc_antiga or not u.uc_nova for u in unidades):
+                    erros['unidades'] = "Todas as unidades envolvidas devem ter o par 'uc_antiga' e 'uc_nova' preenchidos para concluir a troca."
+                    
+        elif novo_status == ServiceRequest.StatusChoices.SERVICO_SOLICITADO:
+            if tipo_codigo == 'lista_compensacao' and not service.protocolo:
+                erros['protocolo'] = "O protocolo é obrigatório para enviar a lista de compensação."
+
+        if erros:
+            return Response(erros, status=status.HTTP_400_BAD_REQUEST)
+        
         status_antigo = service.status
         service.status = novo_status
         service.save()
