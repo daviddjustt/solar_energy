@@ -7,11 +7,11 @@ from solar.services.views import (
     ServiceRequestViewSet, ServiceAttachmentViewSet, ServicePendencyViewSet,
     ServicePaymentDocumentView, ServiceAttachmentDownloadView,
     ServiceAttachmentDownloadAllView, ServiceTypeViewSet,
-    ServiceObservationViewSet, ServiceStatusHistoryViewSet, ExternalUserViewSet
+    ServiceObservationViewSet, ServiceStatusHistoryViewSet, ExternalUserViewSet,
 )
 
 router = DefaultRouter()
-router.register(r'services-view', ServiceRequestViewSet, basename='service')
+router.register(r'services-view', ServiceRequestViewSet, basename='service-request')
 router.register(r'service-types', ServiceTypeViewSet, basename='service-types')
 router.register(r'external-users', ExternalUserViewSet, basename='external-users')
 
