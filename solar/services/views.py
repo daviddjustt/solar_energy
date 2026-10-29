@@ -797,7 +797,7 @@ class ServiceObservationViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         service = get_object_or_404(ServiceRequest, pk=service_pk)
         
         try:
-            self.check_access_permission(service)
+            self.check_team_permission(self.request,service)
         except PermissionDenied:
             return ServiceObservation.objects.none()
 
