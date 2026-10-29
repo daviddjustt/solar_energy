@@ -193,7 +193,7 @@ class ServiceStatusHistoryViewSet(ServiceAccessMixin, viewsets.ReadOnlyModelView
 
         return ServiceStatusHistory.objects.filter(service=service).order_by('-changed_at')
 
-class ServiceRequestViewSet(viewsets.ModelViewSet):
+class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     """
     ViewSet principal para solicitações de serviços.
     """
@@ -214,16 +214,47 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         else:
             return queryset.filter(solicitante=user)
 
+    @transaction.atomic
     def perform_update(self, serializer):
-        # P1-8: Cliente não edita
-        if getattr(self.request.user, 'is_cliente', False):
-            raise PermissionDenied("Não é possível alterar a solicitação após o envio. Contate o suporte.")
+        instance = self.get_object()
+        user = self.request.user
+
+        # --- CORREÇÃO P1-8 e R4: Deteção forte de cliente ---
+        is_cliente = getattr(user, 'is_cliente', False) and not (
+            user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        )
+
+        # Regra de Negócio (Seção 5): Cliente não edita dados após o envio.
+        if is_cliente:
+            raise PermissionDenied("Clientes não podem alterar os dados da solicitação após a sua criação.")
+
+        # --- CORREÇÃO P1-8: Proteger campos de resultado ---
+        # Garantimos que estes campos NUNCA são editados por PATCH direto. 
+        # A equipe é obrigada a usar a ação de 'status' (alterar_status) para os preencher.
+        campos_resultado_protegidos = [
+            'protocolo', 'uc_resultado', 'prazo_concessionaria', 
+            'nota', 'carga', 'tensao_nominal', 'potencia_transformador', 'executor'
+        ]
+        for campo in campos_resultado_protegidos:
+            serializer.validated_data.pop(campo, None)
+
+        # --- CORREÇÃO P1-8: Recálculo do valor cobrado ---
+        # Se a equipe alterar o Tipo de Serviço, o sistema ajusta o valor cobrado
+        novo_tipo = serializer.validated_data.get('tipo')
+        if novo_tipo and novo_tipo != instance.tipo:
+            serializer.validated_data['valor_cobrado'] = novo_tipo.valor
+
         serializer.save()
 
     def perform_destroy(self, instance):
-        # P1-8: Cliente não apaga
-        if getattr(self.request.user, 'is_cliente', False):
-            raise PermissionDenied("Clientes não podem apagar solicitações de serviço.")
+        user = self.request.user
+        
+        # --- CORREÇÃO P1-8: DELETE restrito ao Admin ---
+        is_admin = user.is_superuser or getattr(user, 'is_admin', False)
+        
+        if not is_admin:
+            raise PermissionDenied("Apenas administradores podem excluir uma solicitação de serviço.")
+            
         instance.delete()
 
     @transaction.atomic
@@ -247,74 +278,86 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def alterar_status(self, request, pk=None):
         service = self.get_object()
-        user = request.user
-
-        def extract_value(key):
-            val = request.data.get(key)
-            return val if val not in ["", "null", None] else None
         
-        is_admin_or_super = user.is_superuser or getattr(user, 'is_admin', False)
-        is_externo_autorizado = getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all()
-
-        if not (is_admin_or_super or is_externo_autorizado):
-            raise PermissionDenied("Acesso negado.")
-
+        # --- CORREÇÃO P1-7: Uso do Mixin centralizado de permissão ---
+        self.check_access_permission(service)
+        
+        user = request.user
         novo_status = request.data.get('status')
+        
+        # --- CORREÇÃO P1-7: SERVICO_SOLICITADO como status final/bloqueado ---
+        status_finais = [
+            ServiceRequest.StatusChoices.CONCLUIDO, 
+            ServiceRequest.StatusChoices.REPROVADO,
+            ServiceRequest.StatusChoices.SERVICO_SOLICITADO
+        ]
+        
+        if service.status in status_finais:
+            return Response(
+                {"detail": f"Esta solicitação já se encontra encerrada ({service.get_status_display()}) e não pode mais sofrer alterações de status."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validação do motivo de reprovação (obrigatório se for reprovado)
+        if novo_status == ServiceRequest.StatusChoices.REPROVADO:
+            motivo = request.data.get('motivo_reprova')
+            if not motivo:
+                return Response(
+                    {"motivo_reprova": "O motivo da reprovação é obrigatório para encerrar a solicitação."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            service.motivo_reprova = motivo
+
+        # --- CORREÇÃO P1-7: Exigência de campos por destino / tipo de serviço ---
+        if novo_status == ServiceRequest.StatusChoices.CONCLUIDO:
+            tipo_codigo = service.tipo.codigo if service.tipo else ""
+            
+            # Validações específicas para Consulta de Carga
+            if tipo_codigo == 'consulta_carga':
+                carga = request.data.get('carga')
+                tensao = request.data.get('tensao_nominal')
+                transformador = request.data.get('potencia_transformador')
+                
+                erros = {}
+                if carga is None: erros['carga'] = "A carga é obrigatória para concluir a consulta."
+                if not tensao: erros['tensao_nominal'] = "A tensão nominal é obrigatória."
+                if transformador is None: erros['potencia_transformador'] = "A potência do transformador é obrigatória."
+                if erros:
+                    return Response(erros, status=status.HTTP_400_BAD_REQUEST)
+                    
+            # Validações gerais para serviços comuns de concessionária
+            elif tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase', 'alteracao_carga', 'troca_titularidade']:
+                protocolo = request.data.get('protocolo')
+                uc_resultado = request.data.get('uc_resultado')
+                
+                if not protocolo and tipo_codigo != 'troca_titularidade':
+                    return Response({"protocolo": "O número do protocolo da concessionária é obrigatório para a conclusão."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Atribuição dos campos de resultado enviados no request
+        campos_resultado = [
+            'protocolo', 'uc_resultado', 'prazo_concessionaria', 
+            'nota', 'carga', 'tensao_nominal', 'potencia_transformador', 'executor'
+        ]
+        for campo in campos_resultado:
+            if campo in request.data:
+                setattr(service, campo, request.data.get(campo))
+
         status_antigo = service.status
-
-        # P1-7: Bloqueia saída de status finais
-        status_finais = [ServiceRequest.StatusChoices.CONCLUIDO, ServiceRequest.StatusChoices.REPROVADO]
-        if status_antigo in status_finais and not user.is_superuser:
-            raise PermissionDenied("Esta solicitação já foi finalizada e o status não pode ser revertido.")
-
-        if novo_status not in [c[0] for c in ServiceRequest.StatusChoices.choices]:
-            raise ValidationError({'status': 'Status inválido.'})
-
-        motivo_reprova = request.data.get('motivo_reprova')
-        if novo_status == ServiceRequest.StatusChoices.REPROVADO and not motivo_reprova:
-            raise ValidationError({'motivo_reprova': 'Motivo obrigatório.'})
-
         service.status = novo_status
-        if motivo_reprova: service.motivo_reprova = motivo_reprova
-
-        if novo_status == ServiceRequest.StatusChoices.REALIZANDO and not service.executor:
-            service.executor = user
-
-        if novo_status in [ServiceRequest.StatusChoices.CONCLUIDO, ServiceRequest.StatusChoices.SERVICO_SOLICITADO]:
-            service.protocolo = request.data.get('protocolo', service.protocolo)
-            service.uc_resultado = request.data.get('uc_resultado', service.uc_resultado)
-            service.nota = request.data.get('nota', service.nota)
-            service.tensao_nominal = request.data.get('tensao_nominal', service.tensao_nominal)
-
-            service.prazo_concessionaria = extract_value('prazo_concessionaria')
-            service.carga = extract_value('carga')
-            service.potencia_transformador = extract_value('potencia_transformador')
-            
-            # --- INÍCIO DA RESOLUÇÃO DO R10 ---
-            
-            # 1. Tratamento para evitar erro 500 com strings vazias em DateField e DecimalField
-            prazo = request.data.get('prazo_concessionaria')
-            service.prazo_concessionaria = None if prazo in ["", "null"] else (prazo or service.prazo_concessionaria)
-            
-            carga = request.data.get('carga')
-            service.carga = None if carga in ["", "null"] else (carga or service.carga)
-
-            # 2. Inclusão da captura dos dados de engenharia
-            service.tensao_nominal = request.data.get('tensao_nominal', service.tensao_nominal)
-            
-            potencia = request.data.get('potencia_transformador')
-            service.potencia_transformador = None if potencia in ["", "null"] else (potencia or service.potencia_transformador)
-            
-            # --- FIM DA RESOLUÇÃO DO R10 ---
-
         service.save()
 
-        if status_antigo != novo_status:
-            ServiceStatusHistory.objects.create(service=service, changed_by=user, old_status=status_antigo, new_status=novo_status)
-            notificar_mudanca_status(service)
+        # Registra no histórico de status
+        ServiceStatusHistory.objects.create(
+            service=service,
+            changed_by=user,
+            old_status=status_antigo,
+            new_status=novo_status
+        )
 
-        return Response(self.get_serializer(service).data, status=status.HTTP_200_OK)
+        # Dispara as notificações de mudança de status
+        notificar_mudanca_status(service)
 
+        return Response({"status": f"Status alterado para {service.get_status_display()} com sucesso."}, status=status.HTTP_200_OK)
 class ServiceTypeViewSet(viewsets.ModelViewSet):
     """
     Gestão do Catálogo de Tipos de Serviço (Tabela de Preços e Prazos).
@@ -634,11 +677,6 @@ class ServicePaymentDocumentView(ServiceAccessMixin, AbstractPaymentDocumentView
     parent_relation_field = 'service'
     serializer_class = ServicePaymentDocumentSerializer
 
-    def check_access_permission(self, service):
-        user = self.request.user
-        if getattr(user, 'is_cliente', False) and service.solicitante != user:
-            raise PermissionDenied("Acesso negado.")
-
 class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
     model = ServiceAttachment
     parent_model = ServiceRequest
@@ -654,12 +692,17 @@ class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
             raise PermissionDenied("Sem permissão para download.")
 
 
-class ServiceObservationViewSet(viewsets.ModelViewSet):
+class ServiceObservationViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     """
-    Gerenciamento de observações livres feitas pela equipe e executores externos.
+    Gerenciamento de observações livres da equipe.
+    Restrito apenas para leitura (GET) e criação (POST).
     """
     serializer_class = ServiceObservationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    # --- CORREÇÃO P1-9: Bloqueio de PATCH e DELETE ---
+    http_method_names = ['get', 'post']
+    # ------------------------------------------------
 
     def get_queryset(self):
         service_pk = self.kwargs.get('service_pk')
@@ -667,24 +710,27 @@ class ServiceObservationViewSet(viewsets.ModelViewSet):
             return ServiceObservation.objects.none()
 
         service = get_object_or_404(ServiceRequest, pk=service_pk)
-        user = self.request.user
         
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        if not is_equipe:
-            return ServiceObservation.objects.none() # Cliente não vê notas da equipa
+        try:
+            self.check_access_permission(service)
+        except PermissionDenied:
+            return ServiceObservation.objects.none()
 
         return ServiceObservation.objects.filter(service=service).order_by('-created_at')
 
+    @transaction.atomic
     def perform_create(self, serializer):
         service_pk = self.kwargs.get('service_pk')
         service = get_object_or_404(ServiceRequest, pk=service_pk)
         user = self.request.user
 
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        if not is_equipe:
-            raise PermissionDenied("Acesso negado.")
+        self.check_access_permission(service)
 
-        # R6: Corrigido para 'autor' (antes era criada_por)
+        # Regra de Segurança: Apenas a equipa cria observações
+        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
+        if not is_equipe:
+            raise PermissionDenied("Apenas a equipe técnica pode adicionar observações.")
+
         serializer.save(service=service, autor=user)
 
 class ServiceAttachmentDownloadAllView(AbstractDocumentDownloadAllView):

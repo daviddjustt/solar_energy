@@ -271,53 +271,120 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate(self, data):
-        unidades = data.get('unidades', [])
+        # 1. Roda as validações base do ModelSerializer
+        data = super().validate(data)
+        
+        # 2. Resgata valores do payload ou da instância atual (para PATCHs parciais)
+        tipo = data.get('tipo') or (self.instance.tipo if self.instance else None)
+        tipo_pessoa = data.get('tipo_pessoa') or (self.instance.tipo_pessoa if self.instance else None)
+        documento = data.get('documento') or (self.instance.documento if self.instance else None)
+        
+        tipo_codigo = tipo.codigo if tipo else None
+        erros = {}
+
+        # =====================================================================
+        # REGRA A: VALIDAÇÕES RÍGIDAS DE IDENTIDADE E PESSOA (P1-11)
+        # =====================================================================
+        
+        # 1. Consulta de carga é estritamente para PF
+        if tipo_codigo == 'consulta_carga' and tipo_pessoa != 'PF':
+            erros['tipo_pessoa'] = "O serviço de Consulta de Carga aceita apenas Pessoa Física (PF)."
+
+        # 2. Validação rigorosa de CPF/CNPJ aproveitando utilities de Usuários
+        if documento and tipo_pessoa:
+            doc_limpo = ''.join(filter(str.isdigit, str(documento)))
+            try:
+                from solar.users.models import validate_cpf, validate_cnpj
+                from django.core.exceptions import ValidationError as DjangoValidationError
+
+                if tipo_pessoa == 'PF':
+                    validate_cpf(doc_limpo)
+                elif tipo_pessoa == 'PJ':
+                    validate_cnpj(doc_limpo)
+            except DjangoValidationError as e:
+                erros['documento'] = list(e.messages)
+
+        # =====================================================================
+        # REGRA B: MATRIZ DE CAMPOS OBRIGATÓRIOS POR TIPO DE SERVIÇO (P1-11)
+        # =====================================================================
+        
+        # Nome e Documento são exigidos universalmente
+        for campo in ['nome_razao_social', 'documento']:
+            if not data.get(campo) and not (self.instance and getattr(self.instance, campo, None)):
+                erros[campo] = "Este campo é obrigatório."
+
+        exigidos = []
+        if tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase']:
+            exigidos = ['endereco', 'unidade_consumidora', 'telefone_contato', 'ponto_referencia_1', 'ponto_referencia_2', 'necessita_obra_rede']
+        elif tipo_codigo == 'alteracao_carga':
+            exigidos = ['endereco', 'unidade_consumidora', 'necessita_obra_rede']
+        elif tipo_codigo in ['consulta_carga', 'lista_compensacao']:
+            exigidos = ['endereco']
+        # 'troca_titularidade' não exige campos extras além de nome e documento.
+
+        for campo in exigidos:
+            valor = data.get(campo)
+            # Para booleanos como 'necessita_obra_rede', precisamos usar 'is None' pois False é válido
+            if valor is None or str(valor).strip() == '':
+                if not (self.instance and getattr(self.instance, campo) is not None):
+                    erros[campo] = "Este campo é obrigatório para este tipo de serviço."
+
+        if erros:
+            raise serializers.ValidationError(erros)
+
+        # =====================================================================
+        # REGRA C: UNIDADES, RATEIOS E PRIORIDADES (R7 e Regras de Negócio)
+        # =====================================================================
+        
+        unidades_data = data.get('unidades', [])
         rateio = data.get('modalidade_rateio')
         
-        if unidades:
-            geradoras = [u for u in unidades if u.get('papel') == 'GERADORA']
+        if unidades_data:
+            # 1. Regra de Ouro: Exatamente uma unidade GERADORA
+            geradoras = [u for u in unidades_data if u.get('papel') == 'GERADORA']
             if len(geradoras) != 1:
                 raise serializers.ValidationError({'unidades': "É obrigatória exatamente uma unidade GERADORA."})
                 
+            # 2. Rateio por Porcentagem: A soma das beneficiárias deve ser estritamente 100%
             if rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
-                beneficiarias = [u for u in unidades if u.get('papel') == 'BENEFICIARIA']
+                beneficiarias = [u for u in unidades_data if u.get('papel') == 'BENEFICIARIA']
                 soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
+                
+                # Só cobra a soma de 100% se de facto existirem beneficiárias na lista
                 if beneficiarias and soma != Decimal('100.00'):
-                    raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser 100%."})
+                    raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser exatamente 100%."})
 
-        modalidade_rateio = data.get('modalidade_rateio')
-        unidades_data = data.get('unidades', [])
-        
-        # Se houver unidades na requisição e a modalidade for PRIORIDADE
-        if unidades_data and modalidade_rateio == 'PRIORIDADE':
-            prioridades_beneficiarias = []
-            
-            for unidade in unidades_data:
-                papel = unidade.get('papel')
-                prioridade = unidade.get('prioridade')
+            # 3. Rateio por Prioridade (Resolução final do R7)
+            elif rateio == 'PRIORIDADE':
+                prioridades_beneficiarias = []
                 
-                if papel == 'GERADORA':
-                    # A geradora é fixa na prioridade 0
-                    if prioridade != 0:
-                        raise serializers.ValidationError(
-                            {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
-                        )
-                elif papel == 'BENEFICIARIA':
-                    if prioridade is None or prioridade <= 0:
-                        raise serializers.ValidationError(
-                            {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
-                        )
-                    prioridades_beneficiarias.append(prioridade)
+                for unidade in unidades_data:
+                    papel = unidade.get('papel')
+                    prioridade = unidade.get('prioridade')
+                    
+                    if papel == 'GERADORA':
+                        # A geradora amarra sempre na prioridade 0
+                        if prioridade != 0:
+                            raise serializers.ValidationError(
+                                {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
+                            )
+                    elif papel == 'BENEFICIARIA':
+                        if prioridade is None or prioridade <= 0:
+                            raise serializers.ValidationError(
+                                {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
+                            )
+                        prioridades_beneficiarias.append(prioridade)
 
-            # Verifica se as prioridades das beneficiárias formam uma sequência perfeita sem lacunas (ex: 1, 2, 3)
-            if prioridades_beneficiarias:
-                prioridades_beneficiarias.sort()
-                sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
-                
-                if prioridades_beneficiarias != sequencia_esperada:
-                    raise serializers.ValidationError(
-                        {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetição ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
-                    )
+                # Verifica as lacunas e saltos nas prioridades
+                if prioridades_beneficiarias:
+                    prioridades_beneficiarias.sort()
+                    sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
+                    
+                    if prioridades_beneficiarias != sequencia_esperada:
+                        raise serializers.ValidationError(
+                            {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetições ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
+                        )
+
         return data
     
     def create(self, validated_data):
