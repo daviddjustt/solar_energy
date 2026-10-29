@@ -366,54 +366,58 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         # REGRA C: UNIDADES, RATEIOS E PRIORIDADES (R7 e Regras de Negócio)
         # =====================================================================
         
-        unidades_data = data.get('unidades', [])
-        rateio = data.get('modalidade_rateio')
+        unidades_data = data.get('unidades')
+        modalidade_rateio = data.get('modalidade_rateio', getattr(self.instance, 'modalidade_rateio', None))
         
-        if unidades_data:
-            # 1. Regra de Ouro: Exatamente uma unidade GERADORA
-            geradoras = [u for u in unidades_data if u.get('papel') == 'GERADORA']
-            if len(geradoras) != 1:
-                raise serializers.ValidationError({'unidades': "É obrigatória exatamente uma unidade GERADORA."})
+        # --- CORREÇÃO R7: Limita as regras de rateio e GERADORA ---
+        if unidades_data is not None:
+            # Regras estritas de compensação (só rodam se houver rateio)
+            if modalidade_rateio:
+                geradoras = [u for u in unidades_data if u.get('papel', getattr(u, 'papel', '')) == 'GERADORA']
+                if len(geradoras) != 1:
+                    raise serializers.ValidationError({
+                        "unidades": "É obrigatório enviar exatamente uma unidade GERADORA quando o serviço envolve rateio de compensação."
+                    })
                 
-            # 2. Rateio por Porcentagem: A soma das beneficiárias deve ser estritamente 100%
-            if rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
-                beneficiarias = [u for u in unidades_data if u.get('papel') == 'BENEFICIARIA']
-                soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
-                
-                # Só cobra a soma de 100% se de facto existirem beneficiárias na lista
-                if beneficiarias and soma != Decimal('100.00'):
-                    raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser exatamente 100%."})
-
-            # 3. Rateio por Prioridade (Resolução final do R7)
-            elif rateio == 'PRIORIDADE':
-                prioridades_beneficiarias = []
-                
-                for unidade in unidades_data:
-                    papel = unidade.get('papel')
-                    prioridade = unidade.get('prioridade')
+                # 2. Rateio por Porcentagem: A soma das beneficiárias deve ser estritamente 100%
+                if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
+                    beneficiarias = [u for u in unidades_data if u.get('papel') == 'BENEFICIARIA']
+                    soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
                     
-                    if papel == 'GERADORA':
-                        # A geradora amarra sempre na prioridade 0
-                        if prioridade != 0:
-                            raise serializers.ValidationError(
-                                {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
-                            )
-                    elif papel == 'BENEFICIARIA':
-                        if prioridade is None or prioridade <= 0:
-                            raise serializers.ValidationError(
-                                {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
-                            )
-                        prioridades_beneficiarias.append(prioridade)
+                    # Só cobra a soma de 100% se de facto existirem beneficiárias na lista
+                    if beneficiarias and soma != Decimal('100.00'):
+                        raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser exatamente 100%."})
 
-                # Verifica as lacunas e saltos nas prioridades
-                if prioridades_beneficiarias:
-                    prioridades_beneficiarias.sort()
-                    sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
+                # 3. Rateio por Prioridade (Resolução final do R7)
+                elif modalidade_rateio == ServiceRequest.RateioChoices.PRIORIDADE:
+                    prioridades_beneficiarias = []
                     
-                    if prioridades_beneficiarias != sequencia_esperada:
-                        raise serializers.ValidationError(
-                            {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetições ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
-                        )
+                    for unidade in unidades_data:
+                        papel = unidade.get('papel')
+                        prioridade = unidade.get('prioridade')
+                        
+                        if papel == 'GERADORA':
+                            # A geradora amarra sempre na prioridade 0
+                            if prioridade != 0:
+                                raise serializers.ValidationError(
+                                    {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
+                                )
+                        elif papel == 'BENEFICIARIA':
+                            if prioridade is None or prioridade <= 0:
+                                raise serializers.ValidationError(
+                                    {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
+                                )
+                            prioridades_beneficiarias.append(prioridade)
+
+                    # Verifica as lacunas e saltos nas prioridades
+                    if prioridades_beneficiarias:
+                        prioridades_beneficiarias.sort()
+                        sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
+                        
+                        if prioridades_beneficiarias != sequencia_esperada:
+                            raise serializers.ValidationError(
+                                {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetições ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
+                            )
 
         return data
     
