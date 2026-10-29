@@ -13,18 +13,28 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from solar.services.models import (
-    ServiceRequest, ServiceAttachment, ServicePendency, 
-    ServiceObservation, ServiceStatusHistory, ServiceType
+    ServiceRequest, 
+    ServiceAttachment, 
+    ServicePendency, 
+    ServiceObservation, 
+    ServiceStatusHistory, 
+    ServiceType
 )
 from solar.services.serializers import (
-    ServiceRequestSerializer, ServiceAttachmentSerializer,
-    ServicePendencySerializer, ServiceTypeSerializer,
-    ServicePaymentDocumentSerializer, ServiceObservationSerializer, ServiceStatusHistorySerializer,
+    ServiceRequestSerializer, 
+    ServiceAttachmentSerializer,
+    ServicePendencySerializer, 
+    ServiceTypeSerializer,
+    ServicePaymentDocumentSerializer, 
+    ServiceObservationSerializer, 
+    ServiceStatusHistorySerializer,
     ExternalUserSerializer
 )
 from solar.documents.views import (
-    AbstractDocumentListViewSet, AbstractPaymentDocumentView,
-    AbstractDocumentDownloadView, AbstractDocumentDownloadAllView
+    AbstractDocumentListViewSet, 
+    AbstractPaymentDocumentView,
+    AbstractDocumentDownloadView, 
+    AbstractDocumentDownloadAllView
 )
 
 from solar.users.models import UserChangeLog
@@ -542,9 +552,6 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
             unidade.fatura = documento
             unidade.save(update_fields=['fatura'])
         else: 
-            # Apenas loga se o logger estiver devidamente importado no topo do arquivo
-            import logging
-            logger = logging.getLogger(__name__)
             logger.info(f"Anexo {documento.id} criado sem unidade associada para o serviço {service.id}.")
 
         # --- Notificações e atalhos operacionais ---

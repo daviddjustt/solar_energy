@@ -1,15 +1,30 @@
 import os
 from decimal import Decimal
 from rest_framework import serializers
-from solar.services.models import ServiceType, ServiceRequest
-from solar.users.models import User  # Importe o modelo de utilizador correto
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from solar.documents.serializers import AbstractDocumentUploadSerializer, AbstractPaymentDocumentSerializer
-from solar.documents.utils import validate_file_size, validate_file_extension
-from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory, ServiceUnit
+from solar.documents.serializers import (
+    AbstractDocumentUploadSerializer, 
+    AbstractPaymentDocumentSerializer
+)
+from solar.documents.utils import (
+    validate_file_size, 
+    validate_file_extension
+)
+
+from solar.users.models import User
+
+from .models import (
+    ServiceRequest, 
+    ServiceAttachment, 
+    ServicePendency, 
+    ServiceObservation, 
+    ServiceStatusHistory, 
+    ServiceUnit, 
+    ServiceType
+)
+
 
 User = get_user_model()
 
