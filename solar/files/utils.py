@@ -97,6 +97,14 @@ DOCUMENT_TYPE_CHOICES = [
         #Pagamentos
         ('boleto', 'Boleto'),
         ('comprovante_de_pagamento', 'Comprovante de Pagamento'),
+        # --- NOVOS TIPOS DO MÓDULO DE SERVIÇOS (P2-14) ---
+        ('documento_socio', 'Documento do Sócio'),
+        ('documento_representante', 'Documento do Representante'),
+        ('fatura_referencia', 'Fatura de Referência'),
+        ('fatura_unidade', 'Fatura da Unidade'),
+        ('documento_posse', 'Documento de Posse'),
+        ('foto_medidor', 'Foto do Medidor'),
+        ('inscricao_municipal_doc', 'Documento de Inscrição Municipal'),
         # Outros documentos
         ('outros', 'Outros Documentos'),
     ]

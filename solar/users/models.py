@@ -202,6 +202,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         elif self.cpf and not self.cnpj:
             self.is_pessoa_juridica = False
 
+        # --- CORREÇÃO P2-19: Não sobrescrever is_active em atualizações ---
+        # Só força para True se for um novo registo (adding) e não tiver sido explicitamente passado como False
+        if self._state.adding and getattr(self, 'is_active', None) is None:
+            self.is_active = True
+
         super().save(*args, **kwargs)
         
         # 🟢 Garante que a sincronização unificada de grupos ocorra APÓS salvar

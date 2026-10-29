@@ -103,27 +103,27 @@ class ExternalUserViewSet(viewsets.ModelViewSet):
         return context
 
     def create(self, request, *args, **kwargs):
-        try:
-            logger.info(f"Tentativa de criação de usuário externo: {request.data.get('email')} por {request.user.email}")
-            
-            # 1. Cria o usuário
-            response = super().create(request, *args, **kwargs)
-            logger.info(f"Usuário externo criado com sucesso: {request.data.get('email')}")
-            
-            # 2. Busca o utilizador no banco e captura a senha do payload
-            user_criado = User.objects.get(email=request.data.get('email'))
-            senha_provisoria = request.data.get('password')
-            
-            # 3. Dispara a notificação via WebSocket e o e-mail de boas-vindas
-            notificar_criacao_usuario_externo(user_criado, senha_provisoria)
-            
-            return response
-        except Exception as e:
-            logger.error(f"Erro ao criar usuário externo: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Erro ao criar usuário externo', 'detail': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        logger.info(f"Tentativa de criação de usuário externo: {request.data.get('email')} por {request.user.email}")
+        
+        serializer = self.get_serializer(data=request.data)
+        
+        # --- CORREÇÃO P2-19: Formatação de erros preservada ---
+        # O raise_exception=True devolve automaticamente o erro 400 formatado 
+        # por campo para o frontend, dispensando o bloco try/except genérico.
+        serializer.is_valid(raise_exception=True) 
+        
+        # 1. Cria o utilizador (e a senha auto-gerada, se necessário, dentro do serializer)
+        user_criado = serializer.save()
+        logger.info(f"Usuário externo criado com sucesso: {user_criado.email}")
+        
+        # 2. Captura a senha correta (digitada ou a auto-gerada que injetámos no objeto)
+        senha_provisoria = getattr(user_criado, 'senha_provisoria_gerada', None)
+        
+        # 3. Dispara a notificação via WebSocket e o e-mail de boas-vindas
+        notificar_criacao_usuario_externo(user_criado, senha_provisoria)
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()

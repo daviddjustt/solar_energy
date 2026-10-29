@@ -5,6 +5,8 @@ from solar.services.models import ServiceType, ServiceRequest
 from solar.users.models import User  # Importe o modelo de utilizador correto
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 from solar.documents.serializers import AbstractDocumentUploadSerializer, AbstractPaymentDocumentSerializer
 from solar.documents.utils import validate_file_size, validate_file_extension
 from .models import ServiceRequest, ServiceAttachment, ServicePendency, ServiceObservation, ServiceStatusHistory, ServiceUnit
@@ -37,6 +39,17 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
                 raise serializers.ValidationError(list(e.messages))
         return value
 
+    def validate_document_type(self, value):
+        if not value:
+            return value
+
+        from solar.documents.utils import DOCUMENT_TYPE_CHOICES
+        tipos_validos = [choice[0] for choice in DOCUMENT_TYPE_CHOICES]
+        if value not in tipos_validos:
+            raise serializers.ValidationError(
+                f"O tipo de documento '{value}' não é reconhecido pelo sistema."
+            )
+        return value
     def validate(self, data):
         data = super().validate(data)
         request = self.context.get('request')
@@ -155,6 +168,8 @@ class ExternalUserSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        from django.utils.crypto import get_random_string
+        
         password = validated_data.pop('password', None)
         tipos = validated_data.pop('tipos_servico', [])
 
@@ -165,18 +180,27 @@ class ExternalUserSerializer(serializers.ModelSerializer):
         validated_data['is_tecnico'] = False
         validated_data['is_pessoa_juridica'] = False
 
-        # Aproveita o UserManager para normalização e salvamento atômico
+        # --- CORREÇÃO P2-19: Geração de Senha Automática Segura ---
+        # Se o admin deixar a senha em branco, geramos uma com 12 caracteres
+        if not password:
+            password = get_random_string(length=12)
+
+        # Aproveita o UserManager para normalização e salvamento atômico (chamado apenas UMA vez)
         user = User.objects.create_user(**validated_data)
+        
+        # Atribui a senha (seja a digitada ou a auto-gerada) e guarda
+        user.set_password(password)
+        user.save(update_fields=['password'])
 
-        if password:
-            user.set_password(password)
-            user.save(update_fields=['password'])
-
+        # Associa os tipos de serviço permitidos (chamado apenas UMA vez)
         if tipos:
             user.tipos_servico.set(tipos)
 
-        return user
+        # Injetamos a senha provisória temporariamente no objeto para a View poder capturá-la para o e-mail
+        user.senha_provisoria_gerada = password
 
+        return user
+    
     def update(self, instance, validated_data):
         # Proteção: Impede a alteração acidental ou intencional das flags base
         for flag in ['is_externo', 'is_cliente', 'is_admin', 'is_tecnico', 'is_pessoa_juridica']:
