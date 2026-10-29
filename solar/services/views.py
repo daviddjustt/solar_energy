@@ -54,6 +54,18 @@ class ServiceAccessMixin:
     Mixin para centralizar a lógica de permissão baseada em escopo de serviços.
     Pode ser herdado por qualquer ViewSet do módulo de serviços.
     """
+
+    def check_team_permission(self, request, service):
+        """
+        Garante que apenas a equipe (Admin ou Externo do tipo) acesse a ação.
+        Diferente do check_access_permission, este método BLOQUEIA o cliente.
+        """
+        is_admin = request.user.is_superuser or getattr(request.user, 'is_admin', False)
+        is_externo_valido = getattr(request.user, 'is_externo', False) and service.tipo in request.user.tipos_servico.all()
+        
+        if not (is_admin or is_externo_valido):
+            raise PermissionDenied("Apenas administradores e técnicos responsáveis têm permissão para esta ação.")
+        
     def check_access_permission(self, service):
         user = self.request.user
 
@@ -219,15 +231,21 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
             return ServiceRequest.objects.none()
 
         user = self.request.user
-        queryset = ServiceRequest.objects.select_related('tipo', 'solicitante', 'executor').prefetch_related('anexos', 'unidades').order_by('-created_at')
+        queryset = ServiceRequest.objects.select_related(
+            'tipo', 'solicitante', 'executor'
+        ).prefetch_related('anexos', 'unidades').order_by('-created_at')
 
+        # 1. Admin vê TUDO
         if user.is_superuser or getattr(user, 'is_admin', False):
             return queryset
-        elif getattr(user, 'is_externo', False):
+            
+        # 2. Parceiro Externo vê apenas as solicitações dos tipos que ele atende
+        if getattr(user, 'is_externo', False):
             return queryset.filter(tipo__in=user.tipos_servico.all())
-        else:
-            return queryset.filter(solicitante=user)
-
+            
+        # 3. Cliente comum vê apenas as suas próprias solicitações
+        return queryset.filter(solicitante=user)
+    
     @transaction.atomic
     def perform_update(self, serializer):
         instance = self.get_object()
@@ -637,9 +655,12 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
         )
 
         if is_cliente:
-            # Clientes só podem apagar aquilo que ainda está em análise
-            if instance.status != ServiceAttachment.STATUS_IN_ANALYSIS:
-                raise PermissionDenied("Clientes só podem apagar documentos que ainda estão Em Análise.")
+            # --- CORREÇÃO P1-12: Bloqueio total de exclusão para clientes ---
+            # Clientes não apagam anexos. Eles apenas substituem (PATCH) anexos reprovados.
+            raise PermissionDenied(
+                "Clientes não têm permissão para excluir anexos. "
+                "Se um documento foi reprovado, utilize a opção de reenvio para substituí-lo."
+            )
                 
         instance.delete()
 
@@ -672,9 +693,7 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         user = self.request.user
 
         # 1. Validação de segurança: Apenas equipe/admin cria
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        if not is_equipe:
-            raise PermissionDenied("Acesso negado. Apenas a equipe técnica pode abrir pendências.")
+        self.check_team_permission(self.request, service)
 
         # --- REGRA R5: Bloqueia abertura em serviços finalizados/solicitados ---
         status_finais = [
@@ -690,7 +709,8 @@ class ServicePendencyViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         
         # 3. Cria a pendência
         pendencia = serializer.save(service=service, criada_por=user, status='ABERTA')
-
+        
+        
         # 4. Altera o status do serviço para PENDENCIAS de forma segura
         if service.status != 'PENDENCIAS':
             status_antigo = service.status
@@ -750,12 +770,11 @@ class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
     document_url_kwarg = 'document_pk'
 
     def check_download_permission(self, request, service, document):
-        user = request.user
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        is_dono = (user == service.solicitante)
-
-        if not (is_equipe or is_dono):
-            raise PermissionDenied("Sem permissão para download.")
+        if request.user == service.solicitante:
+            return
+            
+        # Se não for o dono, verifica se é da equipa responsável
+        self.check_team_permission(request, service)
 
 
 class ServiceObservationViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
@@ -806,9 +825,7 @@ class ServiceAttachmentDownloadAllView(AbstractDocumentDownloadAllView):
     parent_url_kwarg = 'parent_pk'
 
     def check_download_all_permission(self, request, service):
-        user = request.user
-        is_equipe = user.is_superuser or getattr(user, 'is_admin', False) or (getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all())
-        is_dono = (user == service.solicitante)
-
-        if not (is_equipe or is_dono):
-            raise PermissionDenied("Sem permissão para baixar os anexos.")
+        if request.user == service.solicitante:
+            return
+            
+        self.check_team_permission(request, service)
