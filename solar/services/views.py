@@ -421,23 +421,9 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         # 6. Exigência de campos obrigatórios por Tipo e Status
         tipo_codigo = service.tipo.codigo if service.tipo else ""
         erros = {}
-        
-        if novo_status == ServiceRequest.StatusChoices.CONCLUIDO:
-            if tipo_codigo == 'consulta_carga':
-                if service.carga is None: erros['carga'] = "Carga é obrigatória."
-                if not service.tensao_nominal: erros['tensao_nominal'] = "Tensão nominal é obrigatória."
-                if service.potencia_transformador is None: erros['potencia_transformador'] = "Potência do transformador é obrigatória."
-            
-            elif tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase', 'alteracao_carga']:
-                if not service.uc_resultado: erros['uc_resultado'] = "A UC Resultado é obrigatória para conclusão."
-                if not service.prazo_concessionaria: erros['prazo_concessionaria'] = "O prazo da concessionária é obrigatório."
-                
-            elif tipo_codigo == 'troca_titularidade':
-                unidades = service.unidades.all()
-                if not unidades.exists() or any(not u.uc_antiga or not u.uc_nova for u in unidades):
-                    erros['unidades'] = "Todas as unidades envolvidas devem ter o par 'uc_antiga' e 'uc_nova' preenchidos para concluir a troca."
+
                     
-        elif novo_status == ServiceRequest.StatusChoices.SERVICO_SOLICITADO:
+        if novo_status == ServiceRequest.StatusChoices.SERVICO_SOLICITADO:
             if tipo_codigo == 'lista_compensacao' and not service.protocolo:
                 erros['protocolo'] = "O protocolo é obrigatório para enviar a lista de compensação."
 
