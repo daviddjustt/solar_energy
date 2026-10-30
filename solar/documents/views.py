@@ -606,9 +606,11 @@ class AbstractDocumentDownloadView(APIView):
         raise NotImplementedError()
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
-    def get(self, request, *args, **kwargs):  # 👈 Mudança de assinatura aqui
+    def get(self, request, *args, **kwargs):
+        
         parent_pk = kwargs.get(self.parent_url_kwarg)
-        document_pk = kwargs.get(self.document_url_kwarg)
+        document_pk = kwargs.get(getattr(self, 'document_url_kwarg', 'pk')) 
+        parent_obj = get_object_or_404(self.parent_model, pk=parent_pk)
 
         parent = get_object_or_404(self.parent_model, pk=parent_pk)
         document = get_object_or_404(self.model, pk=document_pk)

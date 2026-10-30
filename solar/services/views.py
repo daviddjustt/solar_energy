@@ -338,7 +338,7 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         
         # A. Consulta de carga e Lista de compensação não têm fluxo de pendência
         if tipo_codigo in ['consulta_carga', 'lista_compensacao']:
-            if novo_status in [ServiceRequest.StatusChoices.PENDENCIA_CLIENTE, ServiceRequest.StatusChoices.PENDENCIA_EQUIPE]:
+            if novo_status in [ServiceRequest.StatusChoices.PENDENCIAS]:
                 return Response(
                     {"status": f"O serviço '{service.tipo.nome}' não possui fluxo de pendências."}, 
                     status=status.HTTP_400_BAD_REQUEST
@@ -374,32 +374,52 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
                 )
             service.motivo_reprova = motivo
 
-        # --- CORREÇÃO P1-7: Exigência de campos por destino / tipo de serviço ---
+        campos_resultado = [
+            'protocolo', 'uc_resultado', 'prazo_concessionaria', 
+            'nota', 'carga', 'tensao_nominal', 'potencia_transformador'
+        ]
+        
+        for campo in campos_resultado:
+            if campo in request.data:
+                valor = request.data.get(campo)
+                if valor == "":
+                    valor = None
+                setattr(service, campo, valor)
+
+        if novo_status == ServiceRequest.StatusChoices.REALIZANDO and not service.executor:
+            service.executor = user
+
+
+        # 2. NOVA VALIDAÇÃO SOBRE O OBJETO (COPIE E COLE ESTE BLOCO)
+        erros = {}
         if novo_status == ServiceRequest.StatusChoices.CONCLUIDO:
-            tipo_codigo = service.tipo.codigo if service.tipo else ""
-            
-            # Validações específicas para Consulta de Carga
             if tipo_codigo == 'consulta_carga':
-                carga = request.data.get('carga')
-                tensao = request.data.get('tensao_nominal')
-                transformador = request.data.get('potencia_transformador')
+                if service.carga is None: erros['carga'] = "A carga é obrigatória para concluir a consulta."
+                if not service.tensao_nominal: erros['tensao_nominal'] = "A tensão nominal é obrigatória."
+                if service.potencia_transformador is None: erros['potencia_transformador'] = "A potência do transformador é obrigatória."
+            
+            elif tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase', 'alteracao_carga']:
+                if not service.protocolo: erros['protocolo'] = "O protocolo é obrigatório."
+                if not service.uc_resultado: erros['uc_resultado'] = "A UC Resultado é obrigatória para conclusão."
+                if not service.prazo_concessionaria: erros['prazo_concessionaria'] = "O prazo da concessionária é obrigatório."
                 
-                erros = {}
-                if carga is None: erros['carga'] = "A carga é obrigatória para concluir a consulta."
-                if not tensao: erros['tensao_nominal'] = "A tensão nominal é obrigatória."
-                if transformador is None: erros['potencia_transformador'] = "A potência do transformador é obrigatória."
-                if erros:
-                    return Response(erros, status=status.HTTP_400_BAD_REQUEST)
+            elif tipo_codigo == 'troca_titularidade':
+                unidades = service.unidades.all()
+                if not unidades.exists() or any(not u.uc_antiga or not u.uc_nova for u in unidades):
+                    erros['unidades'] = "Todas as unidades envolvidas devem ter o par 'uc_antiga' e 'uc_nova' preenchidos para concluir a troca."
                     
-            # Validações gerais para serviços comuns de concessionária
-            elif tipo_codigo in ['ligacao_nova', 'alteracao_carga_fase', 'alteracao_carga', 'troca_titularidade']:
-                protocolo = request.data.get('protocolo')
-                uc_resultado = request.data.get('uc_resultado')
-                
-                if not protocolo and tipo_codigo != 'troca_titularidade':
-                    return Response({"protocolo": "O número do protocolo da concessionária é obrigatório para a conclusão."}, status=status.HTTP_400_BAD_REQUEST)
+        elif novo_status == ServiceRequest.StatusChoices.SERVICO_SOLICITADO:
+            if tipo_codigo == 'lista_compensacao' and not service.protocolo:
+                erros['protocolo'] = "O protocolo é obrigatório para enviar a lista de compensação."
 
-
+        if erros:
+            return Response(erros, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 3. EFETIVAÇÃO E SAVE
+        status_antigo = service.status
+        service.status = novo_status
+        service.save()
+        
         # Atribuição dos campos de resultado enviados no request, EXECUTOR não entra aqui, pois é preenchido automaticamente
         campos_resultado = [
             'protocolo', 'uc_resultado', 'prazo_concessionaria', 
@@ -415,7 +435,7 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
                 setattr(service, campo, valor)
 
         # 5. Preenchimento automático (e não manual) do Executor
-        if novo_status == ServiceRequest.StatusChoices.REALIZANDO_SERVICO and not service.executor:
+        if novo_status == ServiceRequest.StatusChoices.REALIZANDO and not service.executor:
             service.executor = user
 
         # 6. Exigência de campos obrigatórios por Tipo e Status
