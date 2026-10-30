@@ -793,6 +793,7 @@ class ServiceAttachmentDownloadView(ServiceAccessMixin, AbstractDocumentDownload
     parent_model = ServiceRequest
     parent_url_kwarg = 'parent_pk'
     document_url_kwarg = 'document_pk'
+    parent_relation_field = 'service'
 
     def check_download_permission(self, request, service, document):
         if request.user == service.solicitante:
