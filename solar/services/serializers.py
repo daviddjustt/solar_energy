@@ -241,6 +241,7 @@ class ExternalUserSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class ServiceUnitSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     class Meta:
         model = ServiceUnit
         fields = '__all__'
@@ -305,6 +306,9 @@ class ServiceObservationSerializer(serializers.ModelSerializer):
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
     tipo_detalhe = ServiceTypeSerializer(source='tipo', read_only=True)
+    executor_nome = serializers.CharField(
+        source='executor.get_full_name', read_only=True, default=None
+    )
     
     # --- INÍCIO DA RESOLUÇÃO DO R7 ---
     # Removemos o read_only=True para que o DRF passe a aceitar a lista no payload
@@ -386,6 +390,24 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         
         # --- CORREÇÃO R7: Limita as regras de rateio e GERADORA ---
         if unidades_data is not None:
+            if tipo_codigo == 'lista_compensacao' and (unidades_data is not None or not self.instance):
+                unidades = unidades_data or []
+                erros = {}
+                if not modalidade_rateio:
+                    erros['modalidade_rateio'] = "Informe a modalidade de rateio (porcentagem ou prioridade)."
+                
+                ucs = [''.join(filter(str.isdigit, u.get('uc') or '')) for u in unidades]
+                if not unidades or any(not uc for uc in ucs):
+                    erros['unidades'] = "Informe a UC de todas as unidades."
+                elif len(set(ucs)) != len(ucs):
+                    erros['unidades'] = "Há UCs repetidas na lista."
+                    
+                if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
+                    for campo in ('geracao_mensal_estimada', 'consumo_mensal_geradora'):
+                        if data.get(campo) is None and not (self.instance and getattr(self.instance, campo)):
+                            erros[campo] = "Obrigatório no rateio por porcentagem."
+                if erros:
+                    raise serializers.ValidationError(erros)
             # Regras estritas de compensação (só rodam se houver rateio)
             if modalidade_rateio:
                 geradoras = [u for u in unidades_data if u.get('papel', getattr(u, 'papel', '')) == 'GERADORA']

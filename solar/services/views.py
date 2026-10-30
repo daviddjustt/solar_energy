@@ -415,11 +415,7 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         if erros:
             return Response(erros, status=status.HTTP_400_BAD_REQUEST)
         
-        # 3. EFETIVAÇÃO E SAVE
-        status_antigo = service.status
-        service.status = novo_status
-        service.save()
-        
+
         # Atribuição dos campos de resultado enviados no request, EXECUTOR não entra aqui, pois é preenchido automaticamente
         campos_resultado = [
             'protocolo', 'uc_resultado', 'prazo_concessionaria', 

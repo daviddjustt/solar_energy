@@ -617,7 +617,10 @@ class AbstractDocumentDownloadView(APIView):
             self.parent_relation_field: parent_obj  # Ex: 'service': service ou 'project': project
         }
 
-        document = get_object_or_404(self.model, **filter_kwargs)
+        parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        document = get_object_or_404(
+            self.model, pk=document_pk, **{self.parent_relation_field: parent}
+        )
         self.check_download_permission(request, parent_obj, document)
 
 
