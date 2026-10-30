@@ -715,10 +715,13 @@ class PaymentDocumentView(AbstractPaymentDocumentView):
              raise PermissionDenied("Acesso negado a este documento.")
 
 class ProjectDocumentDownloadView(AbstractDocumentDownloadView):
-    model = ProjectDocument
+    odel = ProjectDocument
     parent_model = ClientProject
-    parent_url_kwarg = 'project_pk'     # 👈 Adicione isso
-    document_url_kwarg = 'document_pk'  # 👈 Adicione isso
+    parent_url_kwarg = 'project_pk'
+    document_url_kwarg = 'document_pk'
+    
+    # Adicione esta linha:
+    parent_relation_field = 'project'
 
     def check_download_permission(self, request, project, document):
         if not (request.user.is_superuser or getattr(request.user, 'is_admin', False) or getattr(request.user, 'is_tecnico', False) or request.user == project.created_by):
