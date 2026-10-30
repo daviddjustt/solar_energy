@@ -222,6 +222,7 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
     serializer_class = ServiceRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @staticmethod
     def validar_novo_status(novo_status):
         """
         Valida se o status fornecido existe na classe de choices do ServiceRequest.
@@ -329,12 +330,13 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         if not (is_admin or is_externo_valido):
             raise PermissionDenied("Apenas administradores e técnicos responsáveis podem alterar o status da solicitação.")
 
+        # Leitura do status atual e validação do novo status
+        novo_status = self.validar_novo_status(request.data.get('status')) 
+
         # 2. Bloqueio de redundância (Evita histórico e notificação duplicados)
         if novo_status == service.status:
             return Response({"detail": f"A solicitação já está no status {service.get_status_display()}."}, status=status.HTTP_200_OK)
 
-        novo_status = self.validar_novo_status(request.data.get('status'))
-        
         # --- CORREÇÃO P1-7: SERVICO_SOLICITADO como status final/bloqueado ---
         status_finais = [
             ServiceRequest.StatusChoices.CONCLUIDO, 
@@ -384,10 +386,10 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
                     return Response({"protocolo": "O número do protocolo da concessionária é obrigatório para a conclusão."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-        # Atribuição dos campos de resultado enviados no request
+        # Atribuição dos campos de resultado enviados no request, EXECUTOR não entra aqui, pois é preenchido automaticamente
         campos_resultado = [
             'protocolo', 'uc_resultado', 'prazo_concessionaria', 
-            'nota', 'carga', 'tensao_nominal', 'potencia_transformador', 'executor'
+            'nota', 'carga', 'tensao_nominal', 'potencia_transformador'
         ]
         
         for campo in campos_resultado:
