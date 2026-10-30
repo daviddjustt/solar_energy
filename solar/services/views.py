@@ -323,19 +323,33 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         service = self.get_object()
         user = request.user
 
-        # 1. Permissão estrita: Apenas equipe, bloqueando o cliente
-        is_admin = user.is_superuser or getattr(user, 'is_admin', False)
-        is_externo_valido = getattr(user, 'is_externo', False) and service.tipo in user.tipos_servico.all()
+        # 1. Permissão DRY: Usa o Mixin centralizado
+        self.check_team_permission(request, service)
         
-        if not (is_admin or is_externo_valido):
-            raise PermissionDenied("Apenas administradores e técnicos responsáveis podem alterar o status da solicitação.")
-
         # Leitura do status atual e validação do novo status
         novo_status = self.validar_novo_status(request.data.get('status')) 
 
         # 2. Bloqueio de redundância (Evita histórico e notificação duplicados)
         if novo_status == service.status:
             return Response({"detail": f"A solicitação já está no status {service.get_status_display()}."}, status=status.HTTP_200_OK)
+
+        # --- CORREÇÃO P1-7: Bloqueio de transições inválidas por tipo de serviço ---
+        tipo_codigo = service.tipo.codigo if service.tipo else ""
+        
+        # A. Consulta de carga e Lista de compensação não têm fluxo de pendência
+        if tipo_codigo in ['consulta_carga', 'lista_compensacao']:
+            if novo_status in [ServiceRequest.StatusChoices.PENDENCIA_CLIENTE, ServiceRequest.StatusChoices.PENDENCIA_EQUIPE]:
+                return Response(
+                    {"status": f"O serviço '{service.tipo.nome}' não possui fluxo de pendências."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        # B. Lista de compensação termina em SERVICO_SOLICITADO, não em CONCLUIDO
+        if tipo_codigo == 'lista_compensacao' and novo_status == ServiceRequest.StatusChoices.CONCLUIDO:
+            return Response(
+                {"status": "A Lista de Compensação termina no status SERVICO_SOLICITADO e não pode ser marcada como CONCLUIDO."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # --- CORREÇÃO P1-7: SERVICO_SOLICITADO como status final/bloqueado ---
         status_finais = [
@@ -772,7 +786,7 @@ class ServicePaymentDocumentView(ServiceAccessMixin, AbstractPaymentDocumentView
     parent_relation_field = 'service'
     serializer_class = ServicePaymentDocumentSerializer
 
-class ServiceAttachmentDownloadView(AbstractDocumentDownloadView):
+class ServiceAttachmentDownloadView(ServiceAccessMixin, AbstractDocumentDownloadView):
     model = ServiceAttachment
     parent_model = ServiceRequest
     parent_url_kwarg = 'parent_pk'
@@ -827,7 +841,7 @@ class ServiceObservationViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
 
         serializer.save(service=service, autor=user)
 
-class ServiceAttachmentDownloadAllView(AbstractDocumentDownloadAllView):
+class ServiceAttachmentDownloadAllView(ServiceAccessMixin, AbstractDocumentDownloadAllView):
     model = ServiceAttachment
     parent_model = ServiceRequest
     parent_relation_field = 'service'
