@@ -607,15 +607,19 @@ class AbstractDocumentDownloadView(APIView):
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
     def get(self, request, *args, **kwargs):
-        
+
         parent_pk = kwargs.get(self.parent_url_kwarg)
         document_pk = kwargs.get(getattr(self, 'document_url_kwarg', 'pk')) 
         parent_obj = get_object_or_404(self.parent_model, pk=parent_pk)
 
-        parent = get_object_or_404(self.parent_model, pk=parent_pk)
-        document = get_object_or_404(self.model, pk=document_pk)
+        filter_kwargs = {
+            'pk': document_pk,
+            self.parent_relation_field: parent_obj  # Ex: 'service': service ou 'project': project
+        }
 
-        self.check_download_permission(request, parent, document)
+        document = get_object_or_404(self.model, **filter_kwargs)
+        self.check_download_permission(request, parent_obj, document)
+
 
         if not document.arquivo:
             return Response({"error": "O documento não possui um arquivo anexado."}, status=status.HTTP_404_NOT_FOUND)
