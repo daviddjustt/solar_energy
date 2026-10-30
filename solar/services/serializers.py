@@ -481,9 +481,20 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
         
         if unidades_data is not None:
-            # Abordagem de substituição total: apaga as antigas e recria as novas
-            instance.unidades.all().delete()
-            for unidade_data in unidades_data:
-                ServiceUnit.objects.create(service=instance, **unidade_data)
+            existentes = {u.id: u for u in instance.unidades.all()}
+            enviados = set()
+            for dados in unidades_data:
+                uid = dados.pop('id', None)
+                if uid in existentes:
+                    unidade = existentes[uid]
+                    for campo, valor in dados.items():
+                        setattr(unidade, campo, valor)
+                    unidade.save()
+                    enviados.add(uid)
+                else:
+                    ServiceUnit.objects.create(service=instance, **dados)
+            for uid, unidade in existentes.items():
+                if uid not in enviados:
+                    unidade.delete()
                 
         return instance
