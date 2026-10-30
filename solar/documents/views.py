@@ -8,6 +8,7 @@ import concurrent.futures
 
 # Django imports
 import django_filters
+from django.core.exceptions import ImproperlyConfigured
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponse
 from django.utils.timezone import localtime
@@ -607,21 +608,25 @@ class AbstractDocumentDownloadView(APIView):
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
     def get(self, request, *args, **kwargs):
+        # 1. Validação de segurança para garantir que a classe filha foi bem configurada
+        if not self.parent_relation_field:
+            raise ImproperlyConfigured("Defina parent_relation_field na view de download.")
 
+        # 2. Captura de IDs
         parent_pk = kwargs.get(self.parent_url_kwarg)
         document_pk = kwargs.get(getattr(self, 'document_url_kwarg', 'pk')) 
-        parent_obj = get_object_or_404(self.parent_model, pk=parent_pk)
 
-        filter_kwargs = {
-            'pk': document_pk,
-            self.parent_relation_field: parent_obj  # Ex: 'service': service ou 'project': project
-        }
-
+        # 3. Busca encadeada e segura do objeto pai e do documento
         parent = get_object_or_404(self.parent_model, pk=parent_pk)
+        
         document = get_object_or_404(
-            self.model, pk=document_pk, **{self.parent_relation_field: parent}
+            self.model, 
+            pk=document_pk, 
+            **{self.parent_relation_field: parent}
         )
-        self.check_download_permission(request, parent_obj, document)
+
+        # 4. Verificação de permissões
+        self.check_download_permission(request, parent, document)
 
 
         if not document.arquivo:
