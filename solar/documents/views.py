@@ -600,11 +600,9 @@ class AbstractDocumentDownloadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     model = None
     parent_model = None
-    parent_url_kwarg = 'parent_pk'     # 👈 Variável dinâmica
-    document_url_kwarg = 'document_pk' # 👈 Variável dinâmica
-
-    def check_download_permission(self, request, parent, document):
-        raise NotImplementedError()
+    parent_relation_field = None  # definido pelas subclasses: 'service' ou 'project'
+    parent_url_kwarg = 'parent_pk'
+    document_url_kwarg = 'document_pk'
 
     @extend_schema(responses={200: OpenApiTypes.BINARY})
     def get(self, request, *args, **kwargs):
@@ -715,13 +713,12 @@ class PaymentDocumentView(AbstractPaymentDocumentView):
              raise PermissionDenied("Acesso negado a este documento.")
 
 class ProjectDocumentDownloadView(AbstractDocumentDownloadView):
-    odel = ProjectDocument
+    model = ProjectDocument        # <-- Corrigido de "odel" para "model"
     parent_model = ClientProject
     parent_url_kwarg = 'project_pk'
     document_url_kwarg = 'document_pk'
-    
-    # Adicione esta linha:
     parent_relation_field = 'project'
+
 
     def check_download_permission(self, request, project, document):
         if not (request.user.is_superuser or getattr(request.user, 'is_admin', False) or getattr(request.user, 'is_tecnico', False) or request.user == project.created_by):
