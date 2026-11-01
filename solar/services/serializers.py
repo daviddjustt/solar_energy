@@ -459,19 +459,22 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        # 1. Removemos (pop) as unidades do dicionário antes de guardar o serviço
+        # 1. Remove a lista de unidades do dicionário antes de salvar o pai
         unidades_data = validated_data.pop('unidades', [])
         
-        tipo = validated_data['tipo']
-        validated_data['valor_cobrado'] = tipo.valor
+        # 2. Define o valor cobrado automaticamente com base no tipo
+        tipo = validated_data.get('tipo')
+        if tipo:
+            validated_data['valor_cobrado'] = tipo.valor
         
-        # 2. Criamos o serviço principal
+        # 3. Cria a solicitação principal (ServiceRequest)
         service = super().create(validated_data)
+    
         
-        # 3. Iteramos sobre a lista e guardamos cada unidade associada ao novo serviço
         for unidade_data in unidades_data:
             ServiceUnit.objects.create(service=service, **unidade_data)
             
+        # 5. Retorna o objeto completo
         return service
 
     def update(self, instance, validated_data):
