@@ -28,7 +28,8 @@ from solar.services.serializers import (
     ServicePaymentDocumentSerializer, 
     ServiceObservationSerializer, 
     ServiceStatusHistorySerializer,
-    ExternalUserSerializer
+    ExternalUserSerializer,
+    ServiceStatusUpdateSerializer,
 )
 from solar.documents.views import (
     AbstractDocumentListViewSet, 
@@ -317,7 +318,12 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         # Dispara notificação WebSocket para os usuários externos habilitados
         notificar_nova_solicitacao(service)
 
-    @action(detail=True, methods=['post'], url_path='status')
+    @action(
+        detail=True, 
+        methods=['post'], 
+        url_path='status', 
+        serializer_class=ServiceStatusUpdateSerializer
+    )
     @transaction.atomic
     def alterar_status(self, request, pk=None):
         service = self.get_object()

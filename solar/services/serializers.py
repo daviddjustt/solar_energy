@@ -498,3 +498,18 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
                     unidade.delete()
                 
         return instance
+
+class ServiceStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=ServiceRequest.StatusChoices.choices,
+        required=True,
+        help_text="Obrigatório. Status desejado para a transição."
+    )
+    # Campos de resultado opcionais (para aparecerem no Swagger)
+    protocolo = serializers.CharField(required=False)
+    uc_resultado = serializers.CharField(required=False)
+    prazo_concessionaria = serializers.DateField(required=False)
+    carga = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    tensao_nominal = serializers.ChoiceField(choices=ServiceRequest.VOLTAGEM_CHOICES, required=False)
+    potencia_transformador = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    motivo_reprova = serializers.CharField(required=False)
