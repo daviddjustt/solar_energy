@@ -505,7 +505,6 @@ class ServiceStatusUpdateSerializer(serializers.Serializer):
         required=True,
         help_text="Obrigatório. Status desejado para a transição."
     )
-    # Campos de resultado opcionais (para aparecerem no Swagger)
     protocolo = serializers.CharField(required=False)
     uc_resultado = serializers.CharField(required=False)
     prazo_concessionaria = serializers.DateField(required=False)
@@ -523,3 +522,10 @@ class ServiceStatusUpdateSerializer(serializers.Serializer):
     )
     potencia_transformador = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     motivo_reprova = serializers.CharField(required=False)
+    
+    # Novos campos para a Troca de Titularidade
+    nota = serializers.CharField(required=False, help_text="Nota opcional para a conclusão da troca.")
+    unidades = serializers.JSONField(
+        required=False, 
+        help_text="Lista de objetos contendo 'id', 'uc_antiga' e 'uc_nova' para Troca de Titularidade."
+    )
