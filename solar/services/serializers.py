@@ -510,6 +510,16 @@ class ServiceStatusUpdateSerializer(serializers.Serializer):
     uc_resultado = serializers.CharField(required=False)
     prazo_concessionaria = serializers.DateField(required=False)
     carga = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    tensao_nominal = serializers.ChoiceField(choices= ServiceRequest.TensaoChoices.VOLTAGEM_CHOICES, required=False)
+    tensao_nominal = serializers.ChoiceField(
+        choices=[
+            ('MONO_127', 'Monofásico 127V'),
+            ('MONO_220', 'Monofásico 220V'),
+            ('BI_127_220', 'Bifásico 127/220V'),
+            ('BI_220_380', 'Bifásico 220/380V'),
+            ('TRI_127_220', 'Trifásico 127/220V'),
+            ('TRI_220_380', 'Trifásico 220/380V'),
+        ], 
+        required=False
+    )
     potencia_transformador = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     motivo_reprova = serializers.CharField(required=False)
