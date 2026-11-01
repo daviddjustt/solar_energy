@@ -22,7 +22,7 @@ from .models import (
     ServiceObservation, 
     ServiceStatusHistory, 
     ServiceUnit, 
-    ServiceType
+    ServiceType,
 )
 
 
@@ -510,6 +510,6 @@ class ServiceStatusUpdateSerializer(serializers.Serializer):
     uc_resultado = serializers.CharField(required=False)
     prazo_concessionaria = serializers.DateField(required=False)
     carga = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    tensao_nominal = serializers.ChoiceField(choices= ServiceRequest.VOLTAGEM_CHOICES, required=False)
+    tensao_nominal = serializers.ChoiceField(choices= ServiceRequest.TensaoChoices.VOLTAGEM_CHOICES, required=False)
     potencia_transformador = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     motivo_reprova = serializers.CharField(required=False)
