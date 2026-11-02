@@ -266,6 +266,30 @@ class ExternalUserSerializer(serializers.ModelSerializer):
 
 class ServiceUnitSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
+
+    def validate(self, attrs):
+        # 1. Roda as validações padrão do ModelSerializer
+        attrs = super().validate(attrs)
+        
+        fatura = attrs.get('fatura')
+        
+        # 2. Se foi enviada uma fatura (anexo), validamos a sua origem
+        if fatura:
+            # Tenta resgatar a qual serviço esta unidade pertence
+            # (Pode vir da instância atual num PATCH, ou do payload se for avulso)
+            service = None
+            if self.instance:
+                service = self.instance.service
+            elif 'service' in attrs:
+                service = attrs['service']
+                
+            # 3. Se conseguimos identificar o serviço, bloqueamos faturas alheias
+            if service and fatura.service_id != service.id:
+                raise serializers.ValidationError({
+                    "fatura": "O anexo selecionado como fatura não pertence à solicitação desta unidade."
+                })
+                
+        return attrs
     class Meta:
         model = ServiceUnit
         fields = '__all__'
