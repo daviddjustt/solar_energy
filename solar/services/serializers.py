@@ -1,4 +1,4 @@
-import os
+import json
 from decimal import Decimal
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -457,7 +457,27 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
                             )
 
         return data
-    
+
+    def to_internal_value(self, data):
+        # Transforma a QueryDict num dicionário mutável, se necessário
+        if hasattr(data, '_mutable'):
+            data._mutable = True
+            
+        unidades_data = data.get('unidades')
+        
+        # Se os dados vieram como string (multipart/form-data), converte para lista Python
+        if isinstance(unidades_data, str):
+            try:
+                data['unidades'] = json.loads(unidades_data)
+                
+                # Se o frontend enviou apenas um objeto em vez de uma lista, envolvemos numa lista
+                if isinstance(data['unidades'], dict):
+                    data['unidades'] = [data['unidades']]
+            except json.JSONDecodeError:
+                pass # Deixa o erro de validação padrão do DRF atuar mais à frente
+
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
         # 1. Remove a lista de unidades do dicionário antes de salvar o pai
         unidades_data = validated_data.pop('unidades', [])

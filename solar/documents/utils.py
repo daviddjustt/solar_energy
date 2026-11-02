@@ -189,7 +189,7 @@ def validate_file_extension(file):
     """
     allowed_extensions = [
         '.pdf', '.jpg', '.jpeg', '.png', 
-        '.doc', '.docx', '.xls', '.xlsx'
+        '.doc', '.docx', '.xls', '.xlsx',
         '.heif', '.heic',
     ]
     
