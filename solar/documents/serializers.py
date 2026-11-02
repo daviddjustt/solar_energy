@@ -1,5 +1,6 @@
 import re
 from unicodedata import decimal
+from django.urls import reverse, NoReverseMatch
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
@@ -143,8 +144,28 @@ class DocumentUploadSerializer(AbstractDocumentUploadSerializer):
     class Meta(AbstractDocumentUploadSerializer.Meta):
         model = ProjectDocument
         fields = AbstractDocumentUploadSerializer.Meta.fields + ['project']
-        download_endpoint_name = 'api:project-document-download'
+        download_endpoint_name = 'project-document-download'
+        parent_lookup_kwarg = 'project_pk'
         parent_lookup_field = 'project_id'
+
+    def get_download_url(self, obj):
+        request = self.context.get('request')
+        if request is None:
+            return None
+            
+        # O id do projeto a que o documento pertence
+        parent_id = obj.project_id if hasattr(obj, 'project_id') else getattr(obj, 'parent_id', None)
+        
+        download_endpoint_name = getattr(self.Meta, 'download_endpoint_name', 'project-document-download')
+        # 2. Resgata o kwarg_pai que agora será 'project_pk'
+        kwarg_pai = getattr(self.Meta, 'parent_lookup_kwarg', 'parent_pk')
+        
+        try:
+            path = reverse(download_endpoint_name, kwargs={kwarg_pai: parent_id, 'document_pk': obj.id})
+            return request.build_absolute_uri(path)
+        except NoReverseMatch as e:
+            logger.warning(f"Erro URL download (Projeto {parent_id}, Doc {obj.id}): {e}")
+            return None
 
 
 class PaymentDocumentSerializer(AbstractPaymentDocumentSerializer):
