@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 from rest_framework import serializers
+from django.urls import reverse, NoReverseMatch
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -42,9 +43,31 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
             'pendencia', 'unidade', 'status', 'rejection_reason'
         ]
         read_only_fields = AbstractDocumentUploadSerializer.Meta.read_only_fields + ['enviado_por', 'approved_at']
-        download_endpoint_name = 'api:service-attachment-download'
+        # 1. Declarar propriedades sem o 'api:'
+        download_endpoint_name = 'service-attachment-download'
+        parent_lookup_kwarg = 'parent_pk'
         parent_lookup_field = 'service_id'
 
+    def get_download_url(self, obj):
+        request = self.context.get('request')
+        if request is None:
+            return None
+            
+        parent_id = obj.service_id  # (Ajuste para o campo correto da foreign key do serviço)
+        
+        # 2. Ler as configurações da classe Meta
+        download_endpoint_name = getattr(self.Meta, 'download_endpoint_name', 'service-attachment-download')
+        kwarg_pai = getattr(self.Meta, 'parent_lookup_kwarg', 'parent_pk')
+        
+        try:
+            # 3. Gerar a URL dinâmica
+            path = reverse(download_endpoint_name, kwargs={kwarg_pai: parent_id, 'document_pk': obj.id})
+            return request.build_absolute_uri(path)
+        # 4. Substituir o Exception genérico para exibir o erro no log
+        except NoReverseMatch as e:
+            logger.warning(f"Erro URL download (Serviço {parent_id}, Anexo {obj.id}): {e}")
+            return None
+        
     def validate_arquivo(self, value):
         if value:
             try:
@@ -65,6 +88,7 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
                 f"O tipo de documento '{value}' não é reconhecido pelo sistema."
             )
         return value
+    
     def validate(self, data):
         data = super().validate(data)
         request = self.context.get('request')
