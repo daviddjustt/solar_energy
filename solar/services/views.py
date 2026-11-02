@@ -273,8 +273,6 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
             raise PermissionDenied("Clientes não podem alterar os dados da solicitação após a sua criação.")
 
         # --- CORREÇÃO P1-8: Proteger campos de resultado ---
-        # Garantimos que estes campos NUNCA são editados por PATCH direto. 
-        # A equipe é obrigada a usar a ação de 'status' (alterar_status) para os preencher.
         campos_resultado_protegidos = [
             'protocolo', 'uc_resultado', 'prazo_concessionaria', 
             'nota', 'carga', 'tensao_nominal', 'potencia_transformador', 'executor'
@@ -283,12 +281,43 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
             serializer.validated_data.pop(campo, None)
 
         # --- CORREÇÃO P1-8: Recálculo do valor cobrado ---
-        # Se a equipe alterar o Tipo de Serviço, o sistema ajusta o valor cobrado
         novo_tipo = serializer.validated_data.get('tipo')
         if novo_tipo and novo_tipo != instance.tipo:
             serializer.validated_data['valor_cobrado'] = novo_tipo.valor
 
-        serializer.save()
+        # --- INÍCIO DA CORREÇÃO P2-25: Captura do estado anterior ---
+        dados_novos = serializer.validated_data
+        valores_antigos = {}
+        for campo in dados_novos.keys():
+            # O status tem histórico próprio, ignoramos
+            if campo != 'status':
+                valores_antigos[campo] = getattr(instance, campo, None)
+
+        # Salva as alterações
+        service = serializer.save()
+
+        # --- CONCLUSÃO DA CORREÇÃO P2-25: Comparação e gravação do log ---
+        from solar.services.models import ServiceChangeLog
+        
+        for campo in dados_novos.keys():
+            if campo == 'status':
+                continue
+                
+            valor_antigo = valores_antigos[campo]
+            valor_novo = getattr(service, campo, None)
+            
+            # Converte para string para gravação segura e legível
+            str_antigo = str(valor_antigo) if valor_antigo is not None else ""
+            str_novo = str(valor_novo) if valor_novo is not None else ""
+            
+            if str_antigo != str_novo:
+                ServiceChangeLog.objects.create(
+                    service=service,
+                    autor=user if user.is_authenticated else None,
+                    campo=campo,
+                    valor_antigo=str_antigo,
+                    valor_novo=str_novo
+                )
 
     def perform_destroy(self, instance):
         user = self.request.user

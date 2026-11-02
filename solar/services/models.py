@@ -240,6 +240,22 @@ class ServiceObservation(BaseModel):
     autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     texto = models.TextField()
 
+class ServiceChangeLog(models.Model):
+    service = models.ForeignKey('ServiceRequest', on_delete=models.CASCADE, related_name='change_logs')
+    autor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    campo = models.CharField(max_length=100)
+    valor_antigo = models.TextField(blank=True, null=True)
+    valor_novo = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
 class ServiceStatusHistory(BaseModel):
     service = models.ForeignKey(ServiceRequest, on_delete=models.CASCADE, related_name='historico_status')
     changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
