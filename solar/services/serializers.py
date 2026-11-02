@@ -509,22 +509,45 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data):
-        # 1. Remove a lista de unidades do dicionário antes de salvar o pai
+        from django.db import transaction
+        import json
+        from rest_framework import serializers
+        
+        # 1. Tenta extrair as unidades dos dados validados (para JSON puro)
         unidades_data = validated_data.pop('unidades', [])
         
-        # 2. Define o valor cobrado automaticamente com base no tipo
-        tipo = validated_data.get('tipo')
-        if tipo:
-            validated_data['valor_cobrado'] = tipo.valor
-        
-        # 3. Cria a solicitação principal (ServiceRequest)
-        service = super().create(validated_data)
-    
-        
-        for unidade_data in unidades_data:
-            ServiceUnit.objects.create(service=service, **unidade_data)
+        # 2. Resgate para multipart/form-data (se o DRF descartou a string)
+        if not unidades_data and 'unidades' in getattr(self, 'initial_data', {}):
+            raw_unidades = self.initial_data.get('unidades')
+            if isinstance(raw_unidades, str):
+                try:
+                    unidades_data = json.loads(raw_unidades)
+                    if isinstance(unidades_data, dict):
+                        unidades_data = [unidades_data]
+                except json.JSONDecodeError:
+                    raise serializers.ValidationError({"unidades": "Formato de unidades inválido."})
+
+        # 3. Transação atómica: ou salva tudo (pai e filhos) ou desfaz tudo
+        with transaction.atomic():
             
-        # 5. Retorna o objeto completo
+            # Define o valor cobrado automaticamente com base no tipo
+            tipo = validated_data.get('tipo')
+            if tipo:
+                validated_data['valor_cobrado'] = tipo.valor
+            
+            # Cria a solicitação principal (ServiceRequest)
+            service = super().create(validated_data)
+            
+            # Importar o modelo caso não esteja no topo do ficheiro
+            from solar.services.models import ServiceUnit 
+            
+            for unidade_data in unidades_data:
+                # CORREÇÃO P2-29: Descarta o ID forçado pelo frontend antes de criar a unidade
+                unidade_data.pop('id', None)
+                
+                # Cria a unidade já vinculada ao serviço
+                ServiceUnit.objects.create(service=service, **unidade_data)
+                
         return service
 
     def update(self, instance, validated_data):
