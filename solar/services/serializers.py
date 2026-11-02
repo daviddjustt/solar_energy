@@ -345,50 +345,23 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         import attrs
+        from decimal import Decimal
+        
         # 1. Roda as validações base do ModelSerializer
         data = super().validate(data)
         
         # 2. Resgata valores do payload ou da instância atual (para PATCHs parciais)
+        tipo = data.get('tipo', getattr(self.instance, 'tipo', None))
+        tipo_codigo = tipo.codigo if tipo else None
+        
         tipo_pessoa = data.get('tipo_pessoa') or (self.instance.tipo_pessoa if self.instance else None)
         documento = data.get('documento') or (self.instance.documento if self.instance else None)
 
-        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', None))
-        unidades_data = attrs.get('unidades')
+        # Trata o array de unidades: se não vier, assume [] para permitir validação de obrigatoriedade (P2-28)
+        unidades_data = data.get('unidades')
         unidades = unidades_data if unidades_data is not None else []
-        tipo_codigo = tipo.codigo if tipo else None
-
-        # Validações exclusivas para Lista de Compensação (tipo 8)
-
-        if tipo and tipo.codigo == 'lista_compensacao':
-            erros = {}
-            
-            # 2. Agora isto vai correr mesmo que unidades_data seja None
-            if not self.instance and not unidades:
-                erros['unidades'] = "A lista de unidades é obrigatória para este tipo de serviço."
-
-            modalidade = attrs.get('modalidade_rateio', getattr(self.instance, 'modalidade_rateio', None))
-            
-            if modalidade == 'PORCENTAGEM':
-                # ... suas validações de soma de beneficiárias em 100% ...
-
-                # 3. Nova regra: A geradora deve ter 0% se houver beneficiárias, e 100% se não houver
-                geradoras = [u for u in unidades if u.get('papel') == 'GERADORA']
-                beneficiarias = [u for u in unidades if u.get('papel') == 'BENEFICIARIA']
-                
-                if len(geradoras) == 1:
-                    from decimal import Decimal
-                    esperado = Decimal('0') if beneficiarias else Decimal('100')
-                    
-                    # Usa 0 se a porcentagem vier nula/vazia
-                    perc_geradora = Decimal(str(geradoras[0].get('porcentagem') or '0'))
-                    
-                    if perc_geradora != esperado:
-                        erros['unidades'] = f"A geradora deve ter {esperado}% nesta configuração."
-
-            if erros:
-                raise serializers.ValidationError(erros)
-
-        return attrs
+        
+        erros = {}
 
         # =====================================================================
         # REGRA A: VALIDAÇÕES RÍGIDAS DE IDENTIDADE E PESSOA (P1-11)
@@ -432,7 +405,6 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
 
         for campo in exigidos:
             valor = data.get(campo)
-            # Para booleanos como 'necessita_obra_rede', precisamos usar 'is None' pois False é válido
             if valor is None or str(valor).strip() == '':
                 if not (self.instance and getattr(self.instance, campo) is not None):
                     erros[campo] = "Este campo é obrigatório para este tipo de serviço."
@@ -441,79 +413,78 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(erros)
 
         # =====================================================================
-        # REGRA C: UNIDADES, RATEIOS E PRIORIDADES (R7 e Regras de Negócio)
+        # REGRA C: UNIDADES, RATEIOS E COMPENSAÇÃO (P2-28 e R7)
         # =====================================================================
         
-        unidades_data = data.get('unidades')
         modalidade_rateio = data.get('modalidade_rateio', getattr(self.instance, 'modalidade_rateio', None))
         
-        # --- CORREÇÃO R7: Limita as regras de rateio e GERADORA ---
-        if unidades_data is not None:
-            if tipo_codigo == 'lista_compensacao' and (unidades_data is not None or not self.instance):
-                unidades = unidades_data or []
-                erros = {}
-                if not modalidade_rateio:
-                    erros['modalidade_rateio'] = "Informe a modalidade de rateio (porcentagem ou prioridade)."
+        # Regras exclusivas para Lista de Compensação
+        if tipo_codigo == 'lista_compensacao':
+            
+            # Validação de obrigatoriedade do array de unidades (P2-28)
+            if not self.instance and not unidades:
+                raise serializers.ValidationError({'unidades': "A lista de unidades é obrigatória para este tipo de serviço."})
                 
-                ucs = [''.join(filter(str.isdigit, u.get('uc') or '')) for u in unidades]
-                if not unidades or any(not uc for uc in ucs):
-                    erros['unidades'] = "Informe a UC de todas as unidades."
-                elif len(set(ucs)) != len(ucs):
-                    erros['unidades'] = "Há UCs repetidas na lista."
-                    
-                if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
-                    for campo in ('geracao_mensal_estimada', 'consumo_mensal_geradora'):
-                        if data.get(campo) is None and not (self.instance and getattr(self.instance, campo)):
-                            erros[campo] = "Obrigatório no rateio por porcentagem."
-                if erros:
-                    raise serializers.ValidationError(erros)
-            # Regras estritas de compensação (só rodam se houver rateio)
-            if modalidade_rateio:
-                geradoras = [u for u in unidades_data if u.get('papel', getattr(u, 'papel', '')) == 'GERADORA']
-                if len(geradoras) != 1:
-                    raise serializers.ValidationError({
-                        "unidades": "É obrigatório enviar exatamente uma unidade GERADORA quando o serviço envolve rateio de compensação."
-                    })
+            if not modalidade_rateio:
+                raise serializers.ValidationError({'modalidade_rateio': "Informe a modalidade de rateio (porcentagem ou prioridade)."})
+            
+            ucs = [''.join(filter(str.isdigit, str(u.get('uc') or ''))) for u in unidades]
+            if any(not uc for uc in ucs):
+                raise serializers.ValidationError({'unidades': "Informe a UC de todas as unidades."})
+            elif len(set(ucs)) != len(ucs):
+                raise serializers.ValidationError({'unidades': "Há UCs repetidas na lista."})
                 
-                # 2. Rateio por Porcentagem: A soma das beneficiárias deve ser estritamente 100%
-                if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
-                    beneficiarias = [u for u in unidades_data if u.get('papel') == 'BENEFICIARIA']
-                    soma = sum((u.get('porcentagem') or Decimal('0')) for u in beneficiarias)
-                    
-                    # Só cobra a soma de 100% se de facto existirem beneficiárias na lista
-                    if beneficiarias and soma != Decimal('100.00'):
-                        raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser exatamente 100%."})
+            if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
+                for campo in ('geracao_mensal_estimada', 'consumo_mensal_geradora'):
+                    if data.get(campo) is None and not (self.instance and getattr(self.instance, campo)):
+                        raise serializers.ValidationError({campo: "Obrigatório no rateio por porcentagem."})
 
-                # 3. Rateio por Prioridade (Resolução final do R7)
-                elif modalidade_rateio == ServiceRequest.RateioChoices.PRIORIDADE:
-                    prioridades_beneficiarias = []
-                    
-                    for unidade in unidades_data:
-                        papel = unidade.get('papel')
-                        prioridade = unidade.get('prioridade')
-                        
-                        if papel == 'GERADORA':
-                            # A geradora amarra sempre na prioridade 0
-                            if prioridade != 0:
-                                raise serializers.ValidationError(
-                                    {"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."}
-                                )
-                        elif papel == 'BENEFICIARIA':
-                            if prioridade is None or prioridade <= 0:
-                                raise serializers.ValidationError(
-                                    {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
-                                )
-                            prioridades_beneficiarias.append(prioridade)
+        # Regras gerais de estrutura e matemática para rateios
+        if modalidade_rateio and unidades:
+            geradoras = [u for u in unidades if u.get('papel') == 'GERADORA']
+            if len(geradoras) != 1:
+                raise serializers.ValidationError({
+                    "unidades": "É obrigatório enviar exatamente uma unidade GERADORA quando o serviço envolve rateio de compensação."
+                })
+            
+            beneficiarias = [u for u in unidades if u.get('papel') == 'BENEFICIARIA']
+            
+            if modalidade_rateio == ServiceRequest.RateioChoices.PORCENTAGEM:
+                # Regra P2-28: Geradora a 0% com beneficiárias, 100% sem beneficiárias
+                esperado_geradora = Decimal('0') if beneficiarias else Decimal('100')
+                perc_geradora = Decimal(str(geradoras[0].get('porcentagem') or '0'))
+                
+                if perc_geradora != esperado_geradora:
+                    raise serializers.ValidationError({'unidades': f"A geradora deve ter {esperado_geradora}% nesta configuração."})
 
-                    # Verifica as lacunas e saltos nas prioridades
-                    if prioridades_beneficiarias:
-                        prioridades_beneficiarias.sort()
-                        sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
-                        
-                        if prioridades_beneficiarias != sequencia_esperada:
-                            raise serializers.ValidationError(
-                                {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetições ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
-                            )
+                # A soma das beneficiárias deve ser estritamente 100%
+                soma = sum((Decimal(str(u.get('porcentagem') or '0'))) for u in beneficiarias)
+                if beneficiarias and soma != Decimal('100'):
+                    raise serializers.ValidationError({'unidades': "A soma das porcentagens das beneficiárias deve ser exatamente 100%."})
+
+            elif modalidade_rateio == ServiceRequest.RateioChoices.PRIORIDADE:
+                prioridades_beneficiarias = []
+                
+                # A geradora amarra sempre na prioridade 0
+                if geradoras[0].get('prioridade') != 0:
+                    raise serializers.ValidationError({"unidades": "A unidade GERADORA deve estar fixa na prioridade 0."})
+                
+                for unidade in beneficiarias:
+                    prioridade = unidade.get('prioridade')
+                    if prioridade is None or prioridade <= 0:
+                        raise serializers.ValidationError(
+                            {"unidades": "Todas as unidades BENEFICIÁRIAS devem ter uma prioridade válida informada (1, 2, 3...)."}
+                        )
+                    prioridades_beneficiarias.append(prioridade)
+
+                if prioridades_beneficiarias:
+                    prioridades_beneficiarias.sort()
+                    sequencia_esperada = list(range(1, len(prioridades_beneficiarias) + 1))
+                    
+                    if prioridades_beneficiarias != sequencia_esperada:
+                        raise serializers.ValidationError(
+                            {"unidades": f"As prioridades das unidades beneficiárias devem ser sequenciais, sem repetições ou lacunas. Encontrado: {prioridades_beneficiarias}. Esperado: {sequencia_esperada}."}
+                        )
 
         return data
 
