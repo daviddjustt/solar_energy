@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
 
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -18,7 +19,8 @@ from solar.services.models import (
     ServicePendency, 
     ServiceObservation, 
     ServiceStatusHistory, 
-    ServiceType
+    ServiceType,
+    ServiceChangeLog
 )
 from solar.services.serializers import (
     ServiceRequestSerializer, 
@@ -30,6 +32,8 @@ from solar.services.serializers import (
     ServiceStatusHistorySerializer,
     ExternalUserSerializer,
     ServiceStatusUpdateSerializer,
+    ServiceChangeLogSerializer,
+
 )
 from solar.documents.views import (
     AbstractDocumentListViewSet, 
@@ -878,6 +882,21 @@ class ServiceObservationViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
 
         serializer.save(service=service, autor=user)
 
+class ServiceChangeLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Lista e detalha o histórico de alterações de campos dos serviços (Apenas Leitura).
+    """
+    queryset = ServiceChangeLog.objects.all().select_related('autor')
+    serializer_class = ServiceChangeLogSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Permite filtrar os logs por serviço específico
+        service_id = self.request.query_params.get('service_id')
+        if service_id:
+            queryset = queryset.filter(service_id=service_id)
+        return queryset
 class ServiceAttachmentDownloadAllView(ServiceAccessMixin, AbstractDocumentDownloadAllView):
     model = ServiceAttachment
     parent_model = ServiceRequest

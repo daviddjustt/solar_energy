@@ -24,6 +24,7 @@ from .models import (
     ServiceStatusHistory, 
     ServiceUnit, 
     ServiceType,
+    ServiceChangeLog,
 )
 
 
@@ -598,6 +599,21 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
                     unidade.delete()
                 
         return instance
+
+class ServiceChangeLogSerializer(serializers.ModelSerializer):
+    autor_nome = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceChangeLog
+        fields = [
+            'id', 'service', 'autor', 'autor_nome', 
+            'campo', 'valor_antigo', 'valor_novo', 'created_at'
+        ]
+
+    def get_autor_nome(self, obj):
+        if obj.autor:
+            return obj.autor.get_full_name() or obj.autor.username
+        return "Sistema"
 
 class ServiceStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
