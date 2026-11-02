@@ -344,16 +344,51 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate(self, data):
+        import attrs
         # 1. Roda as validações base do ModelSerializer
         data = super().validate(data)
         
         # 2. Resgata valores do payload ou da instância atual (para PATCHs parciais)
-        tipo = data.get('tipo') or (self.instance.tipo if self.instance else None)
         tipo_pessoa = data.get('tipo_pessoa') or (self.instance.tipo_pessoa if self.instance else None)
         documento = data.get('documento') or (self.instance.documento if self.instance else None)
-        
+
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', None))
+        unidades_data = attrs.get('unidades')
+        unidades = unidades_data if unidades_data is not None else []
         tipo_codigo = tipo.codigo if tipo else None
-        erros = {}
+
+        # Validações exclusivas para Lista de Compensação (tipo 8)
+
+        if tipo and tipo.codigo == 'lista_compensacao':
+            erros = {}
+            
+            # 2. Agora isto vai correr mesmo que unidades_data seja None
+            if not self.instance and not unidades:
+                erros['unidades'] = "A lista de unidades é obrigatória para este tipo de serviço."
+
+            modalidade = attrs.get('modalidade_rateio', getattr(self.instance, 'modalidade_rateio', None))
+            
+            if modalidade == 'PORCENTAGEM':
+                # ... suas validações de soma de beneficiárias em 100% ...
+
+                # 3. Nova regra: A geradora deve ter 0% se houver beneficiárias, e 100% se não houver
+                geradoras = [u for u in unidades if u.get('papel') == 'GERADORA']
+                beneficiarias = [u for u in unidades if u.get('papel') == 'BENEFICIARIA']
+                
+                if len(geradoras) == 1:
+                    from decimal import Decimal
+                    esperado = Decimal('0') if beneficiarias else Decimal('100')
+                    
+                    # Usa 0 se a porcentagem vier nula/vazia
+                    perc_geradora = Decimal(str(geradoras[0].get('porcentagem') or '0'))
+                    
+                    if perc_geradora != esperado:
+                        erros['unidades'] = f"A geradora deve ter {esperado}% nesta configuração."
+
+            if erros:
+                raise serializers.ValidationError(erros)
+
+        return attrs
 
         # =====================================================================
         # REGRA A: VALIDAÇÕES RÍGIDAS DE IDENTIDADE E PESSOA (P1-11)
