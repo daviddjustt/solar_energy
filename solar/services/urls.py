@@ -15,7 +15,6 @@ router = DefaultRouter()
 router.register(r'services-view', ServiceRequestViewSet, basename='service-request')
 router.register(r'service-types', ServiceTypeViewSet, basename='service-types')
 router.register(r'external-users', ExternalUserViewSet, basename='external-users')
-router.register(r'change-logs', ServiceChangeLogViewSet, basename='service-changelogs')
 
 # Nested Routers para Anexos, Pendências, Observações e Histórico (R6)
 services_router = routers.NestedSimpleRouter(router, r'services-view', lookup='service')
@@ -34,4 +33,6 @@ urlpatterns = [
          ServiceAttachmentDownloadAllView.as_view(), name='service-attachment-download-all'),
     path('services-view/<int:parent_pk>/payment-document/<str:document_type>/', 
          ServicePaymentDocumentView.as_view(), name='service-payment-document'),
+    path('services-view/<int:parent_pk>/change-logs/', 
+         ServiceChangeLogViewSet.as_view({'get': 'list'}), name='service-change-logs'),
 ]
