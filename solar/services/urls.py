@@ -8,12 +8,14 @@ from solar.services.views import (
     ServicePaymentDocumentView, ServiceAttachmentDownloadView,
     ServiceAttachmentDownloadAllView, ServiceTypeViewSet,
     ServiceObservationViewSet, ServiceStatusHistoryViewSet, ExternalUserViewSet,
+    ServiceChangeLogViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'services-view', ServiceRequestViewSet, basename='service-request')
 router.register(r'service-types', ServiceTypeViewSet, basename='service-types')
 router.register(r'external-users', ExternalUserViewSet, basename='external-users')
+router.register(r'change-logs', ServiceChangeLogViewSet, basename='service-changelogs')
 
 # Nested Routers para Anexos, Pendências, Observações e Histórico (R6)
 services_router = routers.NestedSimpleRouter(router, r'services-view', lookup='service')
