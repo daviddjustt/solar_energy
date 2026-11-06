@@ -339,7 +339,7 @@ class ServiceRequestViewSet(ServiceAccessMixin, viewsets.ModelViewSet):
         user = self.request.user
         
         # Bloqueio corrigido incluindo o técnico (P1-6)
-        if getattr(user, 'is_externo', False) or getattr(user, 'is_admin', False) or getattr(user, 'is_tecnico', False) or user.is_superuser:
+        if getattr(user, 'is_externo', False) or getattr(user, 'is_tecnico', False):
             raise PermissionDenied("Apenas clientes podem criar solicitações de serviço.")
 
         service_type = serializer.validated_data.get('tipo')
