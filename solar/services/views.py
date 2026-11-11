@@ -585,12 +585,15 @@ class ServiceAttachmentViewSet(ServiceAccessMixin,AbstractDocumentListViewSet):
                 raise ValidationError({'related_payment_document': 'Este boleto já consta como pago e aprovado.'})
 
         # --- CORREÇÃO R4 e R3b: Detecção Forte de Cliente ---
-        # Garante que um externo/admin com is_cliente=True não sofra as travas do cliente
         is_cliente = getattr(user_request, 'is_cliente', False) and not (
             user_request.is_superuser or 
             getattr(user_request, 'is_admin', False) or 
             getattr(user_request, 'is_externo', False)
         )
+
+        # Se for estritamente cliente, barra anexos em serviços alheios
+        if is_cliente and service.solicitante != user_request:
+            raise PermissionDenied("Você não tem permissão para adicionar anexos ao serviço de outro cliente.")
 
         if is_cliente:
             # Trava o status inicial e limpa motivos antigos forçadamente
