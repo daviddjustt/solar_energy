@@ -109,6 +109,8 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
             user.is_superuser or getattr(user, 'is_admin', False) or getattr(user, 'is_externo', False)
         )
 
+        is_admin = user.is_superuser or getattr(user, 'is_admin', False)
+
         # --- R11: Restaurar regras de categoria por perfil ---
         categorias_cliente = [
             ServiceAttachment.CategoriaChoices.SOLICITACAO, 
@@ -125,8 +127,10 @@ class ServiceAttachmentSerializer(AbstractDocumentUploadSerializer):
         if is_cliente and categoria not in categorias_cliente:
             raise serializers.ValidationError({'categoria': f"Clientes não podem enviar arquivos da categoria '{categoria}'."})
 
-        if not is_cliente and not self.instance and categoria not in categorias_equipe:
-            raise serializers.ValidationError({'categoria': f"A equipa não pode enviar arquivos da categoria '{categoria}'."})
+        if not is_cliente and not is_admin and not self.instance and categoria not in categorias_equipe:
+            raise serializers.ValidationError({
+                'categoria': f"O seu perfil não tem permissão para enviar arquivos da categoria '{categoria}'."
+            })
 
         # --- R11 e R4: Restaurar regra de reenvio do cliente ---
         if self.instance and is_cliente:
